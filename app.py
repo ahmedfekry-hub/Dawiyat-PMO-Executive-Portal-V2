@@ -28,6 +28,7 @@ BACKUP_DIR.mkdir(exist_ok=True)
 
 WO_PATH = DATA_DIR / "u_osp_work_order.csv"
 PENALTIES_PATH = DATA_DIR / "Penalties.csv"
+DOC_STATUS_CACHE_PATH = DATA_DIR / "Dawiyat_Document_Status.csv"
 DISTRICT_PATH = DATA_DIR / "District.csv"
 
 DATA_FILES = {
@@ -398,11 +399,35 @@ def df_to_records(df: pd.DataFrame) -> List[dict]:
     return df.fillna("").astype(str).to_dict(orient="records")
 
 
+
+def read_cached_document_status_records() -> List[dict]:
+    """Read last Google Drive document scan status for dashboard preview.
+
+    The HTML dashboard cannot call Google Drive API directly. The Streamlit
+    Document Upload Center scans Google Drive and writes this cache so the
+    dashboard preview reflects real files inside each Link Code subfolder.
+    """
+    try:
+        if "document_status_df" in st.session_state and isinstance(st.session_state["document_status_df"], pd.DataFrame):
+            df = st.session_state["document_status_df"].copy()
+            if not df.empty:
+                return df_to_records(df)
+    except Exception:
+        pass
+    try:
+        if DOC_STATUS_CACHE_PATH.exists():
+            df = pd.read_csv(DOC_STATUS_CACHE_PATH, dtype=str).fillna("")
+            return df_to_records(df)
+    except Exception:
+        return []
+    return []
+
 def build_initial_raw() -> Dict[str, List[dict]]:
     return {
         "workorders": df_to_records(safe_read_csv(WO_PATH)),
         "penalties": df_to_records(safe_read_csv(PENALTIES_PATH)),
         "districts": df_to_records(safe_read_csv(DISTRICT_PATH)),
+        "document_status": read_cached_document_status_records(),
     }
 
 
@@ -993,8 +1018,10 @@ def document_status_for_link(service, link_folder_id: str) -> Dict[str, Dict[str
 
 def status_badge_text(state: str, count: int = 0) -> str:
     if state == "Uploaded":
-        return f"✅ Uploaded ({count})"
-    return "❌ Missing"
+        return "🟢 Uploaded"
+    if state == "Partial":
+        return "🟡 Partial"
+    return "🔴 Missing"
 
 
 def get_document_link_for_link(wo: pd.DataFrame, link_code: str) -> str:
@@ -1181,6 +1208,11 @@ def document_upload_page() -> None:
                 status_df, folder_urls = build_document_status_rows(service, wo, scan_scope or links, int(max_scan))
                 st.session_state["document_status_df"] = status_df
                 st.session_state["document_folder_urls"] = folder_urls
+                try:
+                    status_df.to_csv(DOC_STATUS_CACHE_PATH, index=False, encoding="utf-8-sig")
+                    st.cache_data.clear()
+                except Exception:
+                    pass
 
         status_df = st.session_state.get("document_status_df", pd.DataFrame())
         document_kpi_cards(status_df)
