@@ -772,16 +772,29 @@ def ai_assistant_page() -> None:
 
 
 def get_drive_service():
-    """Create a Google Drive API service using Streamlit Secrets."""
+    """Create a Google Drive API service using Streamlit Secrets.
+
+    Supports either [google_service_account] or [gcp_service_account]
+    because Streamlit examples often use the second name.
+    """
     try:
         from google.oauth2 import service_account
         from googleapiclient.discovery import build
     except Exception as exc:
         raise RuntimeError("Google Drive libraries are not installed. Install requirements.txt first.") from exc
-    try:
-        info = dict(st.secrets["google_service_account"])
-    except Exception as exc:
-        raise RuntimeError("Google service account secrets are not configured.") from exc
+
+    info = None
+    for secret_key in ["google_service_account", "gcp_service_account"]:
+        try:
+            candidate = st.secrets.get(secret_key, None)
+            if candidate:
+                info = dict(candidate)
+                break
+        except Exception:
+            pass
+    if not info:
+        raise RuntimeError("Google service account secrets are not configured. Add [google_service_account] or [gcp_service_account] in Streamlit Secrets.")
+
     if "private_key" in info:
         info["private_key"] = str(info["private_key"]).replace("\\n", "\n")
     scopes = ["https://www.googleapis.com/auth/drive"]
@@ -957,12 +970,141 @@ def update_document_link_in_csv(link_code: str, folder_url: str) -> None:
 
 
 
+
+def get_all_link_codes(wo: pd.DataFrame) -> List[str]:
+    if wo.empty or "Link Code" not in wo.columns:
+        return []
+    return sorted([x for x in wo["Link Code"].astype(str).str.strip().unique() if x and x.lower() != "nan"])
+
+
+def build_document_status_rows(service, wo: pd.DataFrame, link_codes: List[str], max_links: int = 50) -> Tuple[pd.DataFrame, Dict[str, str]]:
+    """Scan Google Drive document folders and return one status row per Link Code.
+    The scan is intentionally limited by max_links to avoid slow Google API calls.
+    """
+    rows = []
+    folder_urls = {}
+    for link_code in link_codes[:max_links]:
+        current_folder_url = get_document_link_for_link(wo, link_code)
+        try:
+            link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
+            if not current_folder_url:
+                update_document_link_in_csv(link_code, link_folder_url)
+            ensure_document_subfolders(service, link_folder_id)
+            status = document_status_for_link(service, link_folder_id)
+            folder_urls[link_code] = link_folder_url
+            uploaded_count = sum(1 for d in DOCUMENT_TYPES if status.get(d, {}).get("state") == "Uploaded")
+            row = {
+                "Link Code": link_code,
+                "Folder Link": link_folder_url,
+                "Uploaded Types": uploaded_count,
+                "Missing Types": len(DOCUMENT_TYPES) - uploaded_count,
+                "Overall Status": "Uploaded" if uploaded_count == len(DOCUMENT_TYPES) else ("Partial" if uploaded_count > 0 else "Missing"),
+                "Latest File": "",
+                "Latest Modified": "",
+            }
+            latest_candidates = []
+            for doc_type in DOCUMENT_TYPES:
+                info = status.get(doc_type, {})
+                row[doc_type] = status_badge_text(str(info.get("state", "Missing")), int(info.get("count", 0) or 0))
+                if info.get("latest_modified"):
+                    latest_candidates.append((str(info.get("latest_modified", "")), str(info.get("latest_file", ""))))
+            if latest_candidates:
+                latest_candidates.sort(reverse=True)
+                row["Latest Modified"], row["Latest File"] = latest_candidates[0]
+            rows.append(row)
+        except Exception as exc:
+            row = {
+                "Link Code": link_code,
+                "Folder Link": current_folder_url,
+                "Uploaded Types": 0,
+                "Missing Types": len(DOCUMENT_TYPES),
+                "Overall Status": "Error",
+                "Latest File": "",
+                "Latest Modified": "",
+                "Error": str(exc),
+            }
+            for doc_type in DOCUMENT_TYPES:
+                row[doc_type] = "❌ Missing"
+            rows.append(row)
+    return pd.DataFrame(rows), folder_urls
+
+
+def document_kpi_cards(status_df: pd.DataFrame) -> None:
+    if status_df.empty:
+        st.info("No document status rows scanned yet.")
+        return
+    total_links = len(status_df)
+    complete_links = int((status_df["Overall Status"] == "Uploaded").sum()) if "Overall Status" in status_df.columns else 0
+    partial_links = int((status_df["Overall Status"] == "Partial").sum()) if "Overall Status" in status_df.columns else 0
+    missing_links = int((status_df["Overall Status"] == "Missing").sum()) if "Overall Status" in status_df.columns else 0
+    total_uploaded_types = int(status_df.get("Uploaded Types", pd.Series(dtype=int)).sum())
+    total_missing_types = int(status_df.get("Missing Types", pd.Series(dtype=int)).sum())
+
+    c1, c2, c3, c4, c5 = st.columns(5)
+    c1.metric("Scanned Link Codes", f"{total_links:,}")
+    c2.metric("Fully Uploaded", f"{complete_links:,}")
+    c3.metric("Partial", f"{partial_links:,}")
+    c4.metric("Missing", f"{missing_links:,}")
+    c5.metric("Missing Doc Types", f"{total_missing_types:,}", help=f"Uploaded doc types: {total_uploaded_types:,}")
+
+
+def upload_widget_for_document_type(service, link_code: str, link_folder_id: str, doc_type: str, doc_status: Dict[str, Dict[str, object]]) -> None:
+    folder_label = document_folder_name(doc_type)
+    info = doc_status.get(doc_type, {})
+    with st.container(border=True):
+        left, right = st.columns([1, .55])
+        with left:
+            st.markdown(f"### {folder_label}")
+            st.caption(status_badge_text(str(info.get("state", "Missing")), int(info.get("count", 0) or 0)))
+            if info.get("latest_file"):
+                st.caption(f"Latest: {info.get('latest_file')}")
+                st.caption(f"Modified: {info.get('latest_modified', '')}")
+        with right:
+            if info.get("folder_url"):
+                st.link_button("Open Folder", str(info.get("folder_url")), use_container_width=True)
+            if info.get("latest_url"):
+                st.link_button("Open Latest", str(info.get("latest_url")), use_container_width=True)
+
+        uploaded_files = st.file_uploader(
+            f"Upload {doc_type}",
+            type=DOCUMENT_EXTENSIONS.get(doc_type),
+            accept_multiple_files=True,
+            key=f"uploader_{link_code}_{doc_type}",
+        )
+        if st.button(f"Upload {doc_type} to Google Drive", key=f"upload_btn_{link_code}_{doc_type}", use_container_width=True, type="primary"):
+            if not uploaded_files:
+                st.warning(f"Please select at least one {doc_type} file.")
+                return
+            if service is None or not link_folder_id:
+                st.error("Google Drive is not connected. Check Secrets and Drive folder sharing.")
+                return
+            try:
+                target_folder_id = get_or_create_drive_folder(service, link_folder_id, folder_label)
+                upload_results = []
+                for f in uploaded_files:
+                    original_name = safe_drive_filename(f.name)
+                    safe_name = f"{link_code}_{doc_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{original_name}"
+                    file_url = upload_file_to_drive(service, target_folder_id, f, safe_name, f.type or "application/octet-stream")
+                    upload_results.append({
+                        "Link Code": link_code,
+                        "Document Type": doc_type,
+                        "Folder": folder_label,
+                        "File": f.name,
+                        "Drive Link": file_url,
+                    })
+                st.success(f"Uploaded {len(upload_results)} {doc_type} file(s).")
+                st.dataframe(pd.DataFrame(upload_results), use_container_width=True, hide_index=True)
+                st.rerun()
+            except Exception as exc:
+                st.error(str(exc))
+
+
 def document_upload_page() -> None:
     st.title("📤 Document Upload Center")
-    st.caption("Upload files directly to the correct Google Drive subfolder for each Link Code: 01 Design, 02 Permit, 03 Photos, 04 PAT, 05 AsBuilt, 06 Handover, and 07 Commercial.")
+    st.caption("Professional Google Drive upload center for every Link Code. Files are saved into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial.")
 
     if not can("documents"):
-        st.error("You do not have permission to upload documents.")
+        st.error("You do not have permission to access documents.")
         return
 
     wo = safe_read_csv(WO_PATH)
@@ -973,12 +1115,52 @@ def document_upload_page() -> None:
         st.error("Link Code column is missing from u_osp_work_order.csv.")
         return
 
-    links = sorted([x for x in wo["Link Code"].astype(str).str.strip().unique() if x and x.lower() != "nan"])
+    links = get_all_link_codes(wo)
     if not links:
         st.warning("No Link Codes found.")
         return
 
-    st.info("Select a Link Code, then upload each document type. The app will create the Link Code folder and standard subfolders automatically when needed.")
+    try:
+        service = get_drive_service()
+        drive_connected = True
+    except Exception as exc:
+        service = None
+        drive_connected = False
+        st.error(str(exc))
+        st.info("Check Streamlit Secrets, enable Google Drive API, and share the root Google Drive folder with the service account email as Editor.")
+
+    st.markdown("### Executive Documents Dashboard")
+    with st.container(border=True):
+        scan_col1, scan_col2, scan_col3 = st.columns([1.2, .6, .6])
+        with scan_col1:
+            scan_scope = st.multiselect("Scan Link Codes", links, default=links[:min(10, len(links))], help="Scanning all Link Codes may take time because each scan checks Google Drive folders.")
+        with scan_col2:
+            max_scan = st.number_input("Max Scan", min_value=1, max_value=500, value=min(50, len(links)), step=10)
+        with scan_col3:
+            st.metric("Drive", "Connected" if drive_connected else "Not Connected")
+        if drive_connected and st.button("Refresh Document Status", use_container_width=True, type="secondary"):
+            with st.spinner("Scanning Google Drive folders..."):
+                status_df, folder_urls = build_document_status_rows(service, wo, scan_scope or links, int(max_scan))
+                st.session_state["document_status_df"] = status_df
+                st.session_state["document_folder_urls"] = folder_urls
+
+        status_df = st.session_state.get("document_status_df", pd.DataFrame())
+        document_kpi_cards(status_df)
+        if not status_df.empty:
+            show_cols = ["Link Code", "Overall Status", "Uploaded Types", "Missing Types"] + DOCUMENT_TYPES + ["Latest File", "Latest Modified", "Folder Link"]
+            available_cols = [c for c in show_cols if c in status_df.columns]
+            st.dataframe(status_df[available_cols], use_container_width=True, hide_index=True)
+            st.download_button(
+                "Export Document Status Excel/CSV",
+                status_df.to_csv(index=False).encode("utf-8-sig"),
+                "Dawiyat_Document_Status.csv",
+                "text/csv",
+                use_container_width=True,
+            )
+
+    st.divider()
+    st.markdown("### Upload Files to Google Drive")
+    st.caption("Select one Link Code, then upload files to the correct subfolder. Admin/PMO can upload; Viewer can only view status.")
 
     c1, c2, c3 = st.columns([1.35, .75, .75])
     with c1:
@@ -989,29 +1171,26 @@ def document_upload_page() -> None:
         st.metric("Access", "Upload" if can("upload") else "View Only")
 
     current_folder_url = get_document_link_for_link(wo, link_code)
-    service = None
     link_folder_id = ""
     link_folder_url = current_folder_url
-    doc_status = {}
+    doc_status = {d: {"state": "Missing", "count": 0, "latest_file": "", "latest_url": "", "folder_url": ""} for d in DOCUMENT_TYPES}
 
-    try:
-        service = get_drive_service()
-        link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
-        ensure_document_subfolders(service, link_folder_id)
-        if not current_folder_url:
-            update_document_link_in_csv(link_code, link_folder_url)
-            current_folder_url = link_folder_url
-        doc_status = document_status_for_link(service, link_folder_id)
-    except Exception as exc:
-        st.error(str(exc))
-        st.info("Check Streamlit Secrets, Google Drive API, and ensure the Google Drive root folder is shared with the service account email as Editor.")
-        doc_status = {d: {"state": "Missing", "count": 0, "latest_file": "", "latest_url": "", "folder_url": ""} for d in DOCUMENT_TYPES}
+    if drive_connected:
+        try:
+            link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
+            ensure_document_subfolders(service, link_folder_id)
+            if not current_folder_url:
+                update_document_link_in_csv(link_code, link_folder_url)
+                current_folder_url = link_folder_url
+            doc_status = document_status_for_link(service, link_folder_id)
+        except Exception as exc:
+            st.error(str(exc))
 
     with st.container(border=True):
         h1, h2 = st.columns([1, .35])
         with h1:
             st.subheader(f"📁 {link_code}")
-            st.caption("Standard folder structure: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial")
+            st.caption("Standard Option A folder structure is created automatically under the Link Code folder.")
         with h2:
             if link_folder_url:
                 st.link_button("Open Link Code Folder", link_folder_url, use_container_width=True)
@@ -1021,64 +1200,17 @@ def document_upload_page() -> None:
         metrics = st.columns(len(DOCUMENT_TYPES))
         for i, doc_type in enumerate(DOCUMENT_TYPES):
             info = doc_status.get(doc_type, {})
-            metrics[i].metric(doc_type, status_badge_text(info.get("state", "Missing"), int(info.get("count", 0))))
+            metrics[i].metric(doc_type, status_badge_text(str(info.get("state", "Missing")), int(info.get("count", 0) or 0)))
 
     if not can("upload"):
         st.warning("Your role is Viewer. You can view folder/document status but cannot upload files.")
         return
 
-    st.subheader("Upload Files")
-    st.caption("Each uploaded file will be renamed with Link Code + Document Type + timestamp and saved inside the matching subfolder.")
-
-    upload_results = []
     for row_start in range(0, len(DOCUMENT_TYPES), 2):
         cols = st.columns(2)
         for idx, doc_type in enumerate(DOCUMENT_TYPES[row_start:row_start + 2]):
             with cols[idx]:
-                folder_label = document_folder_name(doc_type)
-                with st.container(border=True):
-                    st.markdown(f"### {folder_label}")
-                    info = doc_status.get(doc_type, {})
-                    if info.get("latest_file"):
-                        st.caption(f"Latest: {info.get('latest_file')}")
-                        if info.get("latest_url"):
-                            st.link_button("Open Latest File", info.get("latest_url"), use_container_width=True)
-                    else:
-                        st.caption("No files uploaded yet.")
-                    uploaded_files = st.file_uploader(
-                        f"Upload {doc_type}",
-                        type=DOCUMENT_EXTENSIONS.get(doc_type),
-                        accept_multiple_files=True,
-                        key=f"uploader_{link_code}_{doc_type}",
-                    )
-                    if st.button(f"Upload {doc_type}", key=f"upload_btn_{link_code}_{doc_type}", use_container_width=True, type="primary"):
-                        if not uploaded_files:
-                            st.warning(f"Please select at least one {doc_type} file.")
-                            continue
-                        if service is None or not link_folder_id:
-                            st.error("Google Drive is not connected. Check Secrets and Drive folder sharing.")
-                            continue
-                        try:
-                            target_folder_id = get_or_create_drive_folder(service, link_folder_id, folder_label)
-                            for f in uploaded_files:
-                                original_name = safe_drive_filename(f.name)
-                                safe_name = f"{link_code}_{doc_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{original_name}"
-                                file_url = upload_file_to_drive(service, target_folder_id, f, safe_name, f.type or "application/octet-stream")
-                                upload_results.append({
-                                    "Link Code": link_code,
-                                    "Document Type": doc_type,
-                                    "Folder": folder_label,
-                                    "File": f.name,
-                                    "Drive Link": file_url,
-                                })
-                            st.success(f"Uploaded {len(uploaded_files)} {doc_type} file(s).")
-                            st.rerun()
-                        except Exception as exc:
-                            st.error(str(exc))
-
-    if upload_results:
-        st.success(f"Uploaded {len(upload_results)} file(s) successfully.")
-        st.dataframe(pd.DataFrame(upload_results), use_container_width=True, hide_index=True)
+                upload_widget_for_document_type(service, link_code, link_folder_id, doc_type, doc_status)
 
     with st.expander("Required Streamlit Secrets", expanded=False):
         st.code('''
@@ -1101,7 +1233,7 @@ auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
 client_x509_cert_url = "..."
 universe_domain = "googleapis.com"
         '''.strip())
-        st.markdown("Share the Google Drive root folder with the service account email as **Editor**.")
+        st.markdown("Share the Google Drive root folder with the service account email as **Editor**. Do not upload JSON keys to GitHub.")
 
 
 def build_pdf_report() -> bytes:
@@ -1260,7 +1392,7 @@ def main() -> None:
         if can("upload"):
             pages.append("Upload CSV")
         if can("documents"):
-            pages.append("Document Upload")
+            pages.append("Document Upload Center")
         if can("admin"):
             pages.append("Admin Board")
 
@@ -1280,7 +1412,7 @@ def main() -> None:
         reports_page()
     elif page == "Upload CSV":
         upload_data_page()
-    elif page == "Document Upload":
+    elif page == "Document Upload Center":
         document_upload_page()
     elif page == "Admin Board":
         admin_page()

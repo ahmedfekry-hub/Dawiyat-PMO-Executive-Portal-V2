@@ -1,26 +1,37 @@
-# Dawiyat PMO Executive Portal - Drive Upload Ready
+# Dawiyat PMO Executive Portal V2.5 - Google Drive Upload Center
+
+This version includes a professional Streamlit Document Upload Center integrated with Google Drive.
 
 ## What is included
-- Streamlit executive portal.
-- Embedded HTML dashboard.
-- Google Drive folder opening from Link Code Summary Table.
-- Direct upload from Streamlit to Google Drive using Service Account.
-- Option A folder structure per Link Code:
-  - 01 Design
-  - 02 Permit
-  - 03 Photos
-  - 04 PAT
-  - 05 AsBuilt
-  - 06 Handover
-  - 07 Commercial
 
-## Important security note
-Never upload or commit the real Google Service Account JSON key to GitHub.
-Place the values only in Streamlit Cloud > App settings > Secrets.
-If the key was uploaded to GitHub or shared publicly, delete that key from Google Cloud and create a new one.
+- Role-based login: admin / pmo / viewer
+- Executive HTML dashboard
+- CSV upload with backup
+- Smart Alerts
+- Arabic AI Executive Assistant
+- PDF Executive Report
+- Google Drive Document Upload Center
 
-## Streamlit Secrets format
-Use TOML format, not JSON:
+## Document Upload Center
+
+The sidebar page **Document Upload Center** allows Admin and PMO users to upload documents directly to Google Drive for each Link Code.
+
+Standard folder structure per Link Code:
+
+```text
+JED-HRR2-RIYA-60
+├── 01 Design
+├── 02 Permit
+├── 03 Photos
+├── 04 PAT
+├── 05 AsBuilt
+├── 06 Handover
+└── 07 Commercial
+```
+
+## Streamlit Secrets
+
+Do not upload Google JSON keys to GitHub. Put credentials only in Streamlit Cloud > App settings > Secrets.
 
 ```toml
 [google_drive]
@@ -43,12 +54,22 @@ client_x509_cert_url = "..."
 universe_domain = "googleapis.com"
 ```
 
-## Google Drive setup
+The app also supports `[gcp_service_account]` if you already used that name.
+
+## Required Google Drive setup
+
 1. Enable Google Drive API in Google Cloud.
 2. Create a Service Account.
-3. Create a JSON key.
-4. Share the root Drive folder `Dawiyat PMO Repository` with the Service Account client email as Editor.
-5. Copy the root folder ID into `google_drive.root_folder_id`.
+3. Create a JSON key, but do not upload it to GitHub.
+4. Copy its values into Streamlit Secrets as TOML.
+5. Share the root Google Drive folder with the service account email as **Editor**.
 
-## How upload works
-Open the Streamlit page `Document Upload`, choose a Link Code, then upload to Design / Permit / Photos / PAT / AsBuilt / Handover / Commercial. The app creates missing Link Code folders and subfolders automatically.
+## Security
+
+`.gitignore` blocks:
+
+- `*.json`
+- `.streamlit/secrets.toml`
+- `__pycache__/`
+- `*.pyc`
+
