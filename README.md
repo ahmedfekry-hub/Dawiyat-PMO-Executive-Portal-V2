@@ -165,3 +165,18 @@ Update users from Streamlit Secrets only. Do not edit `app.py` for every user ch
 password = "Finance12345"
 role = "finance"
 ```
+
+
+## V2.19 Session / Logout / Refresh Update
+- Added visible Logout button in the sidebar.
+- Added Refresh button that clears cached data and refreshes the current page without logging the user out.
+- Removed Role display from the sidebar; only username is shown.
+- Added signed browser-refresh session persistence so pressing the browser refresh button does not force a new login.
+- Logout clears the persisted session parameters and returns to the login page.
+
+Optional Streamlit Secrets:
+```toml
+[session]
+secret = "PUT_A_LONG_RANDOM_SECRET_HERE"
+```
+If omitted, the app uses a deterministic fallback. For production, add a long random session secret.

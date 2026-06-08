@@ -1,6 +1,8 @@
 
 import base64
 import hashlib
+import hmac
+import time
 import io
 import json
 import re
@@ -359,6 +361,108 @@ def _secret_get(data: Any, key: str, default: str = "") -> str:
         return str(default)
 
 
+
+def _session_secret() -> str:
+    """Return a stable secret used only for browser-refresh login persistence.
+
+    Optional Streamlit Secrets:
+    [session]
+    secret = "PUT_RANDOM_LONG_TEXT_HERE"
+
+    If not configured, the app uses a deterministic fallback from the project name.
+    For production, adding [session].secret is recommended but not mandatory.
+    """
+    try:
+        raw = st.secrets.get("session", {})
+        secret = _secret_get(raw, "secret", "").strip()
+        if secret:
+            return secret
+    except Exception:
+        pass
+    try:
+        email = _secret_get(st.secrets.get("gcp_service_account", {}), "client_email", "")
+        if email:
+            return f"dawiyat-pmo-session::{email}"
+    except Exception:
+        pass
+    return "dawiyat-pmo-portal-local-session-secret"
+
+
+def _make_session_signature(username: str, role: str, password: str, issued_at: str) -> str:
+    payload = f"{username}|{role}|{password}|{issued_at}".encode("utf-8")
+    return hmac.new(_session_secret().encode("utf-8"), payload, hashlib.sha256).hexdigest()
+
+
+def _clear_login_query_params() -> None:
+    """Remove persisted login parameters from the URL without touching other app state."""
+    try:
+        for k in ["auth_user", "auth_role", "auth_iat", "auth_sig"]:
+            if k in st.query_params:
+                del st.query_params[k]
+    except Exception:
+        pass
+
+
+def _persist_login(username: str, role: str, password: str) -> None:
+    """Persist authenticated login across browser refreshes.
+
+    This prevents pressing the browser Refresh button from sending the user back
+    to the login screen. Logout explicitly removes these parameters.
+    """
+    issued_at = str(int(time.time()))
+    signature = _make_session_signature(username, role, password, issued_at)
+    try:
+        st.query_params["auth_user"] = username
+        st.query_params["auth_role"] = role
+        st.query_params["auth_iat"] = issued_at
+        st.query_params["auth_sig"] = signature
+    except Exception:
+        pass
+
+
+def _restore_login_from_query_params() -> bool:
+    """Restore login state after a browser refresh, if the signed URL session is valid."""
+    if st.session_state.get("authenticated"):
+        return True
+    try:
+        username = str(st.query_params.get("auth_user", "")).strip()
+        role = str(st.query_params.get("auth_role", "viewer")).strip().lower()
+        issued_at = str(st.query_params.get("auth_iat", "")).strip()
+        signature = str(st.query_params.get("auth_sig", "")).strip()
+    except Exception:
+        return False
+
+    if not username or not issued_at or not signature:
+        return False
+
+    # Optional safety window: keep browser-refresh sessions valid for 12 hours.
+    try:
+        if int(time.time()) - int(issued_at) > 12 * 60 * 60:
+            _clear_login_query_params()
+            return False
+    except Exception:
+        _clear_login_query_params()
+        return False
+
+    users = get_users()
+    if username not in users:
+        _clear_login_query_params()
+        return False
+
+    expected_role = str(users[username].get("role", role)).lower()
+    password = str(users[username].get("password", ""))
+    expected = _make_session_signature(username, expected_role, password, issued_at)
+
+    if hmac.compare_digest(signature, expected):
+        st.session_state["authenticated"] = True
+        st.session_state["username"] = username
+        st.session_state["role"] = expected_role if expected_role in ROLE_PERMISSIONS else "viewer"
+        return True
+
+    _clear_login_query_params()
+    return False
+
+
 def get_users() -> Dict[str, Dict[str, str]]:
     """
     Stable role-based user loader.
@@ -438,7 +542,7 @@ def allowed_dashboard_tabs(role: str | None = None) -> List[str]:
 
 
 def login_page() -> bool:
-    if st.session_state.get("authenticated"):
+    if st.session_state.get("authenticated") or _restore_login_from_query_params():
         return True
 
     dawiyat_logo = image_to_base64(DAWIYAT_LOGO_PATH)
@@ -489,6 +593,7 @@ def login_page() -> bool:
                 st.session_state["authenticated"] = True
                 st.session_state["username"] = username
                 st.session_state["role"] = role
+                _persist_login(username, role, users[username]["password"])
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
@@ -1684,7 +1789,17 @@ def main() -> None:
     with st.sidebar:
         st.markdown("### Dawiyat PMO Portal V2")
         st.caption(f"User: {st.session_state.get('username','')}")
-        st.caption(f"Role: {role.upper()}")
+
+        col_refresh, col_logout = st.columns(2)
+        with col_refresh:
+            if st.button("🔄 Refresh", use_container_width=True):
+                st.cache_data.clear()
+                st.rerun()
+        with col_logout:
+            if st.button("🚪 Logout", use_container_width=True):
+                _clear_login_query_params()
+                st.session_state.clear()
+                st.rerun()
 
         pages = []
         if can("dashboard"):
@@ -1724,10 +1839,6 @@ def main() -> None:
             key="main_nav",
             label_visibility="collapsed",
         )
-
-        if st.button("Logout", use_container_width=True):
-            st.session_state.clear()
-            st.rerun()
 
     if page == "Dashboard":
         render_dashboard()
