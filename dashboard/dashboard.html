@@ -3567,33 +3567,32 @@ function renderDocumentRepositoryDashboard(rows) {
   const table = document.getElementById('document-repository-table');
   if (!table) return;
   const repo = buildDocumentRepositoryRows(rows);
-  table.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>Design</th><th>Permit</th><th>Photos</th><th>PAT</th><th>AsBuilt</th><th>Handover</th></tr></thead><tbody>${repo.map(r => `
+  table.innerHTML = `<thead><tr><th>Link Code</th><th>Design</th><th>Permit</th><th>Photos</th><th>PAT</th><th>AsBuilt</th><th>Handover</th></tr></thead><tbody>${repo.map(r => `
     <tr>
       <td><b>${escapeHtml(r.linkCode)}</b></td>
-      <td>${documentOpenCell(r.linkCode, rows)}</td>
       <td>${docFlag(r.design)}</td>
       <td>${docFlag(r.permit)}</td>
       <td>${docFlag(r.photos)}</td>
       <td>${docFlag(r.pat)}</td>
       <td>${docFlag(r.asBuilt)}</td>
       <td>${docFlag(r.handover)}</td>
-    </tr>`).join('') || '<tr><td colspan="8">No records in current scope.</td></tr>'}</tbody>`;
+    </tr>`).join('') || '<tr><td colspan="7">No records in current scope.</td></tr>'}</tbody>`;
 }
 
 function renderExtraTables(rows, penalties) {
   const summaryRows = buildLinkCodeSummary(rows);
   const linkSummaryExportTable = document.getElementById('linkcode-summary-table');
   linkSummaryExportTable.style.display = 'none';
-  linkSummaryExportTable.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th><th>Status Explanation</th></tr></thead><tbody>${summaryRows.map(r=>`
-    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${documentOpenCell(r.linkCode, rows)}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td><td>${escapeHtml(r.statusExplanation || '')}</td></tr>`).join('')}</tbody>`;
+  linkSummaryExportTable.innerHTML = `<thead><tr><th>Link Code</th><th>Region</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th><th>Status Explanation</th></tr></thead><tbody>${summaryRows.map(r=>`
+    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${escapeHtml(r.region || '')}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td><td>${escapeHtml(r.statusExplanation || '')}</td></tr>`).join('')}</tbody>`;
   let linkSummaryDisplayTable = document.getElementById('linkcode-summary-table-display');
   if (!linkSummaryDisplayTable) {
     linkSummaryDisplayTable = document.createElement('table');
     linkSummaryDisplayTable.id = 'linkcode-summary-table-display';
     linkSummaryExportTable.parentNode.appendChild(linkSummaryDisplayTable);
   }
-  linkSummaryDisplayTable.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th></tr></thead><tbody>${summaryRows.map(r=>`
-    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${documentOpenCell(r.linkCode, rows)}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td></tr>`).join('')}</tbody>`;
+  linkSummaryDisplayTable.innerHTML = `<thead><tr><th>Link Code</th><th>Region</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th></tr></thead><tbody>${summaryRows.map(r=>`
+    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${escapeHtml(r.region || '')}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td></tr>`).join('')}</tbody>`;
 
   renderDocumentRepositoryDashboard(rows);
 
