@@ -71,36 +71,49 @@ def image_to_base64(path: Path) -> str:
 
 
 ROLE_PERMISSIONS = {
+    # Full system owner.
     "admin": {
-        "dashboard": True,
-        "assistant": True,
-        "alerts": True,
-        "reports": True,
-        "admin": True,
-        "upload": True,
-        "email": True,
-        "documents": True,
+        "dashboard": True, "assistant": True, "alerts": True, "reports": True,
+        "admin": True, "upload": True, "email": True, "documents": True,
+        "export": True, "export_excel": True, "export_pdf": True,
+        "dashboard_tabs": ["overview", "performance", "tables", "decision", "pmo", "perf-explanation"],
     },
+    # PMO can manage operational pages and upload CSV/documents, but cannot access Admin Board.
     "pmo": {
-        "dashboard": True,
-        "assistant": True,
-        "alerts": True,
-        "reports": True,
-        "admin": False,
-        "upload": True,
-        "email": False,
-        "documents": True,
+        "dashboard": True, "assistant": True, "alerts": True, "reports": True,
+        "admin": False, "upload": True, "email": False, "documents": True,
+        "export": True, "export_excel": True, "export_pdf": True,
+        "dashboard_tabs": ["overview", "performance", "tables", "decision", "pmo", "perf-explanation"],
     },
+    # Board sees executive-level content only and PDF export.
+    "board": {
+        "dashboard": True, "assistant": False, "alerts": False, "reports": True,
+        "admin": False, "upload": False, "email": False, "documents": False,
+        "export": True, "export_excel": False, "export_pdf": True,
+        "dashboard_tabs": ["overview", "decision"],
+    },
+    # Finance sees SOR/Billing/reporting areas and export, but no upload/admin/audit pages.
+    "finance": {
+        "dashboard": True, "assistant": False, "alerts": True, "reports": True,
+        "admin": False, "upload": False, "email": False, "documents": False,
+        "export": True, "export_excel": True, "export_pdf": True,
+        "dashboard_tabs": ["tables", "decision"],
+    },
+    # Viewer is read-only and sees Executive Overview only.
     "viewer": {
-        "dashboard": True,
-        "assistant": True,
-        "alerts": True,
-        "reports": True,
-        "admin": False,
-        "upload": False,
-        "email": False,
-        "documents": False,
+        "dashboard": True, "assistant": False, "alerts": False, "reports": False,
+        "admin": False, "upload": False, "email": False, "documents": False,
+        "export": False, "export_excel": False, "export_pdf": False,
+        "dashboard_tabs": ["overview"],
     },
+}
+
+ROLE_DISPLAY_NAMES = {
+    "admin": "Admin",
+    "pmo": "PMO",
+    "board": "Board",
+    "finance": "Finance",
+    "viewer": "Viewer",
 }
 
 
@@ -279,6 +292,14 @@ def get_users() -> Dict[str, Dict[str, str]]:
     password = "PMOStrongPassword"
     role = "pmo"
 
+    [users.board]
+    password = "BoardStrongPassword"
+    role = "board"
+
+    [users.finance]
+    password = "FinanceStrongPassword"
+    role = "finance"
+
     [users.viewer]
     password = "ViewerStrongPassword"
     role = "viewer"
@@ -302,13 +323,29 @@ def get_users() -> Dict[str, Dict[str, str]]:
     return {
         "ahmedfekry": {"password": "20020099", "role": "admin"},
         "pmo_team": {"password": "PMO12345", "role": "pmo"},
-        "board": {"password": "Met_12345", "role": "viewer"},
+        "board": {"password": "Met_12345", "role": "board"},
+        "finance": {"password": "Finance12345", "role": "finance"},
+        "viewer": {"password": "Viewer12345", "role": "viewer"},
     }
 
 
+def current_role() -> str:
+    role = str(st.session_state.get("role", "viewer")).lower()
+    return role if role in ROLE_PERMISSIONS else "viewer"
+
+
+def role_policy(role: str | None = None) -> Dict:
+    role = (role or current_role()).lower()
+    return ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["viewer"])
+
+
 def can(permission: str) -> bool:
-    role = st.session_state.get("role", "viewer")
-    return ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["viewer"]).get(permission, False)
+    return bool(role_policy().get(permission, False))
+
+
+def allowed_dashboard_tabs(role: str | None = None) -> List[str]:
+    tabs = role_policy(role).get("dashboard_tabs", ["overview"])
+    return [str(t) for t in tabs]
 
 
 def login_page() -> bool:
@@ -461,18 +498,91 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
         st.error("CSV injection failed: INITIAL_RAW block was not found inside dashboard.html.")
         return html
 
-    portal_patch = """
+    role = current_role()
+    policy = role_policy(role)
+    allowed_tabs = json.dumps(allowed_dashboard_tabs(role))
+    hide_excel = "true" if not policy.get("export_excel", False) else "false"
+    hide_pdf = "true" if not policy.get("export_pdf", False) else "false"
+    hide_all_exports = "true" if not policy.get("export", False) else "false"
+    role_label = ROLE_DISPLAY_NAMES.get(role, role.title())
+
+    portal_patch = f"""
 <style>
-.file-label, #apply-imports { display: none !important; }
-.header-actions::after {
-    content: "Data linked directly from Version 2 Executive Portal";
+.file-label, #apply-imports {{ display: none !important; }}
+.header-actions::after {{
+    content: "Data linked directly from Version 2 Executive Portal | Role: {role_label}";
     display: block;
     color: #64748b;
     font-size: 12px;
     text-align: right;
     margin-top: 4px;
-}
+}}
+body.role-viewer .doc-repo-panel,
+body.role-board .doc-repo-panel,
+body.role-finance .doc-repo-panel {{ display:none !important; }}
+body.hide-excel button,
+body.hide-excel .btn {{}}
 </style>
+<script>
+window.DAWIYAT_RBAC = {{
+  role: {json.dumps(role)},
+  roleLabel: {json.dumps(role_label)},
+  allowedTabs: {allowed_tabs},
+  hideExcel: {hide_excel},
+  hidePdf: {hide_pdf},
+  hideAllExports: {hide_all_exports}
+}};
+(function applyDawiyatRBAC() {{
+  function norm(t) {{ return (t || '').replace(/\s+/g,' ').trim().toLowerCase(); }}
+  function hideExportButtons() {{
+    const cfg = window.DAWIYAT_RBAC || {{}};
+    const buttons = Array.from(document.querySelectorAll('button, a, .btn'));
+    buttons.forEach(el => {{
+      const txt = norm(el.textContent);
+      if (cfg.hideAllExports && (txt.includes('export') || txt.includes('csv') || txt.includes('excel') || txt.includes('pdf'))) {{
+        el.style.display = 'none';
+        return;
+      }}
+      if (cfg.hideExcel && (txt.includes('export excel') || txt.includes('export csv') || txt === 'export')) {{
+        el.style.display = 'none';
+      }}
+      if (cfg.hidePdf && txt.includes('export pdf')) {{
+        el.style.display = 'none';
+      }}
+    }});
+  }}
+  function applyTabs() {{
+    const cfg = window.DAWIYAT_RBAC || {{ allowedTabs: ['overview'] }};
+    const allowed = new Set(cfg.allowedTabs || ['overview']);
+    document.body.classList.add('role-' + (cfg.role || 'viewer'));
+    document.querySelectorAll('.tab[data-tab]').forEach(btn => {{
+      const ok = allowed.has(btn.dataset.tab);
+      btn.style.display = ok ? '' : 'none';
+    }});
+    ['overview','performance','tables','decision','pmo','perf-explanation'].forEach(tab => {{
+      const sec = document.getElementById('tab-' + tab);
+      if (sec && !allowed.has(tab)) sec.classList.add('hidden');
+    }});
+    const active = document.querySelector('.tab.active[data-tab]');
+    const activeAllowed = active && allowed.has(active.dataset.tab);
+    if (!activeAllowed) {{
+      const first = Array.from(allowed)[0] || 'overview';
+      if (typeof window.setTab === 'function') window.setTab(first);
+      else {{
+        document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === first));
+        ['overview','performance','tables','decision','pmo','perf-explanation'].forEach(tab => {{
+          const sec = document.getElementById('tab-' + tab);
+          if (sec) sec.classList.toggle('hidden', tab !== first);
+        }});
+      }}
+    }}
+    hideExportButtons();
+  }}
+  document.addEventListener('DOMContentLoaded', applyTabs);
+  setTimeout(applyTabs, 800);
+  setTimeout(applyTabs, 1800);
+}})();
+</script>
 """
     if "</head>" in updated:
         updated = updated.replace("</head>", portal_patch + "\n</head>", 1)
@@ -1383,7 +1493,37 @@ def admin_page() -> None:
 
     st.subheader("Users & Roles")
     st.write("Current user:", st.session_state.get("username"))
-    st.write("Current role:", st.session_state.get("role"))
+    st.write("Current role:", ROLE_DISPLAY_NAMES.get(current_role(), current_role().title()))
+
+    users_table = []
+    for username, data in get_users().items():
+        role = str(data.get("role", "viewer")).lower()
+        policy = role_policy(role)
+        users_table.append({
+            "Username": username,
+            "Role": ROLE_DISPLAY_NAMES.get(role, role.title()),
+            "Dashboard Tabs": ", ".join(policy.get("dashboard_tabs", [])),
+            "Upload CSV": "Yes" if policy.get("upload") else "No",
+            "Documents": "Yes" if policy.get("documents") else "No",
+            "Export Excel": "Yes" if policy.get("export_excel") else "No",
+            "Export PDF": "Yes" if policy.get("export_pdf") else "No",
+            "Admin Board": "Yes" if policy.get("admin") else "No",
+        })
+    st.dataframe(pd.DataFrame(users_table), use_container_width=True, hide_index=True)
+
+    st.subheader("Role Matrix")
+    role_rows = []
+    for role, policy in ROLE_PERMISSIONS.items():
+        role_rows.append({
+            "Role": ROLE_DISPLAY_NAMES.get(role, role.title()),
+            "Dashboard Pages": ", ".join(policy.get("dashboard_tabs", [])),
+            "Upload CSV": "Yes" if policy.get("upload") else "No",
+            "Export": "Excel/PDF" if policy.get("export_excel") and policy.get("export_pdf") else ("PDF only" if policy.get("export_pdf") else "No"),
+            "Smart Alerts": "Yes" if policy.get("alerts") else "No",
+            "Document Center": "Yes" if policy.get("documents") else "No",
+            "Admin": "Yes" if policy.get("admin") else "No",
+        })
+    st.dataframe(pd.DataFrame(role_rows), use_container_width=True, hide_index=True)
 
     st.subheader("Data Files")
     rows = []
@@ -1446,13 +1586,23 @@ def main() -> None:
         st.caption(f"User: {st.session_state.get('username','')}")
         st.caption(f"Role: {role.upper()}")
 
-        pages = ["Dashboard", "AI Executive Assistant", "Smart Alerts", "Executive Reports"]
+        pages = []
+        if can("dashboard"):
+            pages.append("Dashboard")
+        if can("assistant"):
+            pages.append("AI Executive Assistant")
+        if can("alerts"):
+            pages.append("Smart Alerts")
+        if can("reports"):
+            pages.append("Executive Reports")
         if can("upload"):
             pages.append("Upload CSV")
         if can("documents"):
             pages.append("📤 Document Upload Center")
         if can("admin"):
             pages.append("Admin Board")
+        if not pages:
+            pages = ["Dashboard"]
 
         # IMPORTANT: Streamlit reruns the script after every selectbox/file_uploader/button action.
         # Keep the selected page in session_state so choosing a Link Code inside

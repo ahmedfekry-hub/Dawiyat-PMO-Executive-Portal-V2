@@ -145,3 +145,23 @@ root_folder_id = "YOUR_LINK_CODES_FOLDER_ID"
 ```
 
 The service account only scans folders/files; it does not upload files in this mode.
+
+## Role-Based Access Control V2.14
+
+Allowed roles: `admin`, `pmo`, `board`, `finance`, `viewer`.
+
+| Role | Dashboard Pages | Upload CSV | Export | Smart Alerts | Document Center | Admin Board |
+|---|---|---:|---|---|---:|---:|
+| Admin | All tabs | Yes | Excel/PDF | Yes | Yes | Yes |
+| PMO | All tabs except Admin Board | Yes | Excel/PDF | Yes | Yes | No |
+| Board | Executive Overview + Executive PMO Report Assistant | No | PDF only | No | No | No |
+| Finance | Tables & Exports + Executive PMO Report Assistant | No | Excel/PDF | Yes | No | No |
+| Viewer | Executive Overview only | No | No | No | No | No |
+
+Update users from Streamlit Secrets only. Do not edit `app.py` for every user change.
+
+```toml
+[users.finance]
+password = "Finance12345"
+role = "finance"
+```
