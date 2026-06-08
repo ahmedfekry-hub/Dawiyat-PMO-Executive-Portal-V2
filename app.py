@@ -528,8 +528,10 @@ def render_dashboard() -> None:
     if can("documents"):
         st.info("📤 رفع ملفات Google Drive متاح من القائمة الجانبية: اختر  📤 Document Upload Center  ثم اختر Link Code ونوع الملف.")
         if st.button("Open Document Upload Center", use_container_width=True, type="secondary"):
-            # Keep navigation stable across Streamlit reruns.
-            st.session_state["main_nav"] = "📤 Document Upload Center"
+            # Do not set st.session_state["main_nav"] here because the sidebar radio
+            # with the same key has already been created in this run. Setting it here
+            # raises StreamlitAPIException. Use a separate flag and let main() switch
+            # the navigation before the radio is instantiated on the next rerun.
             st.session_state["force_document_upload_center"] = True
             st.rerun()
 
