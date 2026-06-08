@@ -226,6 +226,42 @@ header, footer {visibility: hidden;}
     font-size:13px;
     font-weight:800;
 }
+
+.account-access-pill {
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    margin-top:12px;
+    padding:8px 16px;
+    border-radius:999px;
+    background:linear-gradient(135deg,#111827,#1e3a8a);
+    color:#facc15 !important;
+    font-size:14px;
+    font-weight:900;
+    box-shadow:0 10px 22px rgba(15,23,42,.18);
+}
+.upload-center-hero {
+    border:1px solid #bfdbfe;
+    border-radius:18px;
+    background:linear-gradient(135deg,#eaf4ff 0%,#f8fbff 100%);
+    padding:16px 18px;
+    margin:8px 0 10px;
+    box-shadow:0 10px 22px rgba(37,99,235,.08);
+}
+.upload-center-hero .uc-title {
+    color:#0f3b73;
+    font-size:24px;
+    font-weight:1000;
+    margin-bottom:5px;
+    letter-spacing:-.02em;
+}
+.upload-center-hero .uc-subtitle {
+    color:#315b89;
+    font-size:14px;
+    line-height:1.6;
+    font-weight:700;
+}
+
 @media(max-width:760px){
     .portal-login { margin:2vh auto; }
     .portal-login-inner { padding:24px 18px; }
@@ -404,7 +440,10 @@ def login_page() -> bool:
             else:
                 st.error("Invalid username or password.")
 
-        st.caption("For account access, please contact the PMO System Administrator.")
+        st.markdown(
+            '<div class="account-access-pill">For account access, please contact the PMO System Administrator.</div>',
+            unsafe_allow_html=True,
+        )
 
     return False
 
@@ -661,8 +700,16 @@ def render_dashboard() -> None:
 
     # Clear guidance: file upload is a native Streamlit page, not inside the HTML iframe.
     if can("documents"):
-        st.info("📤 رفع ملفات Google Drive متاح من القائمة الجانبية: اختر  📤 Document Upload Center  ثم اختر Link Code ونوع الملف.")
-        if st.button("Open Document Upload Center", use_container_width=True, type="secondary"):
+        st.markdown(
+            """
+            <div class="upload-center-hero">
+                <div class="uc-title">📤 Document Upload Center</div>
+                <div class="uc-subtitle">افتح صفحة رفع الملفات لإدارة مستندات Google Drive حسب كل Link Code، ثم ارجع للداشبورد بدون تسجيل دخول جديد.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("📤 Open Document Upload Center", use_container_width=True, type="secondary"):
             # Do not set st.session_state["main_nav"] here because the sidebar radio
             # with the same key has already been created in this run. Setting it here
             # raises StreamlitAPIException. Use a separate flag and let main() switch
