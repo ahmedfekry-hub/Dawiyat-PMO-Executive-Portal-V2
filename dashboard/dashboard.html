@@ -1510,7 +1510,10 @@ body.dark-ui .exec-qa-mini strong{color:#f3f7ff!important;}
 .doc-flag.no{background:#fde8e8;color:#f43f5e;}
 .doc-flag.wait{background:#fff4dd;color:#f59e0b;}
 .doc-status-text{display:none!important;}
-.doc-status-pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900;white-space:nowrap;}
+#document-repository-panel .table-wrap{max-height:520px;overflow:auto;}
+#document-repository-table th,#document-repository-table td{text-align:center;vertical-align:middle;}
+#document-repository-table th:first-child,#document-repository-table td:first-child{text-align:left;min-width:170px;}
+.doc-status-pill{display:inline-flex;align-items:center;justify-content:center;gap:7px;border-radius:999px;padding:7px 13px;font-size:12px;font-weight:900;white-space:nowrap;min-width:108px;box-shadow:0 8px 18px rgba(15,23,42,.06);}
 .doc-status-pill.uploaded{background:#e8f7ef;color:#15803d;}
 .doc-status-pill.partial{background:#fff4dd;color:#b45309;}
 .doc-status-pill.missing{background:#fde8e8;color:#be123c;}
@@ -1822,12 +1825,12 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="panel-head">
         <div>
           <h2>Document Upload Center — Status Preview</h2>
-          <div class="subtle">Design, Permit, Photos, PAT, AsBuilt, and Handover readiness by Link Code. Upload status only: 🟢 Uploaded / 🟡 Partial / 🔴 Missing. Manage files from Google Drive folders.</div>
+          <div class="subtle">Design, Permit, Photos, PAT, AsBuilt, Handover, and Commercial readiness by Link Code. Status only: 🟢 Uploaded / 🟡 Partial / 🔴 Missing.</div>
         </div>
         <button class="btn" onclick="exportTableToExcel('document-repository-table', 'document_upload_status')">Export Excel</button>
       </div>
       <div class="summary-box" style="margin-bottom:12px;">
-        <div class="print-note"><b>Note:</b> This dashboard preview uses the current CSV fields and Document_Link. For live Google Drive scanning, open the Streamlit page <b>📤 Document Upload Center</b>, then return to the dashboard.</div>
+        <div class="print-note"><b>Note:</b> Status is based on the latest Google Drive scan from <b>📤 Document Upload Center</b>.</div>
       </div>
       <div class="table-wrap"><table id="document-repository-table"></table></div>
     </div>
@@ -3549,6 +3552,7 @@ function buildDocumentRepositoryRows(rows) {
         pat: cleanDocState(live['PAT']),
         asBuilt: cleanDocState(live['AsBuilt']),
         handover: cleanDocState(live['Handover']),
+        commercial: cleanDocState(live['Commercial']),
       };
     }
     return {
@@ -3560,6 +3564,7 @@ function buildDocumentRepositoryRows(rows) {
       pat:{ok:false, wait:false, text:'Missing'},
       asBuilt:{ok:false, wait:false, text:'Missing'},
       handover:{ok:false, wait:false, text:'Missing'},
+      commercial:{ok:false, wait:false, text:'Missing'},
     };
   });
 }
@@ -3567,7 +3572,7 @@ function renderDocumentRepositoryDashboard(rows) {
   const table = document.getElementById('document-repository-table');
   if (!table) return;
   const repo = buildDocumentRepositoryRows(rows);
-  table.innerHTML = `<thead><tr><th>Link Code</th><th>Design</th><th>Permit</th><th>Photos</th><th>PAT</th><th>AsBuilt</th><th>Handover</th></tr></thead><tbody>${repo.map(r => `
+  table.innerHTML = `<thead><tr><th>Link Code</th><th>Design</th><th>Permit</th><th>Photos</th><th>PAT</th><th>AsBuilt</th><th>Handover</th><th>Commercial</th></tr></thead><tbody>${repo.map(r => `
     <tr>
       <td><b>${escapeHtml(r.linkCode)}</b></td>
       <td>${docFlag(r.design)}</td>
@@ -3576,7 +3581,8 @@ function renderDocumentRepositoryDashboard(rows) {
       <td>${docFlag(r.pat)}</td>
       <td>${docFlag(r.asBuilt)}</td>
       <td>${docFlag(r.handover)}</td>
-    </tr>`).join('') || '<tr><td colspan="7">No records in current scope.</td></tr>'}</tbody>`;
+      <td>${docFlag(r.commercial)}</td>
+    </tr>`).join('') || '<tr><td colspan="8">No records in current scope.</td></tr>'}</tbody>`;
 }
 
 function renderExtraTables(rows, penalties) {
