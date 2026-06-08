@@ -393,6 +393,16 @@ def _make_session_signature(username: str, role: str, password: str, issued_at: 
     return hmac.new(_session_secret().encode("utf-8"), payload, hashlib.sha256).hexdigest()
 
 
+def _format_login_time(timestamp_str: str | None = None) -> str:
+    """Return a readable local login time for the user session."""
+    try:
+        ts = int(timestamp_str) if timestamp_str else int(time.time())
+        return datetime.fromtimestamp(ts).strftime("%d-%b-%Y %I:%M %p")
+    except Exception:
+        return datetime.now().strftime("%d-%b-%Y %I:%M %p")
+
+
+
 def _clear_login_query_params() -> None:
     """Remove persisted login parameters from the URL without touching other app state."""
     try:
@@ -403,13 +413,13 @@ def _clear_login_query_params() -> None:
         pass
 
 
-def _persist_login(username: str, role: str, password: str) -> None:
+def _persist_login(username: str, role: str, password: str, issued_at: str | None = None) -> None:
     """Persist authenticated login across browser refreshes.
 
     This prevents pressing the browser Refresh button from sending the user back
     to the login screen. Logout explicitly removes these parameters.
     """
-    issued_at = str(int(time.time()))
+    issued_at = issued_at or str(int(time.time()))
     signature = _make_session_signature(username, role, password, issued_at)
     try:
         st.query_params["auth_user"] = username
@@ -457,6 +467,7 @@ def _restore_login_from_query_params() -> bool:
         st.session_state["authenticated"] = True
         st.session_state["username"] = username
         st.session_state["role"] = expected_role if expected_role in ROLE_PERMISSIONS else "viewer"
+        st.session_state["last_login"] = _format_login_time(issued_at)
         return True
 
     _clear_login_query_params()
@@ -590,10 +601,12 @@ def login_page() -> bool:
                 role = users[username].get("role", "viewer").lower()
                 if role not in ROLE_PERMISSIONS:
                     role = "viewer"
+                issued_at = str(int(time.time()))
                 st.session_state["authenticated"] = True
                 st.session_state["username"] = username
                 st.session_state["role"] = role
-                _persist_login(username, role, users[username]["password"])
+                st.session_state["last_login"] = _format_login_time(issued_at)
+                _persist_login(username, role, users[username]["password"], issued_at=issued_at)
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
@@ -707,7 +720,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
 <style>
 .file-label, #apply-imports {{ display: none !important; }}
 .header-actions::after {{
-    content: "Data linked directly from Version 2 Executive Portal | Role: {role_label}";
+    content: "Data linked directly from Version 2 Executive Portal";
     display: block;
     color: #64748b;
     font-size: 12px;
@@ -1780,6 +1793,84 @@ sender = "your-email@company.com"
     )
 
 
+
+def render_session_bar() -> None:
+    """Visible authenticated session bar shown above every page."""
+    username = str(st.session_state.get("username", "") or "User")
+    role = str(st.session_state.get("role", "viewer") or "viewer").lower()
+    role_label = ROLE_DISPLAY_NAMES.get(role, role.title())
+    last_login = str(st.session_state.get("last_login", "") or _format_login_time())
+
+    st.markdown(
+        f"""
+        <style>
+        .session-bar {{
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 14px;
+            padding: 14px 18px;
+            margin: 0 0 16px 0;
+            border-radius: 18px;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 55%, #0f766e 100%);
+            color: #ffffff;
+            box-shadow: 0 10px 30px rgba(15, 23, 42, 0.22);
+            border: 1px solid rgba(255,255,255,0.20);
+        }}
+        .session-main {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px 18px;
+            align-items: center;
+            font-weight: 800;
+            font-size: 16px;
+            line-height: 1.4;
+        }}
+        .session-pill {{
+            display: inline-flex;
+            align-items: center;
+            gap: 7px;
+            background: rgba(255,255,255,0.13);
+            border: 1px solid rgba(255,255,255,0.20);
+            padding: 8px 12px;
+            border-radius: 999px;
+            color: #f8fafc;
+            white-space: nowrap;
+        }}
+        .session-pill strong {{
+            color: #ffd400;
+            font-weight: 900;
+        }}
+        .session-active {{
+            color: #86efac;
+            font-weight: 900;
+        }}
+        </style>
+        <div class="session-bar">
+            <div class="session-main">
+                <span class="session-pill">👤 <strong>{username}</strong></span>
+                <span class="session-pill">⚙️ Role: <strong>{role_label}</strong></span>
+                <span class="session-pill">🕒 Last Login: <strong>{last_login}</strong></span>
+                <span class="session-pill session-active">🔐 Session Active</span>
+            </div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    col_spacer, col_refresh, col_logout = st.columns([7.5, 1.25, 1.25])
+    with col_refresh:
+        if st.button("🔄 Refresh", use_container_width=True, key="top_refresh"):
+            st.cache_data.clear()
+            st.rerun()
+    with col_logout:
+        if st.button("🚪 Logout", use_container_width=True, key="top_logout"):
+            _clear_login_query_params()
+            st.session_state.clear()
+            st.rerun()
+
+
+
 def main() -> None:
     if not login_page():
         return
@@ -1789,17 +1880,6 @@ def main() -> None:
     with st.sidebar:
         st.markdown("### Dawiyat PMO Portal V2")
         st.caption(f"User: {st.session_state.get('username','')}")
-
-        col_refresh, col_logout = st.columns(2)
-        with col_refresh:
-            if st.button("🔄 Refresh", use_container_width=True):
-                st.cache_data.clear()
-                st.rerun()
-        with col_logout:
-            if st.button("🚪 Logout", use_container_width=True):
-                _clear_login_query_params()
-                st.session_state.clear()
-                st.rerun()
 
         pages = []
         if can("dashboard"):
@@ -1839,6 +1919,8 @@ def main() -> None:
             key="main_nav",
             label_visibility="collapsed",
         )
+
+    render_session_bar()
 
     if page == "Dashboard":
         render_dashboard()
