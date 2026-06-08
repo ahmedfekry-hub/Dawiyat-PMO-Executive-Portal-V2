@@ -1509,7 +1509,11 @@ body.dark-ui .exec-qa-mini strong{color:#f3f7ff!important;}
 .doc-flag.ok{background:#e8f7ef;color:#16a34a;}
 .doc-flag.no{background:#fde8e8;color:#f43f5e;}
 .doc-flag.wait{background:#fff4dd;color:#f59e0b;}
-.doc-status-text{display:block;font-size:10.5px;font-weight:800;color:#64748b;margin-top:3px;max-width:120px;margin-left:auto;margin-right:auto;line-height:1.2;}
+.doc-status-text{display:none!important;}
+.doc-status-pill{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:999px;padding:6px 10px;font-size:12px;font-weight:900;white-space:nowrap;}
+.doc-status-pill.uploaded{background:#e8f7ef;color:#15803d;}
+.doc-status-pill.partial{background:#fff4dd;color:#b45309;}
+.doc-status-pill.missing{background:#fde8e8;color:#be123c;}
 .doc-repo-note{border:1px dashed #cdd9e7;background:#fbfdff;border-radius:14px;padding:10px 12px;color:#64748b;font-size:12px;line-height:1.45;margin-top:10px;}
 body.dark-ui .doc-link-btn{background:#111f34!important;border-color:#2b3d5a!important;color:#e5eefb!important;}
 body.dark-ui .doc-link-btn:hover{background:#2563eb!important;color:#fff!important;}
@@ -1818,12 +1822,12 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="panel-head">
         <div>
           <h2>Document Upload Center — Status Preview</h2>
-          <div class="subtle">Design, Permit, Photos, PAT, AsBuilt, and Handover readiness by Link Code. Actual uploads are managed from the Streamlit page: 📤 Document Upload Center.</div>
+          <div class="subtle">Design, Permit, Photos, PAT, AsBuilt, and Handover readiness by Link Code. Upload status only: 🟢 Uploaded / 🟡 Partial / 🔴 Missing. Manage files from Google Drive folders.</div>
         </div>
         <button class="btn" onclick="exportTableToExcel('document-repository-table', 'document_upload_status')">Export Excel</button>
       </div>
       <div class="summary-box" style="margin-bottom:12px;">
-        <div class="print-note"><b>Note:</b> This dashboard preview uses the current CSV fields and Document_Link. For live Google Drive scanning and file upload, open the Streamlit page <b>📤 Document Upload Center</b>.</div>
+        <div class="print-note"><b>Note:</b> This dashboard preview uses the current CSV fields and Document_Link. For live Google Drive scanning, open the Streamlit page <b>📤 Document Upload Center</b>, then return to the dashboard.</div>
       </div>
       <div class="table-wrap"><table id="document-repository-table"></table></div>
     </div>
@@ -3505,9 +3509,10 @@ function docStatusFromText(values) {
   return {ok:true, wait:true, text:joined};
 }
 function docFlag(status) {
-  const cls = status.ok ? (status.wait ? 'wait' : 'ok') : 'no';
-  const mark = status.ok ? (status.wait ? '◔' : '✓') : '×';
-  return `<span class="doc-flag ${cls}">${mark}</span><span class="doc-status-text">${escapeHtml(status.text || '')}</span>`;
+  const state = status.ok ? (status.wait ? 'Partial' : 'Uploaded') : 'Missing';
+  const cls = state === 'Uploaded' ? 'uploaded' : (state === 'Partial' ? 'partial' : 'missing');
+  const dot = state === 'Uploaded' ? '🟢' : (state === 'Partial' ? '🟡' : '🔴');
+  return `<span class="doc-status-pill ${cls}" title="${escapeHtml(status.text || state)}">${dot} ${state}</span>`;
 }
 function buildDocumentRepositoryRows(rows) {
   const summaryRows = buildLinkCodeSummary(rows);
@@ -3540,7 +3545,7 @@ function renderDocumentRepositoryDashboard(rows) {
   const table = document.getElementById('document-repository-table');
   if (!table) return;
   const repo = buildDocumentRepositoryRows(rows);
-  table.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>Design</th><th>Permit</th><th>Photos</th><th>PAT</th><th>AsBuilt</th><th>Handover</th><th>WO Cost</th><th>Avg Completion</th></tr></thead><tbody>${repo.map(r => `
+  table.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>Design</th><th>Permit</th><th>Photos</th><th>PAT</th><th>AsBuilt</th><th>Handover</th></tr></thead><tbody>${repo.map(r => `
     <tr>
       <td><b>${escapeHtml(r.linkCode)}</b></td>
       <td>${documentOpenCell(r.linkCode, rows)}</td>
@@ -3550,9 +3555,7 @@ function renderDocumentRepositoryDashboard(rows) {
       <td>${docFlag(r.pat)}</td>
       <td>${docFlag(r.asBuilt)}</td>
       <td>${docFlag(r.handover)}</td>
-      <td>${fmtMoney(r.cost)}</td>
-      <td>${fmtPct(r.progress)}</td>
-    </tr>`).join('') || '<tr><td colspan="10">No records in current scope.</td></tr>'}</tbody>`;
+    </tr>`).join('') || '<tr><td colspan="8">No records in current scope.</td></tr>'}</tbody>`;
 }
 
 function renderExtraTables(rows, penalties) {
