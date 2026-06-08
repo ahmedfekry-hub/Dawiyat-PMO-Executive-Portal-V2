@@ -141,3 +141,33 @@ role = "viewer"
 ```
 
 After saving Secrets, reboot the Streamlit app.
+
+## Google Drive Direct Document Upload
+
+This version adds a Streamlit page called **Document Upload** for Admin and PMO users.
+
+What it does:
+- Select a Link Code.
+- Select document type: Design, Permit, Photos, PAT, AsBuilt, Handover, or Other.
+- Upload one or more files directly to Google Drive.
+- If the Link Code already has a `Document_Link`, files are uploaded under that folder.
+- If `Document_Link` is empty, the app creates a Link Code folder under the configured root folder and updates `u_osp_work_order.csv` with the new folder link.
+- Optional subfolders are created per document type.
+
+Required Streamlit Secrets:
+
+```toml
+[google_drive]
+root_folder_id = "PASTE_DAWIYAT_PMO_REPOSITORY_FOLDER_ID"
+
+[google_service_account]
+type = "service_account"
+project_id = "your-project-id"
+private_key_id = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "your-service-account@your-project.iam.gserviceaccount.com"
+client_id = "..."
+token_uri = "https://oauth2.googleapis.com/token"
+```
+
+Important: Share the Google Drive root folder with the service account `client_email` as **Editor**.

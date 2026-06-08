@@ -40,6 +40,9 @@ ASSETS_DIR = BASE_DIR / "assets"
 DAWIYAT_LOGO_PATH = ASSETS_DIR / "dawiyat_logo.jpg"
 MET_LOGO_PATH = ASSETS_DIR / "met_logo.jpg"
 
+DOCUMENT_TYPES = ["Design", "Permit", "Photos", "PAT", "AsBuilt", "Handover", "Other"]
+GOOGLE_DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
+
 
 def image_to_base64(path: Path) -> str:
     if not path.exists():
@@ -57,6 +60,7 @@ ROLE_PERMISSIONS = {
         "admin": True,
         "upload": True,
         "email": True,
+        "documents": True,
     },
     "pmo": {
         "dashboard": True,
@@ -66,6 +70,7 @@ ROLE_PERMISSIONS = {
         "admin": False,
         "upload": True,
         "email": False,
+        "documents": True,
     },
     "viewer": {
         "dashboard": True,
@@ -75,6 +80,7 @@ ROLE_PERMISSIONS = {
         "admin": False,
         "upload": False,
         "email": False,
+        "documents": False,
     },
 }
 
@@ -746,6 +752,218 @@ def ai_assistant_page() -> None:
     st.markdown("</div>", unsafe_allow_html=True)
 
 
+
+def get_drive_service():
+    """Create a Google Drive API service using Streamlit Secrets."""
+    try:
+        from google.oauth2 import service_account
+        from googleapiclient.discovery import build
+    except Exception as exc:
+        raise RuntimeError("Google Drive libraries are not installed. Install requirements.txt first.") from exc
+    try:
+        info = dict(st.secrets["google_service_account"])
+    except Exception as exc:
+        raise RuntimeError("Google service account secrets are not configured.") from exc
+    if "private_key" in info:
+        info["private_key"] = str(info["private_key"]).replace("\\n", "\n")
+    scopes = ["https://www.googleapis.com/auth/drive"]
+    credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
+    return build("drive", "v3", credentials=credentials, cache_discovery=False)
+
+
+def get_drive_root_folder_id() -> str:
+    try:
+        return str(st.secrets["google_drive"]["root_folder_id"]).strip()
+    except Exception:
+        return ""
+
+
+def drive_folder_url(folder_id: str) -> str:
+    return f"https://drive.google.com/drive/folders/{folder_id}" if folder_id else ""
+
+
+def extract_drive_folder_id(url_or_id: str) -> str:
+    text = str(url_or_id or "").strip()
+    if not text:
+        return ""
+    if re.fullmatch(r"[A-Za-z0-9_-]{20,}", text):
+        return text
+    for pattern in [r"/folders/([A-Za-z0-9_-]+)", r"[?&]id=([A-Za-z0-9_-]+)", r"/d/([A-Za-z0-9_-]+)"]:
+        m = re.search(pattern, text)
+        if m:
+            return m.group(1)
+    return ""
+
+
+def drive_escape(value: str) -> str:
+    return str(value or "").replace("'", "\'")
+
+
+def find_drive_folder(service, parent_id: str, name: str) -> str:
+    query = (
+        f"'{drive_escape(parent_id)}' in parents and "
+        f"mimeType = '{GOOGLE_DRIVE_FOLDER_MIME}' and "
+        f"name = '{drive_escape(name)}' and trashed = false"
+    )
+    result = service.files().list(
+        q=query,
+        spaces="drive",
+        fields="files(id,name)",
+        pageSize=10,
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True,
+    ).execute()
+    files = result.get("files", [])
+    return files[0]["id"] if files else ""
+
+
+def create_drive_folder(service, parent_id: str, name: str) -> str:
+    metadata = {"name": name, "mimeType": GOOGLE_DRIVE_FOLDER_MIME, "parents": [parent_id]}
+    folder = service.files().create(body=metadata, fields="id", supportsAllDrives=True).execute()
+    return folder.get("id", "")
+
+
+def get_or_create_drive_folder(service, parent_id: str, name: str) -> str:
+    existing = find_drive_folder(service, parent_id, name)
+    return existing or create_drive_folder(service, parent_id, name)
+
+
+def ensure_link_folder(service, link_code: str, existing_link: str = "") -> tuple:
+    folder_id = extract_drive_folder_id(existing_link)
+    if folder_id:
+        return folder_id, drive_folder_url(folder_id)
+    root_id = get_drive_root_folder_id()
+    if not root_id:
+        raise RuntimeError("google_drive.root_folder_id is not configured in Streamlit Secrets.")
+    folder_id = get_or_create_drive_folder(service, root_id, link_code)
+    return folder_id, drive_folder_url(folder_id)
+
+
+def upload_file_to_drive(service, folder_id: str, uploaded_file, filename: str, mime_type: str = "application/octet-stream") -> str:
+    try:
+        from googleapiclient.http import MediaIoBaseUpload
+    except Exception as exc:
+        raise RuntimeError("google-api-python-client is not installed.") from exc
+    uploaded_file.seek(0)
+    media = MediaIoBaseUpload(uploaded_file, mimetype=mime_type, resumable=True)
+    metadata = {"name": filename, "parents": [folder_id]}
+    created = service.files().create(
+        body=metadata,
+        media_body=media,
+        fields="id,webViewLink",
+        supportsAllDrives=True,
+    ).execute()
+    return created.get("webViewLink", "")
+
+
+def get_document_link_for_link(wo: pd.DataFrame, link_code: str) -> str:
+    if wo.empty or "Document_Link" not in wo.columns:
+        return ""
+    vals = wo.loc[wo["Link Code"].astype(str).eq(str(link_code)), "Document_Link"].astype(str)
+    vals = [v.strip() for v in vals if str(v).strip()]
+    return vals[0] if vals else ""
+
+
+def update_document_link_in_csv(link_code: str, folder_url: str) -> None:
+    wo = safe_read_csv(WO_PATH)
+    if wo.empty:
+        raise RuntimeError("u_osp_work_order.csv is empty or missing.")
+    if "Document_Link" not in wo.columns:
+        wo["Document_Link"] = ""
+    if "Link Code" not in wo.columns:
+        raise RuntimeError("Link Code column is missing from u_osp_work_order.csv.")
+    mask = wo["Link Code"].astype(str).eq(str(link_code))
+    if not mask.any():
+        raise RuntimeError(f"Link Code not found in CSV: {link_code}")
+    backup_file(WO_PATH)
+    wo.loc[mask, "Document_Link"] = folder_url
+    wo.to_csv(WO_PATH, index=False, encoding="utf-8-sig")
+    st.cache_data.clear()
+
+
+def document_upload_page() -> None:
+    st.title("📤 Document Upload to Google Drive")
+    st.caption("Upload files directly to the correct Google Drive folder for each Link Code.")
+
+    if not can("documents"):
+        st.error("You do not have permission to upload documents.")
+        return
+
+    wo = safe_read_csv(WO_PATH)
+    if wo.empty:
+        st.warning("u_osp_work_order.csv is missing or empty.")
+        return
+    if "Link Code" not in wo.columns:
+        st.error("Link Code column is missing from u_osp_work_order.csv.")
+        return
+
+    links = sorted([x for x in wo["Link Code"].astype(str).str.strip().unique() if x])
+    if not links:
+        st.warning("No Link Codes found.")
+        return
+
+    with st.container(border=True):
+        st.subheader("Upload Document")
+        c1, c2 = st.columns([1.2, .8])
+        with c1:
+            link_code = st.selectbox("Link Code", links, index=0)
+        with c2:
+            doc_type = st.selectbox("Document Type", DOCUMENT_TYPES, index=0)
+
+        current_folder_url = get_document_link_for_link(wo, link_code)
+        if current_folder_url:
+            st.success(f"Current folder linked for {link_code}")
+            st.link_button("Open Current Folder", current_folder_url, use_container_width=True)
+        else:
+            st.warning("No Document_Link found for this Link Code. The app will create a folder under the configured root folder after upload.")
+
+        uploaded_files = st.file_uploader("Select one or more files", accept_multiple_files=True, key="drive_doc_uploader")
+        create_type_subfolder = st.checkbox("Upload inside document-type subfolder", value=True)
+
+        if st.button("Upload to Google Drive", type="primary", use_container_width=True):
+            if not uploaded_files:
+                st.error("Please select at least one file.")
+                return
+            try:
+                service = get_drive_service()
+                link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
+                target_folder_id = link_folder_id
+                if create_type_subfolder:
+                    target_folder_id = get_or_create_drive_folder(service, link_folder_id, doc_type)
+
+                uploaded_rows = []
+                for f in uploaded_files:
+                    safe_name = f"{link_code}_{doc_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{f.name}"
+                    file_url = upload_file_to_drive(service, target_folder_id, f, safe_name, f.type or "application/octet-stream")
+                    uploaded_rows.append({"Link Code": link_code, "Document Type": doc_type, "File": f.name, "Drive Link": file_url})
+
+                if not current_folder_url:
+                    update_document_link_in_csv(link_code, link_folder_url)
+
+                st.success(f"Uploaded {len(uploaded_rows)} file(s) successfully.")
+                st.dataframe(pd.DataFrame(uploaded_rows), use_container_width=True, hide_index=True)
+                st.link_button("Open Link Code Folder", link_folder_url, use_container_width=True)
+            except Exception as exc:
+                st.error(str(exc))
+                st.info("Check Streamlit Secrets and ensure the Google Drive root folder is shared with the service account email as Editor.")
+
+    with st.expander("Required Streamlit Secrets", expanded=False):
+        st.code("""
+[google_drive]
+root_folder_id = "PASTE_DAWIYAT_PMO_REPOSITORY_FOLDER_ID"
+
+[google_service_account]
+type = "service_account"
+project_id = "your-project-id"
+private_key_id = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "your-service-account@your-project.iam.gserviceaccount.com"
+client_id = "..."
+token_uri = "https://oauth2.googleapis.com/token"
+        """.strip())
+        st.markdown("Share the Google Drive root folder with the service account email as **Editor**.")
+
+
 def build_pdf_report() -> bytes:
     metrics = portfolio_metrics()
     alerts = smart_alerts_dataframe()
@@ -859,6 +1077,21 @@ def admin_page() -> None:
     else:
         st.info("No backups yet.")
 
+    st.subheader("Google Drive Upload Configuration")
+    st.code("""
+[google_drive]
+root_folder_id = "PASTE_DAWIYAT_PMO_REPOSITORY_FOLDER_ID"
+
+[google_service_account]
+type = "service_account"
+project_id = "your-project-id"
+private_key_id = "..."
+private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+client_email = "your-service-account@your-project.iam.gserviceaccount.com"
+client_id = "..."
+token_uri = "https://oauth2.googleapis.com/token"
+    """.strip())
+
     st.subheader("Email Configuration")
     st.code(
         """
@@ -886,6 +1119,8 @@ def main() -> None:
         pages = ["Dashboard", "AI Executive Assistant", "Smart Alerts", "Executive Reports"]
         if can("upload"):
             pages.append("Upload CSV")
+        if can("documents"):
+            pages.append("Document Upload")
         if can("admin"):
             pages.append("Admin Board")
 
@@ -905,6 +1140,8 @@ def main() -> None:
         reports_page()
     elif page == "Upload CSV":
         upload_data_page()
+    elif page == "Document Upload":
+        document_upload_page()
     elif page == "Admin Board":
         admin_page()
 
