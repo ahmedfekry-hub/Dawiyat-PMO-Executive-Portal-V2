@@ -87,3 +87,34 @@ The app also supports `[gcp_service_account]` if you already used that name.
 - Added **Document Upload Center — Status Preview** between Link Code Summary Table and Civil/Fiber Completion Summary inside the HTML dashboard.
 - Fixed Google Service Account private key normalization for Streamlit TOML secrets.
 - Upload Center remains available as a native Streamlit page: **📤 Document Upload Center**.
+
+
+## Document Upload Center - Required Secrets
+
+To allow the app to create new Link Code folders and upload files, add this in Streamlit Cloud > App settings > Secrets:
+
+```toml
+[google_drive]
+root_folder_id = "PASTE_THE_GOOGLE_DRIVE_LINK_CODES_FOLDER_ID_HERE"
+
+[google_service_account]
+type = "service_account"
+project_id = "..."
+private_key_id = "..."
+private_key = """-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+"""
+client_email = "dawiyat-pmo-drive@dawiyat-pmo-portal.iam.gserviceaccount.com"
+client_id = "..."
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
+token_uri = "https://oauth2.googleapis.com/token"
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "..."
+universe_domain = "googleapis.com"
+```
+
+Important:
+- `root_folder_id` should be the Google Drive folder ID of the **Link Codes** folder.
+- Share that **Link Codes** folder with the Service Account email as **Editor**.
+- Do not upload JSON key files to GitHub.

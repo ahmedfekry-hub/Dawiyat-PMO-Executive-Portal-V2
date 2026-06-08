@@ -528,6 +528,8 @@ def render_dashboard() -> None:
     if can("documents"):
         st.info("📤 رفع ملفات Google Drive متاح من القائمة الجانبية: اختر  📤 Document Upload Center  ثم اختر Link Code ونوع الملف.")
         if st.button("Open Document Upload Center", use_container_width=True, type="secondary"):
+            # Keep navigation stable across Streamlit reruns.
+            st.session_state["main_nav"] = "📤 Document Upload Center"
             st.session_state["force_document_upload_center"] = True
             st.rerun()
 
@@ -834,6 +836,15 @@ def get_drive_root_folder_id() -> str:
         return ""
 
 
+def google_drive_root_config_message() -> str:
+    return (
+        "google_drive.root_folder_id is not configured in Streamlit Secrets. "
+        "Add the Google Drive folder ID for the main 'Link Codes' folder under [google_drive]. "
+        "Existing rows that already have Document_Link can still be opened/uploaded, "
+        "but new Link Code folders cannot be created automatically without root_folder_id."
+    )
+
+
 def drive_folder_url(folder_id: str) -> str:
     return f"https://drive.google.com/drive/folders/{folder_id}" if folder_id else ""
 
@@ -890,7 +901,7 @@ def ensure_link_folder(service, link_code: str, existing_link: str = "") -> tupl
         return folder_id, drive_folder_url(folder_id)
     root_id = get_drive_root_folder_id()
     if not root_id:
-        raise RuntimeError("google_drive.root_folder_id is not configured in Streamlit Secrets.")
+        raise RuntimeError(google_drive_root_config_message())
     folder_id = get_or_create_drive_folder(service, root_id, link_code)
     return folder_id, drive_folder_url(folder_id)
 
@@ -1189,7 +1200,10 @@ def document_upload_page() -> None:
 
     c1, c2, c3 = st.columns([1.35, .75, .75])
     with c1:
-        link_code = st.selectbox("Link Code", links, index=0, key="doc_upload_link_code")
+        # Keep selected Link Code stable during upload/page reruns.
+        if st.session_state.get("doc_upload_link_code") not in links:
+            st.session_state["doc_upload_link_code"] = links[0]
+        link_code = st.selectbox("Link Code", links, key="doc_upload_link_code")
     with c2:
         st.metric("Document Types", len(DOCUMENT_TYPES))
     with c3:
@@ -1207,9 +1221,16 @@ def document_upload_page() -> None:
             if not current_folder_url:
                 update_document_link_in_csv(link_code, link_folder_url)
                 current_folder_url = link_folder_url
+                # Refresh local data after writing the newly created folder link.
+                wo = safe_read_csv(WO_PATH)
             doc_status = document_status_for_link(service, link_folder_id)
         except Exception as exc:
-            st.error(str(exc))
+            # This usually means root_folder_id is missing AND the selected Link Code has no Document_Link.
+            st.warning(str(exc))
+            if current_folder_url:
+                st.info("This Link Code has an existing Document_Link, but the folder ID could not be read. Check the link format.")
+            else:
+                st.info("Select a Link Code that already has Documents = Open, or add [google_drive].root_folder_id to Streamlit Secrets so new folders can be created automatically.")
 
     with st.container(border=True):
         h1, h2 = st.columns([1, .35])
@@ -1240,7 +1261,7 @@ def document_upload_page() -> None:
     with st.expander("Required Streamlit Secrets", expanded=False):
         st.code('''
 [google_drive]
-root_folder_id = "PASTE_DAWIYAT_PMO_REPOSITORY_FOLDER_ID"
+root_folder_id = "PASTE_LINK_CODES_FOLDER_ID"
 
 [google_service_account]
 type = "service_account"
@@ -1258,7 +1279,7 @@ auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
 client_x509_cert_url = "..."
 universe_domain = "googleapis.com"
         '''.strip())
-        st.markdown("Share the Google Drive root folder with the service account email as **Editor**. Do not upload JSON keys to GitHub.")
+        st.markdown("Share the Google Drive **Link Codes** folder with the service account email as **Editor**. Do not upload JSON keys to GitHub.")
 
 
 def build_pdf_report() -> bytes:
@@ -1377,7 +1398,7 @@ def admin_page() -> None:
     st.subheader("Google Drive Upload Configuration")
     st.code("""
 [google_drive]
-root_folder_id = "PASTE_DAWIYAT_PMO_REPOSITORY_FOLDER_ID"
+root_folder_id = "PASTE_LINK_CODES_FOLDER_ID"
 
 [google_service_account]
 type = "service_account"
@@ -1421,10 +1442,22 @@ def main() -> None:
         if can("admin"):
             pages.append("Admin Board")
 
-        default_index = pages.index("📤 Document Upload Center") if st.session_state.get("force_document_upload_center") and "📤 Document Upload Center" in pages else 0
-        page = st.radio("Navigation", pages, index=default_index, label_visibility="collapsed")
-        if st.session_state.get("force_document_upload_center"):
+        # IMPORTANT: Streamlit reruns the script after every selectbox/file_uploader/button action.
+        # Keep the selected page in session_state so choosing a Link Code inside
+        # Document Upload Center never sends the user back to Dashboard.
+        if st.session_state.get("force_document_upload_center") and "📤 Document Upload Center" in pages:
+            st.session_state["main_nav"] = "📤 Document Upload Center"
             st.session_state["force_document_upload_center"] = False
+
+        if st.session_state.get("main_nav") not in pages:
+            st.session_state["main_nav"] = "Dashboard"
+
+        page = st.radio(
+            "Navigation",
+            pages,
+            key="main_nav",
+            label_visibility="collapsed",
+        )
 
         if st.button("Logout", use_container_width=True):
             st.session_state.clear()
