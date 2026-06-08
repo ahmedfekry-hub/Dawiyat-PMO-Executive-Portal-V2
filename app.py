@@ -820,7 +820,8 @@ def get_drive_service():
     except Exception as exc:
         raise RuntimeError(
             "Google Drive Service Account private_key is not valid. "
-            "In Streamlit Secrets use TOML format, preferably private_key = """-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n""". "
+            "In Streamlit Secrets use TOML format. Example: "
+            "private_key = \"\"\"-----BEGIN PRIVATE KEY-----\\n...\\n-----END PRIVATE KEY-----\\n\"\"\". "
             "Do not paste JSON with braces or commas."
         ) from exc
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
