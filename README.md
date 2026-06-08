@@ -73,3 +73,11 @@ The app also supports `[gcp_service_account]` if you already used that name.
 - `__pycache__/`
 - `*.pyc`
 
+
+
+## أين يظهر Document Upload Center؟
+بعد تسجيل الدخول، افتح القائمة الجانبية في Streamlit واختر:
+
+`📤 Document Upload Center`
+
+ملاحظة: رفع الملفات لا يظهر داخل HTML Dashboard نفسه لأنه يعتمد على Streamlit native widgets و Google Drive API. لذلك تم وضعه كصفحة مستقلة داخل Streamlit مع زر واضح أعلى صفحة Dashboard للانتقال إليه.

@@ -524,6 +524,13 @@ def render_dashboard() -> None:
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
 
+    # Clear guidance: file upload is a native Streamlit page, not inside the HTML iframe.
+    if can("documents"):
+        st.info("📤 رفع ملفات Google Drive متاح من القائمة الجانبية: اختر  📤 Document Upload Center  ثم اختر Link Code ونوع الملف.")
+        if st.button("Open Document Upload Center", use_container_width=True, type="secondary"):
+            st.session_state["force_document_upload_center"] = True
+            st.rerun()
+
     dashboard_html = DASHBOARD_PATH.read_text(encoding="utf-8", errors="ignore")
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
 
@@ -1392,11 +1399,14 @@ def main() -> None:
         if can("upload"):
             pages.append("Upload CSV")
         if can("documents"):
-            pages.append("Document Upload Center")
+            pages.append("📤 Document Upload Center")
         if can("admin"):
             pages.append("Admin Board")
 
-        page = st.radio("Navigation", pages, label_visibility="collapsed")
+        default_index = pages.index("📤 Document Upload Center") if st.session_state.get("force_document_upload_center") and "📤 Document Upload Center" in pages else 0
+        page = st.radio("Navigation", pages, index=default_index, label_visibility="collapsed")
+        if st.session_state.get("force_document_upload_center"):
+            st.session_state["force_document_upload_center"] = False
 
         if st.button("Logout", use_container_width=True):
             st.session_state.clear()
@@ -1412,7 +1422,7 @@ def main() -> None:
         reports_page()
     elif page == "Upload CSV":
         upload_data_page()
-    elif page == "Document Upload Center":
+    elif page == "📤 Document Upload Center":
         document_upload_page()
     elif page == "Admin Board":
         admin_page()
