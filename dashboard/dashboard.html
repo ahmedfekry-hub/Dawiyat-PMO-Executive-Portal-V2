@@ -1814,6 +1814,21 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="table-wrap"><table id="linkcode-summary-table"></table></div>
     </div>
 
+    <div class="panel" id="document-repository-panel">
+      <div class="panel-head">
+        <div>
+          <h2>Document Upload Center — Status Preview</h2>
+          <div class="subtle">Design, Permit, Photos, PAT, AsBuilt, and Handover readiness by Link Code. Actual uploads are managed from the Streamlit page: 📤 Document Upload Center.</div>
+        </div>
+        <button class="btn" onclick="exportTableToExcel('document-repository-table', 'document_upload_status')">Export Excel</button>
+      </div>
+      <div class="summary-box" style="margin-bottom:12px;">
+        <div class="print-note"><b>Note:</b> This dashboard preview uses the current CSV fields and Document_Link. For live Google Drive scanning and file upload, open the Streamlit page <b>📤 Document Upload Center</b>.</div>
+      </div>
+      <div class="table-wrap"><table id="document-repository-table"></table></div>
+    </div>
+
+
     <div class="grid-2">
       <div class="panel">
         <div class="panel-head">
@@ -3554,6 +3569,8 @@ function renderExtraTables(rows, penalties) {
   }
   linkSummaryDisplayTable.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th></tr></thead><tbody>${summaryRows.map(r=>`
     <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${documentOpenCell(r.linkCode, rows)}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td></tr>`).join('')}</tbody>`;
+
+  renderDocumentRepositoryDashboard(rows);
 
 
   function subclassTable(kind, tableId) {
