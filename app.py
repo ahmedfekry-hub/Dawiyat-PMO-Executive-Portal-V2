@@ -9,7 +9,7 @@ import smtplib
 from datetime import datetime
 from email.message import EmailMessage
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Any, Dict, List, Mapping, Tuple
 
 import pandas as pd
 import streamlit as st
@@ -336,45 +336,8 @@ div[data-testid="stButton"] button {
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
 
 
-def get_users() -> Dict[str, Dict[str, str]]:
-    """
-    Recommended Streamlit secrets format:
-    [users.admin]
-    password = "AdminStrongPassword"
-    role = "admin"
-
-    [users.pmo]
-    password = "PMOStrongPassword"
-    role = "pmo"
-
-    [users.board]
-    password = "BoardStrongPassword"
-    role = "board"
-
-    [users.finance]
-    password = "FinanceStrongPassword"
-    role = "finance"
-
-    [users.viewer]
-    password = "ViewerStrongPassword"
-    role = "viewer"
-    """
-    try:
-        raw = dict(st.secrets.get("users", {}))
-        if raw:
-            users = {}
-            for username, data in raw.items():
-                if isinstance(data, dict):
-                    users[str(username)] = {
-                        "password": str(data.get("password", "")),
-                        "role": str(data.get("role", "viewer")).lower(),
-                    }
-                else:
-                    users[str(username)] = {"password": str(data), "role": "viewer"}
-            return users
-    except Exception:
-        pass
-
+def _default_users() -> Dict[str, Dict[str, str]]:
+    """Safe fallback users used only when no valid users are configured in Streamlit Secrets."""
     return {
         "ahmedfekry": {"password": "20020099", "role": "admin"},
         "pmo_team": {"password": "PMO12345", "role": "pmo"},
@@ -383,6 +346,77 @@ def get_users() -> Dict[str, Dict[str, str]]:
         "viewer": {"password": "Viewer12345", "role": "viewer"},
     }
 
+
+def _secret_get(data: Any, key: str, default: str = "") -> str:
+    """Read from dict / Streamlit AttrDict / object safely."""
+    try:
+        if isinstance(data, Mapping):
+            return str(data.get(key, default))
+        if hasattr(data, "get"):
+            return str(data.get(key, default))
+        return str(getattr(data, key, default))
+    except Exception:
+        return str(default)
+
+
+def get_users() -> Dict[str, Dict[str, str]]:
+    """
+    Stable role-based user loader.
+
+    Recommended Streamlit Secrets format:
+
+    [users.ahmedfekry]
+    password = "20020099"
+    role = "admin"
+
+    [users.tamer_solyman]
+    password = "Tamer@12345$"
+    role = "finance"
+
+    [users.mohamed_syed]
+    password = "Mohamed@12345$"
+    role = "finance"
+
+    Notes:
+    - Users from Secrets are merged with fallback users.
+    - If a Secrets user is invalid or missing password, it is ignored.
+    - This prevents a bad Secrets entry from breaking all logins.
+    """
+    users = _default_users()
+
+    try:
+        raw_users = st.secrets.get("users", {})
+    except Exception:
+        return users
+
+    if not raw_users:
+        return users
+
+    try:
+        items = raw_users.items() if hasattr(raw_users, "items") else []
+        for raw_username, data in items:
+            username = str(raw_username).strip()
+            if not username:
+                continue
+
+            if isinstance(data, str):
+                password = data.strip()
+                role = "viewer"
+            else:
+                password = _secret_get(data, "password", "").strip()
+                role = _secret_get(data, "role", "viewer").strip().lower()
+
+            if not password:
+                continue
+            if role not in ROLE_PERMISSIONS:
+                role = "viewer"
+
+            users[username] = {"password": password, "role": role}
+    except Exception:
+        # Never block login completely because of a malformed Secrets users section.
+        return users
+
+    return users
 
 def current_role() -> str:
     role = str(st.session_state.get("role", "viewer")).lower()
