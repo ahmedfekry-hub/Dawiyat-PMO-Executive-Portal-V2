@@ -139,16 +139,17 @@ header, footer {visibility: hidden;}
 }
 [data-testid="stSidebar"] * { color: #f8fafc; }
 .portal-login {
-    max-width: 880px;
-    margin: 5vh auto 2vh;
+    max-width: 1280px;
+    width: min(96vw, 1280px);
+    margin: 1vh auto 1vh;
     padding: 0;
-    border-radius: 34px;
+    border-radius: 38px;
     background:
         radial-gradient(circle at top left, rgba(20,184,166,.18), transparent 32%),
         radial-gradient(circle at top right, rgba(245,158,11,.18), transparent 34%),
         linear-gradient(135deg,#ffffff 0%,#f8fbff 100%);
     border: 1px solid #d9e3ef;
-    box-shadow: 0 28px 70px rgba(15,23,42,.16);
+    box-shadow: 0 32px 85px rgba(15,23,42,.18);
     overflow: hidden;
     text-align: center;
 }
@@ -157,33 +158,33 @@ header, footer {visibility: hidden;}
     background: linear-gradient(90deg,#f97316,#14b8a6,#2563eb);
 }
 .portal-login-inner {
-    padding: 38px 46px 42px;
+    padding: 26px 64px 30px;
 }
 .logo-row {
     display:grid;
-    grid-template-columns: 1.25fr .85fr;
-    gap:22px;
+    grid-template-columns: 1.15fr .85fr;
+    gap:34px;
     align-items:center;
-    margin-bottom:26px;
+    margin-bottom:18px;
 }
 .logo-card {
-    height:92px;
+    height:124px;
     border:1px solid #e6edf5;
-    border-radius:24px;
+    border-radius:28px;
     display:flex;
     align-items:center;
     justify-content:center;
     background:#fff;
     box-shadow: 0 12px 28px rgba(15,23,42,.08);
-    padding:14px 20px;
+    padding:18px 26px;
 }
 .logo-card img {
     max-width:100%;
-    max-height:76px;
+    max-height:104px;
     object-fit:contain;
 }
 .logo-card.met-logo img {
-    max-height:72px;
+    max-height:100px;
 }
 .portal-badge {
     display:inline-flex;
@@ -195,18 +196,18 @@ header, footer {visibility: hidden;}
     font-weight:900;
     letter-spacing:.12em;
     text-transform:uppercase;
-    margin-bottom:14px;
+    margin-bottom:10px;
 }
 .portal-title {
-    font-size: 40px;
+    font-size: 44px;
     font-weight: 1000;
     color: #10223a;
-    margin-bottom: 12px;
+    margin-bottom: 8px;
     letter-spacing:-.04em;
 }
 .portal-subtitle {
     color: #526985;
-    font-size: 17px;
+    font-size: 18px;
     line-height: 1.8;
     max-width:720px;
     margin:0 auto;
@@ -215,15 +216,15 @@ header, footer {visibility: hidden;}
     display:grid;
     grid-template-columns: repeat(3,1fr);
     gap:12px;
-    margin-top:26px;
+    margin-top:18px;
 }
 .portal-feature {
     border:1px solid #e6edf5;
     border-radius:18px;
     background:rgba(255,255,255,.75);
-    padding:13px 14px;
+    padding:15px 16px;
     color:#10223a;
-    font-size:13px;
+    font-size:15px;
     font-weight:800;
 }
 
@@ -231,15 +232,33 @@ header, footer {visibility: hidden;}
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    margin-top:12px;
-    padding:8px 16px;
+    margin-top:10px;
+    padding:12px 22px;
     border-radius:999px;
     background:linear-gradient(135deg,#111827,#1e3a8a);
     color:#facc15 !important;
-    font-size:14px;
-    font-weight:900;
+    font-size:18px;
+    font-weight:1000;
     box-shadow:0 10px 22px rgba(15,23,42,.18);
 }
+/* Enlarged login form controls */
+div[data-testid="stTextInput"] label {
+    font-size: 18px !important;
+    font-weight: 900 !important;
+    color: #10223a !important;
+}
+div[data-testid="stTextInput"] input {
+    min-height: 54px !important;
+    font-size: 18px !important;
+    border-radius: 14px !important;
+}
+div[data-testid="stButton"] button {
+    min-height: 50px !important;
+    font-size: 18px !important;
+    font-weight: 900 !important;
+    border-radius: 14px !important;
+}
+
 .upload-center-hero {
     border:1px solid #bfdbfe;
     border-radius:18px;
@@ -421,7 +440,7 @@ def login_page() -> bool:
         unsafe_allow_html=True,
     )
 
-    c1, c2, c3 = st.columns([1, 1.15, 1])
+    c1, c2, c3 = st.columns([0.65, 1.7, 0.65])
     with c2:
         username = st.text_input("Username")
         password = st.text_input("Password", type="password")
