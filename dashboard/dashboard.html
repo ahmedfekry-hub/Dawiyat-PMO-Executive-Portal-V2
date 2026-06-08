@@ -3514,30 +3514,52 @@ function docFlag(status) {
   const dot = state === 'Uploaded' ? '🟢' : (state === 'Partial' ? '🟡' : '🔴');
   return `<span class="doc-status-pill ${cls}" title="${escapeHtml(status.text || state)}">${dot} ${state}</span>`;
 }
+
+function cleanDocState(value) {
+  const t = String(value || '').trim();
+  const l = t.toLowerCase();
+  if (t.includes('🟢') || l.includes('uploaded')) return {ok:true, wait:false, text:'Uploaded'};
+  if (t.includes('🟡') || l.includes('partial')) return {ok:true, wait:true, text:'Partial'};
+  return {ok:false, wait:false, text:'Missing'};
+}
+function driveDocumentStatusMap() {
+  const rows = (INITIAL_RAW && Array.isArray(INITIAL_RAW.document_status)) ? INITIAL_RAW.document_status : [];
+  const map = new Map();
+  rows.forEach(r => {
+    const code = String(r['Link Code'] || r.linkCode || '').trim();
+    if (!code) return;
+    map.set(code, r);
+  });
+  return map;
+}
+
 function buildDocumentRepositoryRows(rows) {
   const summaryRows = buildLinkCodeSummary(rows);
+  const liveMap = driveDocumentStatusMap();
   return summaryRows.map(g => {
-    const rawRows = (g.rawRows || []).map(w => w.raw || {});
-    const values = (fields) => rawRows.flatMap(raw => fields.map(f => getRawField(raw, [f]))).filter(v => String(v || '').trim() !== '');
-    const stageText = [...(g.stages || [])].join(' | ');
-    const designStatus = stageText ? {ok:true, wait:false, text:stageText.includes('PIP') ? 'PIP / Design available' : 'Stage data available'} : {ok:false, wait:false, text:'Missing'};
-    const permitVals = values(['Permit Completion Status ','Permit Completion Status','Permit Review','Permits Progress']);
-    const photosVals = values(['Photos Status','Photo Status','Photos','Photo','Document_Link','Document Link']);
-    const patVals = values(['PAT Status','PAT Workflow Status']);
-    const asBuiltVals = values(['AsBuilt Status','As-Built Status','As Built Status']);
-    const handoverVals = values(['Handover O&M _Status','Handover O&M Status','Handover Consultant _Status','Handover Consultant Status','Handover Status']);
-    const documentUrl = g.documentUrl || linkCodeDocumentUrl(g.linkCode, rows);
+    const live = liveMap.get(String(g.linkCode || '').trim());
+    const documentUrl = (live && (live['Folder Link'] || live.folderLink)) || g.documentUrl || linkCodeDocumentUrl(g.linkCode, rows);
+    if (live) {
+      return {
+        linkCode:g.linkCode,
+        documentUrl,
+        design: cleanDocState(live['Design']),
+        permit: cleanDocState(live['Permit']),
+        photos: cleanDocState(live['Photos']),
+        pat: cleanDocState(live['PAT']),
+        asBuilt: cleanDocState(live['AsBuilt']),
+        handover: cleanDocState(live['Handover']),
+      };
+    }
     return {
       linkCode:g.linkCode,
       documentUrl,
-      design:designStatus,
-      permit:docStatusFromText(permitVals),
-      photos:docStatusFromText(photosVals),
-      pat:docStatusFromText(patVals),
-      asBuilt:docStatusFromText(asBuiltVals),
-      handover:docStatusFromText(handoverVals),
-      cost:g.cost,
-      progress:average(g.progress || [])
+      design:{ok:false, wait:false, text:'Missing'},
+      permit:{ok:false, wait:false, text:'Missing'},
+      photos:{ok:false, wait:false, text:'Missing'},
+      pat:{ok:false, wait:false, text:'Missing'},
+      asBuilt:{ok:false, wait:false, text:'Missing'},
+      handover:{ok:false, wait:false, text:'Missing'},
     };
   });
 }
