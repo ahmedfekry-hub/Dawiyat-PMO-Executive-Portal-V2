@@ -40,7 +40,25 @@ ASSETS_DIR = BASE_DIR / "assets"
 DAWIYAT_LOGO_PATH = ASSETS_DIR / "dawiyat_logo.jpg"
 MET_LOGO_PATH = ASSETS_DIR / "met_logo.jpg"
 
-DOCUMENT_TYPES = ["Design", "Permit", "Photos", "PAT", "AsBuilt", "Handover", "Other"]
+DOCUMENT_TYPES = ["Design", "Permit", "Photos", "PAT", "AsBuilt", "Handover", "Commercial"]
+DOCUMENT_FOLDER_MAP = {
+    "Design": "01 Design",
+    "Permit": "02 Permit",
+    "Photos": "03 Photos",
+    "PAT": "04 PAT",
+    "AsBuilt": "05 AsBuilt",
+    "Handover": "06 Handover",
+    "Commercial": "07 Commercial",
+}
+DOCUMENT_EXTENSIONS = {
+    "Design": ["pdf", "zip", "dwg", "dxf", "xlsx", "xls", "docx"],
+    "Permit": ["pdf", "jpg", "jpeg", "png", "xlsx", "xls", "docx"],
+    "Photos": ["jpg", "jpeg", "png", "webp", "zip", "rar", "7z"],
+    "PAT": ["pdf", "xlsx", "xls", "docx", "jpg", "jpeg", "png"],
+    "AsBuilt": ["pdf", "zip", "dwg", "dxf", "xlsx", "xls", "docx"],
+    "Handover": ["pdf", "xlsx", "xls", "docx", "jpg", "jpeg", "png", "zip"],
+    "Commercial": ["pdf", "xlsx", "xls", "docx", "zip"],
+}
 GOOGLE_DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
@@ -856,6 +874,63 @@ def upload_file_to_drive(service, folder_id: str, uploaded_file, filename: str, 
     return created.get("webViewLink", "")
 
 
+
+def safe_drive_filename(value: str) -> str:
+    cleaned = re.sub(r"[^A-Za-z0-9_.\-()\[\] ]+", "_", str(value or "")).strip()
+    return cleaned or "uploaded_file"
+
+
+def document_folder_name(doc_type: str) -> str:
+    return DOCUMENT_FOLDER_MAP.get(str(doc_type), str(doc_type))
+
+
+def ensure_document_subfolders(service, link_folder_id: str) -> Dict[str, str]:
+    """Ensure the standard Option A subfolders exist under a Link Code folder."""
+    folder_ids = {}
+    for doc_type in DOCUMENT_TYPES:
+        folder_ids[doc_type] = get_or_create_drive_folder(service, link_folder_id, document_folder_name(doc_type))
+    return folder_ids
+
+
+def list_drive_files(service, folder_id: str) -> List[Dict[str, str]]:
+    query = f"'{drive_escape(folder_id)}' in parents and mimeType != '{GOOGLE_DRIVE_FOLDER_MIME}' and trashed = false"
+    result = service.files().list(
+        q=query,
+        spaces="drive",
+        fields="files(id,name,webViewLink,modifiedTime,size,mimeType)",
+        pageSize=100,
+        supportsAllDrives=True,
+        includeItemsFromAllDrives=True,
+        orderBy="modifiedTime desc",
+    ).execute()
+    return result.get("files", [])
+
+
+def document_status_for_link(service, link_folder_id: str) -> Dict[str, Dict[str, object]]:
+    """Return status/count/latest link for the standard document subfolders."""
+    status = {}
+    for doc_type in DOCUMENT_TYPES:
+        folder_name = document_folder_name(doc_type)
+        folder_id = find_drive_folder(service, link_folder_id, folder_name)
+        files = list_drive_files(service, folder_id) if folder_id else []
+        status[doc_type] = {
+            "folder_id": folder_id,
+            "folder_url": drive_folder_url(folder_id),
+            "count": len(files),
+            "latest_file": files[0].get("name", "") if files else "",
+            "latest_url": files[0].get("webViewLink", "") if files else "",
+            "latest_modified": files[0].get("modifiedTime", "") if files else "",
+            "state": "Uploaded" if files else "Missing",
+        }
+    return status
+
+
+def status_badge_text(state: str, count: int = 0) -> str:
+    if state == "Uploaded":
+        return f"✅ Uploaded ({count})"
+    return "❌ Missing"
+
+
 def get_document_link_for_link(wo: pd.DataFrame, link_code: str) -> str:
     if wo.empty or "Document_Link" not in wo.columns:
         return ""
@@ -881,9 +956,10 @@ def update_document_link_in_csv(link_code: str, folder_url: str) -> None:
     st.cache_data.clear()
 
 
+
 def document_upload_page() -> None:
-    st.title("📤 Document Upload to Google Drive")
-    st.caption("Upload files directly to the correct Google Drive folder for each Link Code.")
+    st.title("📤 Document Upload Center")
+    st.caption("Upload files directly to the correct Google Drive subfolder for each Link Code: 01 Design, 02 Permit, 03 Photos, 04 PAT, 05 AsBuilt, 06 Handover, and 07 Commercial.")
 
     if not can("documents"):
         st.error("You do not have permission to upload documents.")
@@ -897,58 +973,115 @@ def document_upload_page() -> None:
         st.error("Link Code column is missing from u_osp_work_order.csv.")
         return
 
-    links = sorted([x for x in wo["Link Code"].astype(str).str.strip().unique() if x])
+    links = sorted([x for x in wo["Link Code"].astype(str).str.strip().unique() if x and x.lower() != "nan"])
     if not links:
         st.warning("No Link Codes found.")
         return
 
+    st.info("Select a Link Code, then upload each document type. The app will create the Link Code folder and standard subfolders automatically when needed.")
+
+    c1, c2, c3 = st.columns([1.35, .75, .75])
+    with c1:
+        link_code = st.selectbox("Link Code", links, index=0, key="doc_upload_link_code")
+    with c2:
+        st.metric("Document Types", len(DOCUMENT_TYPES))
+    with c3:
+        st.metric("Access", "Upload" if can("upload") else "View Only")
+
+    current_folder_url = get_document_link_for_link(wo, link_code)
+    service = None
+    link_folder_id = ""
+    link_folder_url = current_folder_url
+    doc_status = {}
+
+    try:
+        service = get_drive_service()
+        link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
+        ensure_document_subfolders(service, link_folder_id)
+        if not current_folder_url:
+            update_document_link_in_csv(link_code, link_folder_url)
+            current_folder_url = link_folder_url
+        doc_status = document_status_for_link(service, link_folder_id)
+    except Exception as exc:
+        st.error(str(exc))
+        st.info("Check Streamlit Secrets, Google Drive API, and ensure the Google Drive root folder is shared with the service account email as Editor.")
+        doc_status = {d: {"state": "Missing", "count": 0, "latest_file": "", "latest_url": "", "folder_url": ""} for d in DOCUMENT_TYPES}
+
     with st.container(border=True):
-        st.subheader("Upload Document")
-        c1, c2 = st.columns([1.2, .8])
-        with c1:
-            link_code = st.selectbox("Link Code", links, index=0)
-        with c2:
-            doc_type = st.selectbox("Document Type", DOCUMENT_TYPES, index=0)
-
-        current_folder_url = get_document_link_for_link(wo, link_code)
-        if current_folder_url:
-            st.success(f"Current folder linked for {link_code}")
-            st.link_button("Open Current Folder", current_folder_url, use_container_width=True)
-        else:
-            st.warning("No Document_Link found for this Link Code. The app will create a folder under the configured root folder after upload.")
-
-        uploaded_files = st.file_uploader("Select one or more files", accept_multiple_files=True, key="drive_doc_uploader")
-        create_type_subfolder = st.checkbox("Upload inside document-type subfolder", value=True)
-
-        if st.button("Upload to Google Drive", type="primary", use_container_width=True):
-            if not uploaded_files:
-                st.error("Please select at least one file.")
-                return
-            try:
-                service = get_drive_service()
-                link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
-                target_folder_id = link_folder_id
-                if create_type_subfolder:
-                    target_folder_id = get_or_create_drive_folder(service, link_folder_id, doc_type)
-
-                uploaded_rows = []
-                for f in uploaded_files:
-                    safe_name = f"{link_code}_{doc_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{f.name}"
-                    file_url = upload_file_to_drive(service, target_folder_id, f, safe_name, f.type or "application/octet-stream")
-                    uploaded_rows.append({"Link Code": link_code, "Document Type": doc_type, "File": f.name, "Drive Link": file_url})
-
-                if not current_folder_url:
-                    update_document_link_in_csv(link_code, link_folder_url)
-
-                st.success(f"Uploaded {len(uploaded_rows)} file(s) successfully.")
-                st.dataframe(pd.DataFrame(uploaded_rows), use_container_width=True, hide_index=True)
+        h1, h2 = st.columns([1, .35])
+        with h1:
+            st.subheader(f"📁 {link_code}")
+            st.caption("Standard folder structure: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial")
+        with h2:
+            if link_folder_url:
                 st.link_button("Open Link Code Folder", link_folder_url, use_container_width=True)
-            except Exception as exc:
-                st.error(str(exc))
-                st.info("Check Streamlit Secrets and ensure the Google Drive root folder is shared with the service account email as Editor.")
+            else:
+                st.button("No Folder Link", disabled=True, use_container_width=True)
+
+        metrics = st.columns(len(DOCUMENT_TYPES))
+        for i, doc_type in enumerate(DOCUMENT_TYPES):
+            info = doc_status.get(doc_type, {})
+            metrics[i].metric(doc_type, status_badge_text(info.get("state", "Missing"), int(info.get("count", 0))))
+
+    if not can("upload"):
+        st.warning("Your role is Viewer. You can view folder/document status but cannot upload files.")
+        return
+
+    st.subheader("Upload Files")
+    st.caption("Each uploaded file will be renamed with Link Code + Document Type + timestamp and saved inside the matching subfolder.")
+
+    upload_results = []
+    for row_start in range(0, len(DOCUMENT_TYPES), 2):
+        cols = st.columns(2)
+        for idx, doc_type in enumerate(DOCUMENT_TYPES[row_start:row_start + 2]):
+            with cols[idx]:
+                folder_label = document_folder_name(doc_type)
+                with st.container(border=True):
+                    st.markdown(f"### {folder_label}")
+                    info = doc_status.get(doc_type, {})
+                    if info.get("latest_file"):
+                        st.caption(f"Latest: {info.get('latest_file')}")
+                        if info.get("latest_url"):
+                            st.link_button("Open Latest File", info.get("latest_url"), use_container_width=True)
+                    else:
+                        st.caption("No files uploaded yet.")
+                    uploaded_files = st.file_uploader(
+                        f"Upload {doc_type}",
+                        type=DOCUMENT_EXTENSIONS.get(doc_type),
+                        accept_multiple_files=True,
+                        key=f"uploader_{link_code}_{doc_type}",
+                    )
+                    if st.button(f"Upload {doc_type}", key=f"upload_btn_{link_code}_{doc_type}", use_container_width=True, type="primary"):
+                        if not uploaded_files:
+                            st.warning(f"Please select at least one {doc_type} file.")
+                            continue
+                        if service is None or not link_folder_id:
+                            st.error("Google Drive is not connected. Check Secrets and Drive folder sharing.")
+                            continue
+                        try:
+                            target_folder_id = get_or_create_drive_folder(service, link_folder_id, folder_label)
+                            for f in uploaded_files:
+                                original_name = safe_drive_filename(f.name)
+                                safe_name = f"{link_code}_{doc_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{original_name}"
+                                file_url = upload_file_to_drive(service, target_folder_id, f, safe_name, f.type or "application/octet-stream")
+                                upload_results.append({
+                                    "Link Code": link_code,
+                                    "Document Type": doc_type,
+                                    "Folder": folder_label,
+                                    "File": f.name,
+                                    "Drive Link": file_url,
+                                })
+                            st.success(f"Uploaded {len(uploaded_files)} {doc_type} file(s).")
+                            st.rerun()
+                        except Exception as exc:
+                            st.error(str(exc))
+
+    if upload_results:
+        st.success(f"Uploaded {len(upload_results)} file(s) successfully.")
+        st.dataframe(pd.DataFrame(upload_results), use_container_width=True, hide_index=True)
 
     with st.expander("Required Streamlit Secrets", expanded=False):
-        st.code("""
+        st.code('''
 [google_drive]
 root_folder_id = "PASTE_DAWIYAT_PMO_REPOSITORY_FOLDER_ID"
 
@@ -956,11 +1089,18 @@ root_folder_id = "PASTE_DAWIYAT_PMO_REPOSITORY_FOLDER_ID"
 type = "service_account"
 project_id = "your-project-id"
 private_key_id = "..."
-private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
+private_key = """-----BEGIN PRIVATE KEY-----
+...
+-----END PRIVATE KEY-----
+"""
 client_email = "your-service-account@your-project.iam.gserviceaccount.com"
 client_id = "..."
+auth_uri = "https://accounts.google.com/o/oauth2/auth"
 token_uri = "https://oauth2.googleapis.com/token"
-        """.strip())
+auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
+client_x509_cert_url = "..."
+universe_domain = "googleapis.com"
+        '''.strip())
         st.markdown("Share the Google Drive root folder with the service account email as **Editor**.")
 
 
