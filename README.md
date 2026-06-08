@@ -118,3 +118,30 @@ Important:
 - `root_folder_id` should be the Google Drive folder ID of the **Link Codes** folder.
 - Share that **Link Codes** folder with the Service Account email as **Editor**.
 - Do not upload JSON key files to GitHub.
+
+## V2.11 Manual Google Drive Upload Mode
+
+This version disables direct Streamlit-to-Google-Drive file upload for normal My Drive accounts to avoid the Google Service Account storage quota limitation.
+
+Workflow:
+1. Open **📂 Document Upload Center**.
+2. Select a Link Code.
+3. Click **Open Link Code Folder** or **Open Subfolder**.
+4. Upload files manually inside Google Drive under the correct subfolder:
+   - 01 Design
+   - 02 Permit
+   - 03 Photos
+   - 04 PAT
+   - 05 AsBuilt
+   - 06 Handover
+   - 07 Commercial
+5. Return to Streamlit and click **Refresh Document Status**.
+
+Required Streamlit Secrets still include Google Drive service account credentials and:
+
+```toml
+[google_drive]
+root_folder_id = "YOUR_LINK_CODES_FOLDER_ID"
+```
+
+The service account only scans folders/files; it does not upload files in this mode.

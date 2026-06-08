@@ -842,8 +842,8 @@ def google_drive_root_config_message() -> str:
     return (
         "google_drive.root_folder_id is not configured in Streamlit Secrets. "
         "Add the Google Drive folder ID for the main 'Link Codes' folder under [google_drive]. "
-        "Existing rows that already have Document_Link can still be opened/uploaded, "
-        "but new Link Code folders cannot be created automatically without root_folder_id."
+        "The current version uses MANUAL Google Drive upload mode: users open the Link Code folder "
+        "and upload files directly in Google Drive, while the dashboard scans document status."
     )
 
 
@@ -898,14 +898,23 @@ def get_or_create_drive_folder(service, parent_id: str, name: str) -> str:
 
 
 def ensure_link_folder(service, link_code: str, existing_link: str = "") -> tuple:
+    """Resolve the existing Link Code folder without uploading/creating files.
+
+    Manual Upload Mode avoids the Service Account storage quota issue.
+    It first uses Document_Link from the CSV. If missing, it searches the configured
+    Link Codes root folder by Link Code name and stores the found URL back to CSV.
+    It does not create folders or upload files.
+    """
     folder_id = extract_drive_folder_id(existing_link)
     if folder_id:
         return folder_id, drive_folder_url(folder_id)
     root_id = get_drive_root_folder_id()
     if not root_id:
         raise RuntimeError(google_drive_root_config_message())
-    folder_id = get_or_create_drive_folder(service, root_id, link_code)
-    return folder_id, drive_folder_url(folder_id)
+    folder_id = find_drive_folder(service, root_id, link_code)
+    if folder_id:
+        return folder_id, drive_folder_url(folder_id)
+    return "", ""
 
 
 def upload_file_to_drive(service, folder_id: str, uploaded_file, filename: str, mime_type: str = "application/octet-stream") -> str:
@@ -936,10 +945,16 @@ def document_folder_name(doc_type: str) -> str:
 
 
 def ensure_document_subfolders(service, link_folder_id: str) -> Dict[str, str]:
-    """Ensure the standard Option A subfolders exist under a Link Code folder."""
+    """Return existing standard Option A subfolders under a Link Code folder.
+
+    In Manual Upload Mode the dashboard does not create folders with the
+    Service Account because Service Accounts have no personal Drive storage quota.
+    Users can create/upload directly inside Google Drive; this function only detects
+    existing folders/files and updates the status preview.
+    """
     folder_ids = {}
     for doc_type in DOCUMENT_TYPES:
-        folder_ids[doc_type] = get_or_create_drive_folder(service, link_folder_id, document_folder_name(doc_type))
+        folder_ids[doc_type] = find_drive_folder(service, link_folder_id, document_folder_name(doc_type))
     return folder_ids
 
 
@@ -1025,9 +1040,10 @@ def build_document_status_rows(service, wo: pd.DataFrame, link_codes: List[str],
         current_folder_url = get_document_link_for_link(wo, link_code)
         try:
             link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
-            if not current_folder_url:
+            if link_folder_url and not current_folder_url:
                 update_document_link_in_csv(link_code, link_folder_url)
-            ensure_document_subfolders(service, link_folder_id)
+            if not link_folder_id:
+                raise RuntimeError("No existing Google Drive folder found for this Link Code. Create the folder manually under the Link Codes root folder or add Document_Link to the CSV.")
             status = document_status_for_link(service, link_folder_id)
             folder_urls[link_code] = link_folder_url
             uploaded_count = sum(1 for d in DOCUMENT_TYPES if status.get(d, {}).get("state") == "Uploaded")
@@ -1087,6 +1103,11 @@ def document_kpi_cards(status_df: pd.DataFrame) -> None:
 
 
 def upload_widget_for_document_type(service, link_code: str, link_folder_id: str, doc_type: str, doc_status: Dict[str, Dict[str, object]]) -> None:
+    """Manual upload card: open the correct Google Drive subfolder and scan status.
+
+    Direct upload from Streamlit is intentionally disabled to avoid the Google Drive
+    Service Account storage-quota limitation on normal My Drive accounts.
+    """
     folder_label = document_folder_name(doc_type)
     info = doc_status.get(doc_type, {})
     with st.container(border=True):
@@ -1099,47 +1120,18 @@ def upload_widget_for_document_type(service, link_code: str, link_folder_id: str
                 st.caption(f"Modified: {info.get('latest_modified', '')}")
         with right:
             if info.get("folder_url"):
-                st.link_button("Open Folder", str(info.get("folder_url")), use_container_width=True)
+                st.link_button("Open Subfolder", str(info.get("folder_url")), use_container_width=True)
+            elif link_folder_id:
+                st.info("Subfolder not found. Create it manually inside the Link Code folder.")
             if info.get("latest_url"):
-                st.link_button("Open Latest", str(info.get("latest_url")), use_container_width=True)
+                st.link_button("Open Latest File", str(info.get("latest_url")), use_container_width=True)
 
-        uploaded_files = st.file_uploader(
-            f"Upload {doc_type}",
-            type=DOCUMENT_EXTENSIONS.get(doc_type),
-            accept_multiple_files=True,
-            key=f"uploader_{link_code}_{doc_type}",
-        )
-        if st.button(f"Upload {doc_type} to Google Drive", key=f"upload_btn_{link_code}_{doc_type}", use_container_width=True, type="primary"):
-            if not uploaded_files:
-                st.warning(f"Please select at least one {doc_type} file.")
-                return
-            if service is None or not link_folder_id:
-                st.error("Google Drive is not connected. Check Secrets and Drive folder sharing.")
-                return
-            try:
-                target_folder_id = get_or_create_drive_folder(service, link_folder_id, folder_label)
-                upload_results = []
-                for f in uploaded_files:
-                    original_name = safe_drive_filename(f.name)
-                    safe_name = f"{link_code}_{doc_type}_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{original_name}"
-                    file_url = upload_file_to_drive(service, target_folder_id, f, safe_name, f.type or "application/octet-stream")
-                    upload_results.append({
-                        "Link Code": link_code,
-                        "Document Type": doc_type,
-                        "Folder": folder_label,
-                        "File": f.name,
-                        "Drive Link": file_url,
-                    })
-                st.success(f"Uploaded {len(upload_results)} {doc_type} file(s).")
-                st.dataframe(pd.DataFrame(upload_results), use_container_width=True, hide_index=True)
-                st.rerun()
-            except Exception as exc:
-                st.error(str(exc))
+        st.info("Upload files manually inside Google Drive, then click Refresh Document Status. Direct Streamlit upload is disabled to avoid Service Account storage quota errors.")
 
 
 def document_upload_page() -> None:
-    st.title("📤 Document Upload Center")
-    st.caption("Professional Google Drive upload center for every Link Code. Files are saved into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial.")
+    st.title("📂 Document Upload Center")
+    st.caption("Manual Google Drive upload workflow for every Link Code. Open the Link Code folder, upload files directly into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial, then refresh status.")
 
     if not can("documents"):
         st.error("You do not have permission to access documents.")
@@ -1165,7 +1157,7 @@ def document_upload_page() -> None:
         service = None
         drive_connected = False
         st.error(str(exc))
-        st.info("Check Streamlit Secrets, enable Google Drive API, and share the root Google Drive folder with the service account email as Editor.")
+        st.info("Check Streamlit Secrets, enable Google Drive API, and share the Link Codes Google Drive folder with the service account email as Viewer/Editor so the dashboard can scan files.")
 
     st.markdown("### Executive Documents Dashboard")
     with st.container(border=True):
@@ -1197,8 +1189,8 @@ def document_upload_page() -> None:
             )
 
     st.divider()
-    st.markdown("### Upload Files to Google Drive")
-    st.caption("Select one Link Code, then upload files to the correct subfolder. Admin/PMO can upload; Viewer can only view status.")
+    st.markdown("### Open Link Code Folder & Refresh Document Status")
+    st.caption("Select one Link Code, open its Google Drive folder, upload files manually in Google Drive, then refresh the status scan. This avoids Service Account storage quota errors.")
 
     c1, c2, c3 = st.columns([1.35, .75, .75])
     with c1:
@@ -1209,7 +1201,7 @@ def document_upload_page() -> None:
     with c2:
         st.metric("Document Types", len(DOCUMENT_TYPES))
     with c3:
-        st.metric("Access", "Upload" if can("upload") else "View Only")
+        st.metric("Mode", "Manual Drive Upload")
 
     current_folder_url = get_document_link_for_link(wo, link_code)
     link_folder_id = ""
@@ -1219,26 +1211,27 @@ def document_upload_page() -> None:
     if drive_connected:
         try:
             link_folder_id, link_folder_url = ensure_link_folder(service, link_code, current_folder_url)
-            ensure_document_subfolders(service, link_folder_id)
-            if not current_folder_url:
+            if link_folder_url and not current_folder_url:
                 update_document_link_in_csv(link_code, link_folder_url)
                 current_folder_url = link_folder_url
-                # Refresh local data after writing the newly created folder link.
                 wo = safe_read_csv(WO_PATH)
-            doc_status = document_status_for_link(service, link_folder_id)
+            if link_folder_id:
+                doc_status = document_status_for_link(service, link_folder_id)
+            else:
+                st.warning("No existing Google Drive folder found for this Link Code. Create it manually under the Link Codes root folder, or add Document_Link to the CSV.")
         except Exception as exc:
             # This usually means root_folder_id is missing AND the selected Link Code has no Document_Link.
             st.warning(str(exc))
             if current_folder_url:
                 st.info("This Link Code has an existing Document_Link, but the folder ID could not be read. Check the link format.")
             else:
-                st.info("Select a Link Code that already has Documents = Open, or add [google_drive].root_folder_id to Streamlit Secrets so new folders can be created automatically.")
+                st.info("Select a Link Code that already has Documents = Open, or create a folder with the exact Link Code name under the Link Codes root folder. The dashboard will find it on the next refresh.")
 
     with st.container(border=True):
         h1, h2 = st.columns([1, .35])
         with h1:
             st.subheader(f"📁 {link_code}")
-            st.caption("Standard Option A folder structure is created automatically under the Link Code folder.")
+            st.caption("Manual upload mode: open this folder in Google Drive and upload files into the standard Option A subfolders.")
         with h2:
             if link_folder_url:
                 st.link_button("Open Link Code Folder", link_folder_url, use_container_width=True)
@@ -1250,9 +1243,7 @@ def document_upload_page() -> None:
             info = doc_status.get(doc_type, {})
             metrics[i].metric(doc_type, status_badge_text(str(info.get("state", "Missing")), int(info.get("count", 0) or 0)))
 
-    if not can("upload"):
-        st.warning("Your role is Viewer. You can view folder/document status but cannot upload files.")
-        return
+    st.warning("Direct Streamlit upload is disabled in this version. Upload files manually inside Google Drive, then click Refresh Document Status.")
 
     for row_start in range(0, len(DOCUMENT_TYPES), 2):
         cols = st.columns(2)
@@ -1281,7 +1272,7 @@ auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
 client_x509_cert_url = "..."
 universe_domain = "googleapis.com"
         '''.strip())
-        st.markdown("Share the Google Drive **Link Codes** folder with the service account email as **Editor**. Do not upload JSON keys to GitHub.")
+        st.markdown("Share the Google Drive **Link Codes** folder with the service account email. Viewer is enough for scanning existing files; Editor is only needed if you later use Google Workspace/Shared Drive direct upload. Do not upload JSON keys to GitHub.")
 
 
 def build_pdf_report() -> bytes:
