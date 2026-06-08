@@ -803,9 +803,26 @@ def get_drive_service():
         raise RuntimeError("Google service account secrets are not configured. Add [google_service_account] or [gcp_service_account] in Streamlit Secrets.")
 
     if "private_key" in info:
-        info["private_key"] = str(info["private_key"]).replace("\\n", "\n")
+        # Streamlit Secrets uses TOML, while Google exports JSON. Users may paste the key
+        # as triple-quoted TOML, or as a JSON-style value containing escaped \\n.
+        # Normalize both formats before passing it to google-auth.
+        pk = str(info["private_key"]).strip()
+        pk = pk.strip('"').strip("'")
+        pk = pk.replace("\\r\\n", "\n").replace("\\n", "\n").replace("\r\n", "\n")
+        pk = pk.replace("-----BEGIN PRIVATE KEY----- ", "-----BEGIN PRIVATE KEY-----\n")
+        pk = pk.replace(" -----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----")
+        pk = re.sub(r"-----BEGIN PRIVATE KEY-----\s*", "-----BEGIN PRIVATE KEY-----\n", pk)
+        pk = re.sub(r"\s*-----END PRIVATE KEY-----", "\n-----END PRIVATE KEY-----", pk)
+        info["private_key"] = pk
     scopes = ["https://www.googleapis.com/auth/drive"]
-    credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
+    try:
+        credentials = service_account.Credentials.from_service_account_info(info, scopes=scopes)
+    except Exception as exc:
+        raise RuntimeError(
+            "Google Drive Service Account private_key is not valid. "
+            "In Streamlit Secrets use TOML format, preferably private_key = """-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n""". "
+            "Do not paste JSON with braces or commas."
+        ) from exc
     return build("drive", "v3", credentials=credentials, cache_discovery=False)
 
 

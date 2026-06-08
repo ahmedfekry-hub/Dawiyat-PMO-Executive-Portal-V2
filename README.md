@@ -81,3 +81,9 @@ The app also supports `[gcp_service_account]` if you already used that name.
 `📤 Document Upload Center`
 
 ملاحظة: رفع الملفات لا يظهر داخل HTML Dashboard نفسه لأنه يعتمد على Streamlit native widgets و Google Drive API. لذلك تم وضعه كصفحة مستقلة داخل Streamlit مع زر واضح أعلى صفحة Dashboard للانتقال إليه.
+
+
+## V2.7 Fixes
+- Added **Document Upload Center — Status Preview** between Link Code Summary Table and Civil/Fiber Completion Summary inside the HTML dashboard.
+- Fixed Google Service Account private key normalization for Streamlit TOML secrets.
+- Upload Center remains available as a native Streamlit page: **📤 Document Upload Center**.
