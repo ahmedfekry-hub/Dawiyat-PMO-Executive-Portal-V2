@@ -1130,8 +1130,16 @@ def upload_widget_for_document_type(service, link_code: str, link_folder_id: str
 
 
 def document_upload_page() -> None:
-    st.title("📂 Document Upload Center")
-    st.caption("Manual Google Drive upload workflow for every Link Code. Open the Link Code folder, upload files directly into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial, then refresh status.")
+    top_left, top_right = st.columns([1, .22])
+    with top_left:
+        st.title("📂 Document Upload Center")
+        st.caption("Manual Google Drive upload workflow for every Link Code. Open the Link Code folder, upload files directly into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial, then refresh status.")
+    with top_right:
+        st.write("")
+        st.write("")
+        if st.button("⬅ Back to Dashboard", use_container_width=True):
+            st.session_state["force_dashboard"] = True
+            st.rerun()
 
     if not can("documents"):
         st.error("You do not have permission to access documents.")
@@ -1251,28 +1259,7 @@ def document_upload_page() -> None:
             with cols[idx]:
                 upload_widget_for_document_type(service, link_code, link_folder_id, doc_type, doc_status)
 
-    with st.expander("Required Streamlit Secrets", expanded=False):
-        st.code('''
-[google_drive]
-root_folder_id = "PASTE_LINK_CODES_FOLDER_ID"
 
-[google_service_account]
-type = "service_account"
-project_id = "your-project-id"
-private_key_id = "..."
-private_key = """-----BEGIN PRIVATE KEY-----
-...
------END PRIVATE KEY-----
-"""
-client_email = "your-service-account@your-project.iam.gserviceaccount.com"
-client_id = "..."
-auth_uri = "https://accounts.google.com/o/oauth2/auth"
-token_uri = "https://oauth2.googleapis.com/token"
-auth_provider_x509_cert_url = "https://www.googleapis.com/oauth2/v1/certs"
-client_x509_cert_url = "..."
-universe_domain = "googleapis.com"
-        '''.strip())
-        st.markdown("Share the Google Drive **Link Codes** folder with the service account email. Viewer is enough for scanning existing files; Editor is only needed if you later use Google Workspace/Shared Drive direct upload. Do not upload JSON keys to GitHub.")
 
 
 def build_pdf_report() -> bytes:
@@ -1438,6 +1425,10 @@ def main() -> None:
         # IMPORTANT: Streamlit reruns the script after every selectbox/file_uploader/button action.
         # Keep the selected page in session_state so choosing a Link Code inside
         # Document Upload Center never sends the user back to Dashboard.
+        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
+            st.session_state["main_nav"] = "Dashboard"
+            st.session_state["force_dashboard"] = False
+
         if st.session_state.get("force_document_upload_center") and "📤 Document Upload Center" in pages:
             st.session_state["main_nav"] = "📤 Document Upload Center"
             st.session_state["force_document_upload_center"] = False
