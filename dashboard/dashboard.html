@@ -1492,6 +1492,30 @@ body.dark-ui .exec-qa-mini strong{color:#f3f7ff!important;}
 @media(max-width:900px){.exec-qa-mini-grid{grid-template-columns:1fr 1fr;}}
 @media(max-width:600px){.exec-qa-mini-grid{grid-template-columns:1fr;}}
 
+
+
+/* Document repository + Link Code documents integration */
+.doc-link-btn{
+  display:inline-flex;align-items:center;gap:6px;border:1px solid #d9e3ef;border-radius:999px;
+  padding:6px 10px;background:#fff;color:#0f172a;text-decoration:none;font-weight:900;font-size:12px;
+  white-space:nowrap;box-shadow:0 2px 8px rgba(15,23,42,.04);
+}
+.doc-link-btn:hover{background:#eef4ff;color:#245bff;border-color:#93c5fd;}
+.doc-link-btn.disabled{opacity:.45;pointer-events:none;background:#eef2f7;color:#64748b;}
+.doc-repo-grid{display:grid;grid-template-columns:1fr;gap:14px;}
+.doc-repo-table th,.doc-repo-table td{text-align:center;vertical-align:middle;}
+.doc-repo-table th:first-child,.doc-repo-table td:first-child{text-align:left;}
+.doc-flag{display:inline-flex;align-items:center;justify-content:center;width:30px;height:30px;border-radius:999px;font-weight:900;font-size:17px;}
+.doc-flag.ok{background:#e8f7ef;color:#16a34a;}
+.doc-flag.no{background:#fde8e8;color:#f43f5e;}
+.doc-flag.wait{background:#fff4dd;color:#f59e0b;}
+.doc-status-text{display:block;font-size:10.5px;font-weight:800;color:#64748b;margin-top:3px;max-width:120px;margin-left:auto;margin-right:auto;line-height:1.2;}
+.doc-repo-note{border:1px dashed #cdd9e7;background:#fbfdff;border-radius:14px;padding:10px 12px;color:#64748b;font-size:12px;line-height:1.45;margin-top:10px;}
+body.dark-ui .doc-link-btn{background:#111f34!important;border-color:#2b3d5a!important;color:#e5eefb!important;}
+body.dark-ui .doc-link-btn:hover{background:#2563eb!important;color:#fff!important;}
+body.dark-ui .doc-repo-note{background:#0b1626!important;border-color:#334155!important;color:#cbd5e1!important;}
+body.dark-ui .doc-status-text{color:#9fb0c7!important;}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -2853,6 +2877,7 @@ function buildData(raw) {
       sorStatus: rawSorStatus,
       invoice50: derivedInvoice50Status,
       sorReferenceNumber: String(getRawField(r, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR Ref','SOR Number','SOR No','SOR ID']) || '').trim(),
+      documentLink: String(getRawField(r, ['Document_Link','Document Link','Documents Link','Folder Link','Drive Link']) || '').trim(),
       scopeTarget: getScopeTargetValue(r),
       closureAgingDays,
       notes: String(r['Notes'] || '').trim(),
@@ -3407,7 +3432,7 @@ function renderKpiTrend(rows) {
 function buildLinkCodeSummary(rows) {
   const grouped = new Map();
   rows.forEach(r => {
-    if (!grouped.has(r.linkCode)) grouped.set(r.linkCode, {linkCode:r.linkCode, region:r.region, city:r.city, district:r.district, cost:0, deviations:0, closedDeviations:0, openDeviations:0, penalties:0, rejections:0, progress:[], stages:new Set(), subclasses:new Set(), closureStatuses:[], statuses:[], explanations:[]});
+    if (!grouped.has(r.linkCode)) grouped.set(r.linkCode, {linkCode:r.linkCode, region:r.region, city:r.city, district:r.district, cost:0, deviations:0, closedDeviations:0, openDeviations:0, penalties:0, rejections:0, progress:[], stages:new Set(), subclasses:new Set(), closureStatuses:[], statuses:[], explanations:[], rawRows:[], documentLinks:[]});
     const o = grouped.get(r.linkCode);
     o.cost += effectiveCost(r);
     o.deviations = Math.max(o.deviations, Number(r.deviationCount)||0);
@@ -3421,6 +3446,9 @@ function buildLinkCodeSummary(rows) {
     o.closureStatuses.push(r.closureStatus || 'Open');
     o.statuses.push(r.displayStatus || r.status || 'On Track');
     if (r.statusExplanation) o.explanations.push(`${r.workOrder}: ${r.statusExplanation}`);
+    o.rawRows.push(r);
+    const docLink = String(getRawField(r.raw || {}, ['Document_Link','Document Link','Documents Link','Folder Link','Drive Link']) || '').trim();
+    if (docLink) o.documentLinks.push(docLink);
   });
   return [...grouped.values()].map(o => {
     let closureStatus = 'Open';
@@ -3430,23 +3458,102 @@ function buildLinkCodeSummary(rows) {
     const uniqueStatuses = unique(o.statuses || []);
     const performanceStatus = uniqueStatuses.includes('Off Track') ? 'Off Track' : (uniqueStatuses.includes('At Risk') ? 'At Risk' : (uniqueStatuses.includes('Pending Closure') ? 'Pending Closure' : (uniqueStatuses.includes('Closed') && uniqueStatuses.length === 1 ? 'Closed' : 'On Track')));
     const statusExplanation = unique(o.explanations || []).join(' || ');
-    return {...o, closureStatus, performanceStatus, statusExplanation};
+    const documentUrl = unique(o.documentLinks || [])[0] || '';
+    return {...o, closureStatus, performanceStatus, statusExplanation, documentUrl};
   }).sort((a,b)=> b.penalties-a.penalties || b.cost-a.cost);
 }
+
+function linkCodeDocumentUrl(linkCode, rows) {
+  const code = String(linkCode || '').trim();
+  const direct = (rows || [])
+    .filter(r => String(r.linkCode || '').trim() === code)
+    .map(r => String((r.documentLink || getRawField(r.raw || {}, ['Document_Link','Document Link','Documents Link','Folder Link','Drive Link'])) || '').trim())
+    .find(v => /^https?:\/\//i.test(v));
+  if (direct) return direct;
+  // No fallback search: this avoids opening Google Drive search results instead of the exact Link Code folder.
+  return '';
+}
+function documentOpenCell(linkCode, rows, label='Open') {
+  const code = String(linkCode || '').trim();
+  if (!code) return '<span class="doc-link-btn disabled">No Link Code</span>';
+  const url = linkCodeDocumentUrl(code, rows);
+  if (!url) return '<span class="doc-link-btn disabled" title="No Document_Link found for this Link Code">No Folder Link</span>';
+  return `<a class="doc-link-btn" href="${escapeHtml(url)}" target="_blank" rel="noopener">📁 ${escapeHtml(label)}</a>`;
+}
+function docStatusFromText(values) {
+  const joined = (values || []).map(v => String(v || '').trim()).filter(Boolean).join(' | ');
+  const l = joined.toLowerCase();
+  if (!joined) return {ok:false, wait:false, text:'Missing'};
+  if (/reject|rejected|missing|not started|not start|blank|cancel/.test(l)) return {ok:false, wait:false, text:joined};
+  if (/under|pending|preparation|review|progress|submitted|scheduled/.test(l)) return {ok:true, wait:true, text:joined};
+  if (/accept|accepted|approve|approved|complete|completed|created|done|yes|available/.test(l)) return {ok:true, wait:false, text:joined};
+  return {ok:true, wait:true, text:joined};
+}
+function docFlag(status) {
+  const cls = status.ok ? (status.wait ? 'wait' : 'ok') : 'no';
+  const mark = status.ok ? (status.wait ? '◔' : '✓') : '×';
+  return `<span class="doc-flag ${cls}">${mark}</span><span class="doc-status-text">${escapeHtml(status.text || '')}</span>`;
+}
+function buildDocumentRepositoryRows(rows) {
+  const summaryRows = buildLinkCodeSummary(rows);
+  return summaryRows.map(g => {
+    const rawRows = (g.rawRows || []).map(w => w.raw || {});
+    const values = (fields) => rawRows.flatMap(raw => fields.map(f => getRawField(raw, [f]))).filter(v => String(v || '').trim() !== '');
+    const stageText = [...(g.stages || [])].join(' | ');
+    const designStatus = stageText ? {ok:true, wait:false, text:stageText.includes('PIP') ? 'PIP / Design available' : 'Stage data available'} : {ok:false, wait:false, text:'Missing'};
+    const permitVals = values(['Permit Completion Status ','Permit Completion Status','Permit Review','Permits Progress']);
+    const photosVals = values(['Photos Status','Photo Status','Photos','Photo','Document_Link','Document Link']);
+    const patVals = values(['PAT Status','PAT Workflow Status']);
+    const asBuiltVals = values(['AsBuilt Status','As-Built Status','As Built Status']);
+    const handoverVals = values(['Handover O&M _Status','Handover O&M Status','Handover Consultant _Status','Handover Consultant Status','Handover Status']);
+    const documentUrl = g.documentUrl || linkCodeDocumentUrl(g.linkCode, rows);
+    return {
+      linkCode:g.linkCode,
+      documentUrl,
+      design:designStatus,
+      permit:docStatusFromText(permitVals),
+      photos:docStatusFromText(photosVals),
+      pat:docStatusFromText(patVals),
+      asBuilt:docStatusFromText(asBuiltVals),
+      handover:docStatusFromText(handoverVals),
+      cost:g.cost,
+      progress:average(g.progress || [])
+    };
+  });
+}
+function renderDocumentRepositoryDashboard(rows) {
+  const table = document.getElementById('document-repository-table');
+  if (!table) return;
+  const repo = buildDocumentRepositoryRows(rows);
+  table.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>Design</th><th>Permit</th><th>Photos</th><th>PAT</th><th>AsBuilt</th><th>Handover</th><th>WO Cost</th><th>Avg Completion</th></tr></thead><tbody>${repo.map(r => `
+    <tr>
+      <td><b>${escapeHtml(r.linkCode)}</b></td>
+      <td>${documentOpenCell(r.linkCode, rows)}</td>
+      <td>${docFlag(r.design)}</td>
+      <td>${docFlag(r.permit)}</td>
+      <td>${docFlag(r.photos)}</td>
+      <td>${docFlag(r.pat)}</td>
+      <td>${docFlag(r.asBuilt)}</td>
+      <td>${docFlag(r.handover)}</td>
+      <td>${fmtMoney(r.cost)}</td>
+      <td>${fmtPct(r.progress)}</td>
+    </tr>`).join('') || '<tr><td colspan="10">No records in current scope.</td></tr>'}</tbody>`;
+}
+
 function renderExtraTables(rows, penalties) {
   const summaryRows = buildLinkCodeSummary(rows);
   const linkSummaryExportTable = document.getElementById('linkcode-summary-table');
   linkSummaryExportTable.style.display = 'none';
-  linkSummaryExportTable.innerHTML = `<thead><tr><th>Link Code</th><th>Region</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th><th>Status Explanation</th></tr></thead><tbody>${summaryRows.map(r=>`
-    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${escapeHtml(r.region)}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td><td>${escapeHtml(r.statusExplanation || '')}</td></tr>`).join('')}</tbody>`;
+  linkSummaryExportTable.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th><th>Status Explanation</th></tr></thead><tbody>${summaryRows.map(r=>`
+    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${documentOpenCell(r.linkCode, rows)}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td><td>${escapeHtml(r.statusExplanation || '')}</td></tr>`).join('')}</tbody>`;
   let linkSummaryDisplayTable = document.getElementById('linkcode-summary-table-display');
   if (!linkSummaryDisplayTable) {
     linkSummaryDisplayTable = document.createElement('table');
     linkSummaryDisplayTable.id = 'linkcode-summary-table-display';
     linkSummaryExportTable.parentNode.appendChild(linkSummaryDisplayTable);
   }
-  linkSummaryDisplayTable.innerHTML = `<thead><tr><th>Link Code</th><th>Region</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th></tr></thead><tbody>${summaryRows.map(r=>`
-    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${escapeHtml(r.region)}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td></tr>`).join('')}</tbody>`;
+  linkSummaryDisplayTable.innerHTML = `<thead><tr><th>Link Code</th><th>Documents</th><th>City</th><th>District</th><th>Stages</th><th>Subclass</th><th>Closure Status</th><th>Performance Status</th><th>Avg Completion</th><th>WO Cost</th><th>Deviations</th><th>Closed Deviations</th><th>Open Deviations</th><th>Penalty Amount</th><th>Rejections</th></tr></thead><tbody>${summaryRows.map(r=>`
+    <tr><td><b>${escapeHtml(r.linkCode)}</b></td><td>${documentOpenCell(r.linkCode, rows)}</td><td>${escapeHtml(r.city)}</td><td>${escapeHtml(r.district)}</td><td>${escapeHtml([...r.stages].join(', '))}</td><td>${escapeHtml([...r.subclasses].join(', '))}</td><td>${escapeHtml(r.closureStatus)}</td><td>${escapeHtml(r.performanceStatus || '')}</td><td>${fmtPct(average(r.progress))}</td><td>${fmtMoney(r.cost)}</td><td>${fmtInt(r.deviations)}</td><td>${fmtInt(r.closedDeviations)}</td><td>${fmtInt(r.openDeviations)}</td><td>${fmtMoney(r.penalties)}</td><td>${fmtInt(r.rejections)}</td></tr>`).join('')}</tbody>`;
 
 
   function subclassTable(kind, tableId) {
