@@ -230,16 +230,26 @@ header, footer {visibility: hidden;}
     font-weight:800;
 }
 
+.account-access-row {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 18px auto 18px;
+    text-align: center;
+}
 .account-access-pill {
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    margin: 12px auto 16px;
-    padding:14px 26px;
+    width: min(860px, 92vw);
+    margin: 0 auto;
+    padding:16px 30px;
     border-radius:999px;
     background:linear-gradient(135deg,#111827,#1e3a8a);
     color:#facc15 !important;
-    font-size:20px;
+    font-size:22px;
+    line-height:1.35;
     font-weight:1000;
     box-shadow:0 14px 28px rgba(15,23,42,.24);
     border:1px solid rgba(255,255,255,.18);
@@ -618,7 +628,7 @@ def login_page() -> bool:
     c1, c2, c3 = st.columns([0.42, 2.15, 0.42])
     with c2:
         st.markdown(
-            '<div class="account-access-pill">For account access, please contact Eng./Ahmed Fekry (PMO System Administrator).</div>',
+            '<div class="account-access-row"><div class="account-access-pill">For account access, please contact Eng./Ahmed Fekry (PMO System Administrator).</div></div>',
             unsafe_allow_html=True,
         )
 
@@ -1885,13 +1895,7 @@ def render_session_bar() -> None:
         unsafe_allow_html=True,
     )
 
-    col_spacer, col_refresh, col_logout = st.columns([7.5, 1.25, 1.25])
-    with col_refresh:
-        if st.button("🔄 Refresh", use_container_width=True, key="top_refresh"):
-            st.cache_data.clear()
-            st.session_state["last_manual_refresh"] = _format_login_time()
-            st.toast("Dashboard refreshed", icon="🔄")
-            st.rerun()
+    col_spacer, col_logout = st.columns([8.7, 1.3])
     with col_logout:
         if st.button("🚪 Logout", use_container_width=True, key="top_logout"):
             _clear_login_query_params()
