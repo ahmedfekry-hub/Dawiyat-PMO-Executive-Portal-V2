@@ -239,20 +239,30 @@ header, footer {visibility: hidden;}
     text-align: center;
 }
 .account-access-pill {
-    display:inline-flex;
+    display:flex;
+    flex-direction:column;
     align-items:center;
     justify-content:center;
-    width: min(860px, 92vw);
+    width:min(1100px,95vw);
     margin: 0 auto;
-    padding:16px 30px;
+    padding:18px 40px;
     border-radius:999px;
     background:linear-gradient(135deg,#111827,#1e3a8a);
     color:#facc15 !important;
-    font-size:22px;
-    line-height:1.35;
+    font-size:20px;
+    line-height:1.45;
     font-weight:1000;
+    text-align:center;
     box-shadow:0 14px 28px rgba(15,23,42,.24);
     border:1px solid rgba(255,255,255,.18);
+}
+.account-access-pill .admin-contact-name {
+    display:block;
+    color:#ffffff !important;
+    font-size:26px;
+    font-weight:1000;
+    letter-spacing:.01em;
+    line-height:1.35;
 }
 .login-form-wrap {
     max-width: 880px;
@@ -628,7 +638,14 @@ def login_page() -> bool:
     c1, c2, c3 = st.columns([0.42, 2.15, 0.42])
     with c2:
         st.markdown(
-            '<div class="account-access-row"><div class="account-access-pill">For account access, please contact  Eng./Ahmed Fekry   (PMO System Administrator).</div></div>',
+            """
+            <div class="account-access-row">
+                <div class="account-access-pill">
+                    <div>For account access, please contact</div>
+                    <span class="admin-contact-name">Eng./Ahmed Fekry (PMO System Administrator)</span>
+                </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
 
