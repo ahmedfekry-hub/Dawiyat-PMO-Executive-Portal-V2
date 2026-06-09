@@ -141,9 +141,9 @@ header, footer {visibility: hidden;}
 }
 [data-testid="stSidebar"] * { color: #f8fafc; }
 .portal-login {
-    max-width: 1280px;
-    width: min(96vw, 1280px);
-    margin: 1vh auto 1vh;
+    max-width: 1360px;
+    width: min(98vw, 1360px);
+    margin: 1vh auto 0.8vh;
     padding: 0;
     border-radius: 38px;
     background:
@@ -160,7 +160,7 @@ header, footer {visibility: hidden;}
     background: linear-gradient(90deg,#f97316,#14b8a6,#2563eb);
 }
 .portal-login-inner {
-    padding: 26px 64px 30px;
+    padding: 28px 68px 24px;
 }
 .logo-row {
     display:grid;
@@ -170,7 +170,7 @@ header, footer {visibility: hidden;}
     margin-bottom:18px;
 }
 .logo-card {
-    height:124px;
+    height:138px;
     border:1px solid #e6edf5;
     border-radius:28px;
     display:flex;
@@ -182,11 +182,11 @@ header, footer {visibility: hidden;}
 }
 .logo-card img {
     max-width:100%;
-    max-height:104px;
+    max-height:116px;
     object-fit:contain;
 }
 .logo-card.met-logo img {
-    max-height:100px;
+    max-height:112px;
 }
 .portal-badge {
     display:inline-flex;
@@ -201,7 +201,7 @@ header, footer {visibility: hidden;}
     margin-bottom:10px;
 }
 .portal-title {
-    font-size: 44px;
+    font-size: 48px;
     font-weight: 1000;
     color: #10223a;
     margin-bottom: 8px;
@@ -209,7 +209,7 @@ header, footer {visibility: hidden;}
 }
 .portal-subtitle {
     color: #526985;
-    font-size: 18px;
+    font-size: 20px;
     line-height: 1.8;
     max-width:720px;
     margin:0 auto;
@@ -234,14 +234,40 @@ header, footer {visibility: hidden;}
     display:inline-flex;
     align-items:center;
     justify-content:center;
-    margin-top:10px;
-    padding:12px 22px;
+    margin: 12px auto 16px;
+    padding:14px 26px;
     border-radius:999px;
     background:linear-gradient(135deg,#111827,#1e3a8a);
     color:#facc15 !important;
-    font-size:18px;
+    font-size:20px;
     font-weight:1000;
-    box-shadow:0 10px 22px rgba(15,23,42,.18);
+    box-shadow:0 14px 28px rgba(15,23,42,.24);
+    border:1px solid rgba(255,255,255,.18);
+}
+.login-form-wrap {
+    max-width: 880px;
+    margin: 0 auto 18px;
+    padding: 18px 20px 20px;
+    border: 6px solid #0b0f19;
+    border-radius: 4px;
+    background: rgba(255,255,255,.84);
+    box-shadow: 0 16px 36px rgba(15,23,42,.14);
+}
+.login-form-wrap .login-title {
+    color: #10223a;
+    font-size: 18px;
+    font-weight: 1000;
+    text-align: center;
+    margin-bottom: 10px;
+}
+div[data-testid="stForm"] {
+    max-width: 880px;
+    margin: 0 auto 8px;
+    padding: 18px 20px 20px;
+    border: 6px solid #0b0f19;
+    border-radius: 4px;
+    background: rgba(255,255,255,.86);
+    box-shadow: 0 16px 36px rgba(15,23,42,.14);
 }
 /* Enlarged login form controls */
 div[data-testid="stTextInput"] label {
@@ -589,11 +615,17 @@ def login_page() -> bool:
         unsafe_allow_html=True,
     )
 
-    c1, c2, c3 = st.columns([0.65, 1.7, 0.65])
+    c1, c2, c3 = st.columns([0.42, 2.15, 0.42])
     with c2:
-        username = st.text_input("Username")
-        password = st.text_input("Password", type="password")
-        login = st.button("Login", use_container_width=True)
+        st.markdown(
+            '<div class="account-access-pill">For account access, please contact Eng./Ahmed Fekry (PMO System Administrator).</div>',
+            unsafe_allow_html=True,
+        )
+
+        with st.form("login_form", clear_on_submit=False):
+            username = st.text_input("Username")
+            password = st.text_input("Password", type="password")
+            login = st.form_submit_button("Login", use_container_width=True)
 
         if login:
             users = get_users()
@@ -610,11 +642,6 @@ def login_page() -> bool:
                 st.rerun()
             else:
                 st.error("Invalid username or password.")
-
-        st.markdown(
-            '<div class="account-access-pill">For account access, please contact Eng./Ahmed Fekry (PMO System Administrator).</div>',
-            unsafe_allow_html=True,
-        )
 
     return False
 
@@ -1862,6 +1889,8 @@ def render_session_bar() -> None:
     with col_refresh:
         if st.button("🔄 Refresh", use_container_width=True, key="top_refresh"):
             st.cache_data.clear()
+            st.session_state["last_manual_refresh"] = _format_login_time()
+            st.toast("Dashboard refreshed", icon="🔄")
             st.rerun()
     with col_logout:
         if st.button("🚪 Logout", use_container_width=True, key="top_logout"):
