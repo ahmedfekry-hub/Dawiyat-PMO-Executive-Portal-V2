@@ -628,8 +628,7 @@ def login_page() -> bool:
     c1, c2, c3 = st.columns([0.42, 2.15, 0.42])
     with c2:
         st.markdown(
-            '<div class="account-access-row"><div class="account-access-pill">For account access, please contact Eng./Ahmed Fekry 
-            (PMO System Administrator).</div></div>',
+            '<div class="account-access-row"><div class="account-access-pill">For account access, please contact  Eng./Ahmed Fekry   (PMO System Administrator).</div></div>',
             unsafe_allow_html=True,
         )
 
