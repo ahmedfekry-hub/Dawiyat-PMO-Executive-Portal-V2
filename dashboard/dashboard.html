@@ -6098,14 +6098,17 @@ function reportBars(items, valueFn, labelFn){
   }).join('')}</div>`;
 }
 function reportRegionScope(rows){
-  const groups = reportGroupRows(rows, r => r.region || r.city || 'N/A');
+  const groups = reportGroupRows(rows, r => (r.region||'N/A') + '||' + (r.district||'N/A'));
   const totalCost = sum(groups.map(g=>g.cost));
-  const tableRows = groups.map((g,i)=>[
-    String(i+1),
-    escapeHtml(g.name.toUpperCase()),
-    fmtInt(g.woCount),
-    fmtMoney(g.cost)
-  ]);
+  const tableRows = groups.map((g,i)=>{
+    const p = String(g.name).split('||');
+    return [
+      escapeHtml((p[0]||'N/A').toUpperCase()),
+      escapeHtml(p[1]||'N/A'),
+      fmtInt(g.linkCount),
+      fmtMoney(g.cost)
+    ];
+  });
   const footer = ['Grand Total','',fmtInt(sum(groups.map(g=>g.woCount))),fmtMoney(totalCost)];
   const pieItems = groups.map(g=>({...g, share: totalCost ? g.cost/totalCost*100 : 0}));
   return `<div class="orange-report-slide">
@@ -6113,10 +6116,10 @@ function reportRegionScope(rows){
     <div class="orange-report-layout">
       <div>
         <div style="background:#f47a2a;color:#fff;font-size:22px;font-weight:1000;text-align:center;padding:10px;border:1px solid #fff;">Dawiyat Project Full Scope</div>
-        ${reportOrangeTable(['S.No','Region','WO #','WO Amount'], tableRows, footer)}
+        ${reportOrangeTable(['Region','District','No. of Link Codes','WO Amount'], tableRows, footer)}
       </div>
       <div class="orange-panel">
-        <div class="orange-panel-title">Business Volume</div>
+        <div class="orange-panel-title">District Business Volume</div>
         <div class="orange-pie" style="${reportPieStyle(pieItems)}"></div>
         ${reportPieLegend(pieItems)}
       </div>
@@ -6124,7 +6127,7 @@ function reportRegionScope(rows){
   </div>`;
 }
 function reportRegionalPerformance(rows){
-  const groups = reportGroupRows(rows, r => r.region || r.city || 'N/A');
+  const groups = reportGroupRows(rows, r => r.district || 'N/A');
   const data = groups.map(g=>{
     const completed = g.rows.filter(r=>reportClassifyProgress(r.actualProgress)==='Completed').length;
     const inProgress = g.rows.filter(r=>reportClassifyProgress(r.actualProgress)==='In Progress').length;
@@ -6135,8 +6138,8 @@ function reportRegionalPerformance(rows){
   return `<div class="orange-report-slide">
     ${reportOrangeBrand('Regional Performance Summary')}
     <div class="orange-wide-table">
-      ${reportOrangeTable(['Region','Total Sites','Completed','In Progress','Not Start','Completion %'], data.map(g=>[
-        escapeHtml(g.name.toUpperCase()), fmtInt(g.woCount), fmtInt(g.completed), fmtInt(g.inProgress), fmtInt(g.notStart), fmtPct(g.completionPct)
+      ${reportOrangeTable(['Region / District','District','Total Sites','Completed','In Progress','Not Start','Completion %'], data.map(g=>[
+        escapeHtml(g.name.toUpperCase()), escapeHtml(g.name), fmtInt(g.woCount), fmtInt(g.completed), fmtInt(g.inProgress), fmtInt(g.notStart), fmtPct(g.completionPct)
       ]))}
     </div>
     <div class="orange-small-chart">${reportBars(data.slice(0,8), x=>x.cost, x=>x.name.toUpperCase())}</div>
