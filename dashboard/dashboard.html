@@ -1600,6 +1600,213 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   .report-section-card > .report-title{align-items:flex-start;flex-direction:column;}
 }
 
+
+/* ADDITIONAL EXECUTIVE ORANGE REPORTS - dynamic and linked to global filters */
+.orange-reports-grid{
+  display:flex;
+  flex-direction:column;
+  gap:20px;
+}
+.orange-report-slide{
+  position:relative;
+  overflow:hidden;
+  border:1px solid #f2c7a8;
+  border-radius:20px;
+  min-height:520px;
+  padding:22px 26px 24px;
+  background:
+    radial-gradient(circle at 7% 90%, rgba(255,255,255,.55), transparent 28%),
+    radial-gradient(circle at 78% 22%, rgba(255,255,255,.45), transparent 38%),
+    linear-gradient(135deg,#ffe5cf 0%,#fff2e6 55%,#ffe1c8 100%);
+  box-shadow:0 12px 30px rgba(124,45,18,.12);
+}
+.orange-report-slide:before{
+  content:"";
+  position:absolute;
+  inset:0;
+  background:
+    repeating-linear-gradient(135deg, rgba(255,255,255,.22) 0 10px, transparent 10px 28px);
+  opacity:.38;
+  pointer-events:none;
+}
+.orange-report-slide > *{position:relative;z-index:1;}
+.orange-report-brand{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:18px;
+  margin-bottom:8px;
+}
+.orange-report-logo{
+  width:190px;
+  height:82px;
+  border-radius:0;
+  background:#fff;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow:0 4px 14px rgba(15,23,42,.06);
+  overflow:hidden;
+}
+.orange-report-logo img{max-width:100%;max-height:100%;object-fit:contain;}
+.orange-report-title{
+  text-align:center;
+  font-size:29px;
+  font-weight:1000;
+  color:#111827;
+  margin:4px auto 22px;
+  letter-spacing:-.02em;
+}
+.orange-report-desc{
+  color:#111827;
+  font-size:20px;
+  line-height:1.45;
+  margin:8px 0 26px;
+}
+.orange-report-layout{
+  display:grid;
+  grid-template-columns:1.05fr .95fr;
+  gap:24px;
+  align-items:stretch;
+}
+.orange-table{
+  width:100%;
+  border-collapse:collapse;
+  overflow:hidden;
+  font-size:18px;
+}
+.orange-table th{
+  background:#f47a2a;
+  color:#111827;
+  padding:13px 12px;
+  border:1px solid rgba(255,255,255,.9);
+  text-align:center;
+  font-weight:1000;
+  text-decoration:underline;
+}
+.orange-table td{
+  background:rgba(255,255,255,.43);
+  padding:12px 12px;
+  border:1px solid rgba(255,255,255,.92);
+  text-align:center;
+  color:#111827;
+}
+.orange-table tfoot td{
+  font-weight:1000;
+  background:rgba(255,255,255,.58);
+}
+.orange-panel{
+  background:linear-gradient(135deg,#f4f4f4,#cfcfcf);
+  border:1px solid #d0d0d0;
+  padding:16px;
+  min-height:300px;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  justify-content:center;
+  box-shadow:inset 0 0 50px rgba(255,255,255,.35);
+}
+.orange-panel-title{
+  color:#374151;
+  font-size:22px;
+  font-weight:1000;
+  margin-bottom:10px;
+}
+.orange-pie{
+  width:280px;
+  height:280px;
+  border-radius:50%;
+  background:conic-gradient(#5da1d8 0 60%,#f47a2a 60% 74%,#ffc928 74% 84%,#4977c6 84% 93%,#9ca3af 93% 100%);
+  box-shadow:0 22px 0 #26445f, 0 20px 26px rgba(0,0,0,.25);
+  border:1px solid rgba(0,0,0,.05);
+}
+.orange-legend{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px 14px;
+  margin-top:16px;
+  justify-content:center;
+  font-size:13px;
+  color:#374151;
+}
+.orange-legend span{display:inline-flex;align-items:center;gap:6px;}
+.orange-legend i{width:10px;height:10px;display:inline-block;border-radius:2px;}
+.orange-chart-bars{
+  display:grid;
+  gap:13px;
+  width:100%;
+  padding:8px 6px 4px;
+}
+.orange-bar-row{
+  display:grid;
+  grid-template-columns:160px 1fr 90px;
+  gap:12px;
+  align-items:center;
+  font-size:14px;
+  color:#374151;
+}
+.orange-bar-track{
+  height:18px;
+  background:rgba(255,255,255,.55);
+  border-radius:999px;
+  overflow:hidden;
+  box-shadow:inset 0 1px 4px rgba(0,0,0,.12);
+}
+.orange-bar-fill{
+  height:100%;
+  background:linear-gradient(90deg,#f47a2a,#2563eb);
+  border-radius:999px;
+}
+.orange-wide-table{
+  max-width:1120px;
+  margin:0 auto 26px;
+}
+.orange-small-chart{
+  max-width:1040px;
+  margin:22px auto 0;
+}
+.readiness-cards{
+  display:grid;
+  grid-template-columns:repeat(7,minmax(140px,1fr));
+  gap:12px;
+  margin-top:16px;
+}
+.readiness-card{
+  border:1px solid #f2c7a8;
+  border-radius:16px;
+  background:rgba(255,255,255,.55);
+  padding:14px;
+  box-shadow:0 8px 18px rgba(124,45,18,.08);
+}
+.readiness-card h4{
+  margin:0 0 12px;
+  color:#111827;
+  font-size:16px;
+  font-weight:1000;
+}
+.readiness-card .r-line{
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  margin:8px 0;
+  font-weight:900;
+  color:#111827;
+}
+.readiness-note{
+  margin-top:14px;
+  padding:12px 14px;
+  border-radius:14px;
+  background:rgba(255,255,255,.55);
+  color:#7c2d12;
+  font-weight:900;
+}
+@media(max-width:1100px){
+  .orange-report-layout{grid-template-columns:1fr;}
+  .readiness-cards{grid-template-columns:repeat(2,1fr);}
+  .orange-report-logo{width:150px;height:66px;}
+  .orange-report-title{font-size:24px;}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -2039,6 +2246,12 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="report-section-card">
         <div class="report-title"><h3>Overall Stages Summary & Cost Exposure</h3><span class="report-tag">Execution Stages</span></div>
         <div id="reports-stage-summary"></div>
+      </div>
+
+      <div class="report-section-card">
+        <div class="report-title"><h3>Additional Executive Orange Reports</h3><span class="report-tag">Dynamic / Filter Linked</span></div>
+        <div class="subtle">The following executive reports are calculated from the same active dashboard filters and current uploaded CSV data. Existing reports above are kept unchanged.</div>
+        <div id="reports-orange-dynamic" class="orange-reports-grid"></div>
       </div>
     </div>
   </section>
@@ -5809,6 +6022,281 @@ function reportCopyHtml(sourceSelector, targetId, emptyMessage){
     target.innerHTML = `<div class="empty">${escapeHtml(emptyMessage || 'No report data available under current filters.')}</div>`;
   }
 }
+
+function reportSafeName(value){
+  const t = String(value || '').trim();
+  return t || 'N/A';
+}
+function reportClassifyProgress(p){
+  const v = Number(p || 0);
+  if (v >= 100) return 'Completed';
+  if (v > 0) return 'In Progress';
+  return 'Not Start';
+}
+function reportCostOf(r){
+  return Number(effectiveCost(r) || r.woCost || r.cost || 0);
+}
+function reportGroupRows(rows, keyFn){
+  const m = new Map();
+  (rows || []).forEach(r => {
+    const key = reportSafeName(keyFn(r));
+    if(!m.has(key)) m.set(key,{name:key, rows:[], links:new Set(), cost:0, progress:[]});
+    const o = m.get(key);
+    o.rows.push(r);
+    o.links.add(r.linkCode);
+    o.cost += reportCostOf(r);
+    o.progress.push(Number(r.actualProgress || 0));
+  });
+  return [...m.values()].map(o => ({
+    name:o.name,
+    rows:o.rows,
+    woCount:o.rows.length,
+    linkCount:o.links.size,
+    cost:o.cost,
+    avgProgress:average(o.progress)
+  })).sort((a,b)=>b.cost-a.cost || b.woCount-a.woCount || a.name.localeCompare(b.name));
+}
+function reportOrangeTable(headers, rows, footer){
+  const head = `<thead><tr>${headers.map(h=>`<th>${escapeHtml(h)}</th>`).join('')}</tr></thead>`;
+  const body = `<tbody>${rows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join('')}</tr>`).join('') || `<tr><td colspan="${headers.length}">No matching records under current filters.</td></tr>`}</tbody>`;
+  const foot = footer ? `<tfoot><tr>${footer.map(c=>`<td>${c}</td>`).join('')}</tr></tfoot>` : '';
+  return `<table class="orange-table">${head}${body}${foot}</table>`;
+}
+function reportOrangeBrand(title){
+  const daw = document.querySelector('.logo-card.dawiyat-logo img, img[alt*="Dawiyat"]');
+  const met = document.querySelector('.logo-card.met-logo img, img[alt*="Middle Sea"]');
+  const metSrc = met ? met.getAttribute('src') : '';
+  const dawSrc = daw ? daw.getAttribute('src') : '';
+  return `<div class="orange-report-brand">
+    <div class="orange-report-logo">${metSrc ? `<img src="${metSrc}" alt="MET">` : ''}</div>
+    <div class="orange-report-title">${escapeHtml(title)}</div>
+    <div class="orange-report-logo">${dawSrc ? `<img src="${dawSrc}" alt="Dawiyat">` : ''}</div>
+  </div>`;
+}
+function reportPieLegend(items){
+  const colors = ['#5da1d8','#f47a2a','#ffc928','#4977c6','#9ca3af','#16a34a','#8b5cf6'];
+  return `<div class="orange-legend">${items.slice(0,7).map((x,i)=>`<span><i style="background:${colors[i]}"></i>${escapeHtml(x.name)} ${fmtPct(x.share || 0)}</span>`).join('')}</div>`;
+}
+function reportPieStyle(items){
+  const colors = ['#5da1d8','#f47a2a','#ffc928','#4977c6','#9ca3af','#16a34a','#8b5cf6'];
+  let acc = 0;
+  const parts = [];
+  items.slice(0,7).forEach((x,i)=>{
+    const start = acc;
+    acc += Math.max(0, Number(x.share || 0));
+    parts.push(`${colors[i]} ${start}% ${acc}%`);
+  });
+  if(acc < 100) parts.push(`#e5e7eb ${acc}% 100%`);
+  return `background:conic-gradient(${parts.join(',')});`;
+}
+function reportBars(items, valueFn, labelFn){
+  const max = Math.max(1, ...items.map(valueFn));
+  return `<div class="orange-chart-bars">${items.map(x=>{
+    const val = valueFn(x);
+    const pct = Math.max(2, Math.min(100, val / max * 100));
+    return `<div class="orange-bar-row"><b>${escapeHtml(labelFn(x))}</b><div class="orange-bar-track"><span class="orange-bar-fill" style="display:block;width:${pct}%"></span></div><strong>${fmtMoneyShort(val)}</strong></div>`;
+  }).join('')}</div>`;
+}
+function reportRegionScope(rows){
+  const groups = reportGroupRows(rows, r => r.region || r.city || 'N/A');
+  const totalCost = sum(groups.map(g=>g.cost));
+  const tableRows = groups.map((g,i)=>[
+    String(i+1),
+    escapeHtml(g.name.toUpperCase()),
+    fmtInt(g.woCount),
+    fmtMoney(g.cost)
+  ]);
+  const footer = ['Grand Total','',fmtInt(sum(groups.map(g=>g.woCount))),fmtMoney(totalCost)];
+  const pieItems = groups.map(g=>({...g, share: totalCost ? g.cost/totalCost*100 : 0}));
+  return `<div class="orange-report-slide">
+    ${reportOrangeBrand('Dawiyat Project Full Scope 2025 & 2026')}
+    <div class="orange-report-layout">
+      <div>
+        <div style="background:#f47a2a;color:#fff;font-size:22px;font-weight:1000;text-align:center;padding:10px;border:1px solid #fff;">Dawiyat Project Full Scope</div>
+        ${reportOrangeTable(['S.No','Region','WO #','WO Amount'], tableRows, footer)}
+      </div>
+      <div class="orange-panel">
+        <div class="orange-panel-title">Business Volume</div>
+        <div class="orange-pie" style="${reportPieStyle(pieItems)}"></div>
+        ${reportPieLegend(pieItems)}
+      </div>
+    </div>
+  </div>`;
+}
+function reportRegionalPerformance(rows){
+  const groups = reportGroupRows(rows, r => r.region || r.city || 'N/A');
+  const data = groups.map(g=>{
+    const completed = g.rows.filter(r=>reportClassifyProgress(r.actualProgress)==='Completed').length;
+    const inProgress = g.rows.filter(r=>reportClassifyProgress(r.actualProgress)==='In Progress').length;
+    const notStart = g.rows.filter(r=>reportClassifyProgress(r.actualProgress)==='Not Start').length;
+    const pct = g.woCount ? completed/g.woCount*100 : 0;
+    return {...g, completed, inProgress, notStart, completionPct:pct};
+  });
+  return `<div class="orange-report-slide">
+    ${reportOrangeBrand('Regional Performance Summary')}
+    <div class="orange-wide-table">
+      ${reportOrangeTable(['Region','Total Sites','Completed','In Progress','Not Start','Completion %'], data.map(g=>[
+        escapeHtml(g.name.toUpperCase()), fmtInt(g.woCount), fmtInt(g.completed), fmtInt(g.inProgress), fmtInt(g.notStart), fmtPct(g.completionPct)
+      ]))}
+    </div>
+    <div class="orange-small-chart">${reportBars(data.slice(0,8), x=>x.cost, x=>x.name.toUpperCase())}</div>
+  </div>`;
+}
+function reportCompletionAnalysis(rows){
+  function countFor(type, status){
+    return rows.filter(r=>{
+      const sub = String(r.subclass || '').toLowerCase();
+      const typeOk = type === 'Overall' || sub.includes(type.toLowerCase());
+      return typeOk && reportClassifyProgress(r.actualProgress) === status;
+    }).length;
+  }
+  const statuses = ['Completed','In Progress','Not Start'];
+  const totalOverall = Math.max(1, rows.length);
+  const tableRows = statuses.map(st=>{
+    const civil = countFor('Civil', st);
+    const fiber = countFor('Fiber', st);
+    const overall = countFor('Overall', st);
+    return [escapeHtml(st), fmtInt(civil), fmtPct(rows.length ? civil/totalOverall*100 : 0), fmtInt(fiber), fmtPct(rows.length ? fiber/totalOverall*100 : 0), fmtPct(rows.length ? overall/totalOverall*100 : 0)];
+  });
+  const items = statuses.map(st=>({name:st, share: rows.length ? countFor('Overall', st)/rows.length*100 : 0}));
+  return `<div class="orange-report-slide">
+    ${reportOrangeBrand('Sites Completion Analysis')}
+    <div class="orange-report-desc">The Site Completion Analysis provides a comprehensive overview of project progress by evaluating the status of all planned FTTH sites under the current dashboard filters.</div>
+    <div class="orange-wide-table">${reportOrangeTable(['Status','CIVIL','CIVIL%','FIBRE','FIBRE%','OVERALL%'], tableRows)}</div>
+    <div class="orange-panel" style="min-height:190px;max-width:620px;margin:0 auto;">
+      <div class="orange-panel-title">Site Completion Analysis</div>
+      <div class="orange-pie" style="width:150px;height:150px;${reportPieStyle(items)}"></div>
+      ${reportPieLegend(items)}
+    </div>
+  </div>`;
+}
+function reportCostAnalysis(rows){
+  const statuses = ['Completed','In Progress','Not Start'];
+  function pick(type, status){
+    return rows.filter(r=>{
+      const sub = String(r.subclass || '').toLowerCase();
+      const typeOk = type === 'Overall' || sub.includes(type.toLowerCase());
+      return typeOk && reportClassifyProgress(r.actualProgress) === status;
+    });
+  }
+  const tableRows = statuses.map(st=>{
+    const civil = pick('Civil', st);
+    const fiber = pick('Fiber', st);
+    const cCost = sum(civil.map(reportCostOf));
+    const fCost = sum(fiber.map(reportCostOf));
+    return [escapeHtml(st), fmtInt(civil.length), fmtMoney(cCost), fmtInt(fiber.length), fmtMoney(fCost), fmtMoney(cCost+fCost)];
+  });
+  const barItems = statuses.map(st=>({name:st, cost:sum(pick('Overall', st).map(reportCostOf))}));
+  return `<div class="orange-report-slide">
+    ${reportOrangeBrand('Sites Cost Analysis')}
+    <div class="orange-report-desc">The Site Cost Analysis provides a detailed assessment of project expenditures and cost efficiency across all implemented FTTH sites under the current filters.</div>
+    <div class="orange-wide-table">${reportOrangeTable(['Status','CIVIL','WO Cost','FIBRE','WO Cost','Total WO Cost'], tableRows)}</div>
+    <div class="orange-small-chart">${reportBars(barItems, x=>x.cost, x=>x.name)}</div>
+  </div>`;
+}
+function reportMonthlyTrend(rows){
+  const monthNames = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const m = new Map();
+  rows.forEach(r=>{
+    const d = r.updatedAt || r.createdAt || r.baseline;
+    if(!d) return;
+    const key = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+    if(!m.has(key)) m.set(key,{key, label:`${monthNames[d.getMonth()]} ${d.getFullYear()}`, rows:[]});
+    m.get(key).rows.push(r);
+  });
+  const data = [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).slice(-9).map(x=>{
+    const civil = x.rows.filter(r=>String(r.subclass || '').toLowerCase().includes('civil'));
+    const fiber = x.rows.filter(r=>String(r.subclass || '').toLowerCase().includes('fiber'));
+    return {
+      ...x,
+      civilPct: average(civil.map(r=>Number(r.actualProgress || 0))),
+      fiberPct: average(fiber.map(r=>Number(r.actualProgress || 0))),
+      overallPct: average(x.rows.map(r=>Number(r.actualProgress || 0))),
+      cost: sum(x.rows.map(reportCostOf))
+    };
+  });
+  const tableRows = data.map(x=>[escapeHtml(x.label), fmtPct(x.civilPct), fmtPct(x.fiberPct), fmtPct(x.overallPct)]);
+  return `<div class="orange-report-slide">
+    ${reportOrangeBrand('Monthly Progress Trend 2025-2026')}
+    <div class="orange-report-desc">Monthly progress trend demonstrates project advancement across Civil and Fiber implementation activities using available Created/Updated dates in the current filtered data.</div>
+    <div class="orange-report-layout">
+      <div>${reportOrangeTable(['Month','Civil %','Fiber %','Overall %'], tableRows)}</div>
+      <div class="orange-panel">${reportBars(data, x=>x.overallPct, x=>x.label).replace(/SAR/g,'%')}</div>
+    </div>
+  </div>`;
+}
+function reportFinancialReport(rows){
+  const totalCost = sum(rows.map(reportCostOf));
+  const penalties = sum(rows.map(r=>Number(r.penaltyAmount || 0)));
+  const completedCost = sum(rows.filter(r=>Number(r.actualProgress||0)>=100).map(reportCostOf));
+  const atRiskCost = sum(rows.filter(r=>String(r.performance||'').toLowerCase().includes('risk') || String(r.performance||'').toLowerCase().includes('off')).map(reportCostOf));
+  const openClosure = rows.filter(r=>r.closureStatus !== 'Closed').length;
+  const data = [
+    ['Total WO Cost', fmtMoney(totalCost)],
+    ['Completed Cost Exposure', fmtMoney(completedCost)],
+    ['Penalty Amount', fmtMoney(penalties)],
+    ['At Risk / Off Track Cost', fmtMoney(atRiskCost)],
+    ['Open Closure WOs', fmtInt(openClosure)]
+  ];
+  return `<div class="orange-report-slide">
+    ${reportOrangeBrand('Executive Financial Report')}
+    <div class="orange-report-desc">Financial exposure summary calculated from the active filtered scope, including cost, penalties, closure exposure, and risk concentration.</div>
+    <div class="orange-wide-table">${reportOrangeTable(['Metric','Value'], data)}</div>
+    <div class="orange-small-chart">${reportBars([
+      {name:'Total WO Cost',cost:totalCost},
+      {name:'Completed Exposure',cost:completedCost},
+      {name:'At Risk Cost',cost:atRiskCost},
+      {name:'Penalties',cost:penalties}
+    ], x=>x.cost, x=>x.name)}</div>
+  </div>`;
+}
+function reportReadinessReport(rows){
+  const repo = buildDocumentRepositoryRows(rows || []);
+  const docKeys = [
+    ['Design','design'], ['Permit','permit'], ['Photos','photos'], ['PAT','pat'],
+    ['AsBuilt','asBuilt'], ['Handover','handover'], ['Commercial','commercial']
+  ];
+  const cards = docKeys.map(([label,key])=>{
+    let up=0, partial=0, missing=0;
+    repo.forEach(r=>{
+      const s = cleanDocState((r[key] && r[key].text) || r[key] || '');
+      if(s.text === 'Uploaded') up++;
+      else if(s.text === 'Partial') partial++;
+      else missing++;
+    });
+    return `<div class="readiness-card">
+      <h4>${escapeHtml(label)}</h4>
+      <div class="r-line"><span>🟢 Uploaded</span><b>${fmtInt(up)}</b></div>
+      <div class="r-line"><span>🟡 Partial</span><b>${fmtInt(partial)}</b></div>
+      <div class="r-line"><span>🔴 Missing</span><b>${fmtInt(missing)}</b></div>
+    </div>`;
+  }).join('');
+  return `<div class="orange-report-slide">
+    ${reportOrangeBrand('Executive Readiness Report')}
+    <div class="orange-report-desc">Readiness report shows only the total count of Link Codes by document status for each required document type. It is linked to the current dashboard filters and Google Drive document status cache.</div>
+    <div class="readiness-cards">${cards}</div>
+    <div class="readiness-note">Scope: ${fmtInt(repo.length)} filtered Link Codes. Counts are aggregated per document type, not per Work Order.</div>
+  </div>`;
+}
+function renderAdditionalOrangeReports(rows){
+  const host = document.getElementById('reports-orange-dynamic');
+  if(!host) return;
+  rows = rows || [];
+  if(!rows.length){
+    host.innerHTML = '<div class="empty">No dynamic executive reports available under current filters.</div>';
+    return;
+  }
+  host.innerHTML = [
+    reportRegionScope(rows),
+    reportRegionalPerformance(rows),
+    reportCompletionAnalysis(rows),
+    reportCostAnalysis(rows),
+    reportMonthlyTrend(rows),
+    reportFinancialReport(rows),
+    reportReadinessReport(rows)
+  ].join('');
+}
+
 function renderExecutiveReports(){
   const kpiTarget = document.getElementById('reports-kpi-grid');
   const kpiSource = document.getElementById('kpi-grid');
@@ -5820,6 +6308,9 @@ function renderExecutiveReports(){
   reportCopyHtml('#executive-overview-summary','reports-portfolio-summary','Portfolio summary is not available under current filters.');
   reportCopyHtml('#pmo-sor-exec-summary','reports-sor-summary','SOR summary is not available under current filters.');
   reportCopyHtml('#pmo-stage-exec-summary','reports-stage-summary','Stage cost exposure summary is not available under current filters.');
+  let dynamicRows = getFilteredWorkorders();
+  dynamicRows = applyFilteredKpiContext(dynamicRows);
+  renderAdditionalOrangeReports(dynamicRows);
 }
 
 function renderAll() {
