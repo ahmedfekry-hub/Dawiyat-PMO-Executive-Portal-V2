@@ -1874,10 +1874,31 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   .report-selection-head{align-items:flex-start;flex-direction:column;}
 }
 
+
+.report-action-btn{
+  border:1px solid #d7e4f5;
+  background:#ffffff;
+  color:#18365b;
+  border-radius:14px;
+  padding:11px 16px;
+  font-weight:1000;
+  font-size:13px;
+  cursor:pointer;
+  box-shadow:0 8px 18px rgba(15,23,42,.06);
+}
+.report-action-btn:hover{background:#eff6ff;transform:translateY(-1px);}
+.report-action-btn.primary{
+  background:linear-gradient(135deg,#2563eb,#14b8a6);
+  border-color:#2563eb;
+  color:#fff;
+}
+.reports-output-area{margin-top:18px;}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
+<!-- V30_PERFORMANCE_EDITION: Lazy tabs, selected report preview/export, removed old orange reports title, robust report buttons. -->
 <!-- V29_EXECUTIVE_REPORTS_LAZY_SELECTOR: Reports preview and PPT export use selected report types only; renderAll no longer builds Executive Reports until Reports tab is active. -->
 <!-- V27_FINANCIAL_REPORT_AUDIT_FIX: Executive Financial Report uses getFilteredPenalties(rows) and active filtered scope only. -->
 <!-- CLOSURE_STATUS_MAPPING_FIX: Embedded latest u_osp_work_order and strict status-to-score maps for PAT/AsBuilt/Documents/Handover O&M/Handover Consultant. -->
@@ -2307,10 +2328,10 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
               <div class="subtle">Select only the reports required. This reduces loading time and exports only the selected slides to PowerPoint.</div>
             </div>
             <div class="report-selection-actions">
-              <button class="btn" id="reports-select-all" type="button">Select All</button>
-              <button class="btn" id="reports-clear-all" type="button">Clear All</button>
-              <button class="btn" id="reports-generate-preview" type="button">Generate Preview</button>
-              <button class="presentation-export-btn" id="export-executive-pptx" type="button">📊 Export as Presentation</button>
+              <button class="report-action-btn" id="reports-select-all" type="button" onclick="reportsSelectAllAction(event)">Select All</button>
+              <button class="report-action-btn" id="reports-clear-all" type="button" onclick="reportsClearAllAction(event)">Clear All</button>
+              <button class="report-action-btn primary" id="reports-generate-preview" type="button" onclick="reportsGeneratePreviewAction(event)">Generate Preview</button>
+              <button class="presentation-export-btn" id="export-executive-pptx" type="button" onclick="exportExecutiveReportsPresentation()">📊 Export as Presentation</button>
             </div>
           </div>
           <div class="report-selection-grid">
@@ -2342,10 +2363,8 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
         <div id="reports-stage-summary"></div>
       </div>
 
-      <div class="report-section-card">
-        <div class="report-title"><h3>Additional Executive Orange Reports</h3><span class="report-tag">Dynamic / Filter Linked</span></div>
-        <div class="subtle">The following executive reports are calculated from the same active dashboard filters and current uploaded CSV data. Existing reports above are kept unchanged.</div>
-        <div id="reports-orange-dynamic" class="orange-reports-grid"></div>
+      <div id="reports-orange-dynamic" class="orange-reports-grid reports-output-area">
+        <div class="empty">Select one or more report types above, then click Generate Preview.</div>
       </div>
     </div>
   </section>
@@ -6433,6 +6452,7 @@ function setExecutiveReportChoices(mode){
 function renderAdditionalOrangeReports(rows){
   const host = document.getElementById('reports-orange-dynamic');
   if(!host) return;
+  host.dataset.generated = '1';
   rows = rows || [];
   const selected = getSelectedExecutiveReportKeys();
   if(!selected.length){
@@ -6453,6 +6473,34 @@ function renderAdditionalOrangeReports(rows){
     readiness: reportReadinessReport
   };
   host.innerHTML = selected.map(k => builders[k] ? builders[k](rows) : '').join('');
+}
+
+
+function reportsSelectAllAction(e){
+  if(e) e.preventDefault();
+  setExecutiveReportChoices('all');
+}
+function reportsClearAllAction(e){
+  if(e) e.preventDefault();
+  setExecutiveReportChoices('clear');
+  const host = document.getElementById('reports-orange-dynamic');
+  if(host) host.innerHTML = '<div class="empty">Select one or more report types above, then click Generate Preview.</div>';
+}
+function reportsGeneratePreviewAction(e){
+  if(e) e.preventDefault();
+  const selected = getSelectedExecutiveReportKeys();
+  if(!selected.length){
+    const host = document.getElementById('reports-orange-dynamic');
+    if(host) host.innerHTML = '<div class="empty">Please select at least one report type first.</div>';
+    return;
+  }
+  const host = document.getElementById('reports-orange-dynamic');
+  if(host) host.innerHTML = '<div class="empty">Generating selected reports...</div>';
+  setTimeout(() => {
+    let dynamicRows = getFilteredWorkorders();
+    dynamicRows = applyFilteredKpiContext(dynamicRows);
+    renderAdditionalOrangeReports(dynamicRows);
+  }, 30);
 }
 
 
@@ -6658,14 +6706,15 @@ function renderExecutiveReports(){
   if(kpiTarget){
     kpiTarget.innerHTML = kpiSource && kpiSource.innerHTML.trim()
       ? `<div class="kpi-grid">${reportSanitizeClone(kpiSource.innerHTML)}</div>`
-      : '<div class="empty">No KPI cards available under current filters.</div>';
+      : '<div class="empty">KPI cards are available after opening Executive Overview or selecting reports for preview.</div>';
   }
-  reportCopyHtml('#executive-overview-summary','reports-portfolio-summary','Portfolio summary is not available under current filters.');
-  reportCopyHtml('#pmo-sor-exec-summary','reports-sor-summary','SOR summary is not available under current filters.');
-  reportCopyHtml('#pmo-stage-exec-summary','reports-stage-summary','Stage cost exposure summary is not available under current filters.');
-  let dynamicRows = getFilteredWorkorders();
-  dynamicRows = applyFilteredKpiContext(dynamicRows);
-  renderAdditionalOrangeReports(dynamicRows);
+  reportCopyHtml('#executive-overview-summary','reports-portfolio-summary','Portfolio summary is available after opening Executive Overview.');
+  reportCopyHtml('#pmo-sor-exec-summary','reports-sor-summary','SOR summary is available after opening PMO Audit.');
+  reportCopyHtml('#pmo-stage-exec-summary','reports-stage-summary','Stage cost exposure summary is available after opening PMO Audit.');
+  const host = document.getElementById('reports-orange-dynamic');
+  if(host && !host.dataset.generated){
+    host.innerHTML = '<div class="empty">Select one or more report types above, then click Generate Preview.</div>';
+  }
 }
 
 function renderAll() {
@@ -6673,23 +6722,33 @@ function renderAll() {
   let rows = getFilteredWorkorders();
   rows = applyFilteredKpiContext(rows);
   const penalties = getFilteredPenalties(rows);
-  renderKpis(rows, penalties);
-  renderExecutiveOverviewSummary(rows);
-  renderHealthSummary(rows);
-  renderMilestones(rows);
-  renderClosureAlert(rows);
-  renderTimeline(rows);
-  renderPenaltyHeatmap(penalties);
-  renderPerformance(rows);
-  renderKpiTrend(rows);
-  renderPerformancePage(rows);
-  renderPerformanceEndVisuals(rows);
-  renderPerformanceExplanationEngine(rows);
-  renderExtraTables(rows, penalties);
-  renderDecision(rows, penalties);
-  renderPmoAll();
-  if (state.tab === 'reports') renderExecutiveReports();
-  bindPmoInputs();
+
+  if (state.tab === 'overview') {
+    renderKpis(rows, penalties);
+    renderExecutiveOverviewSummary(rows);
+    renderHealthSummary(rows);
+    renderMilestones(rows);
+    renderClosureAlert(rows);
+    renderTimeline(rows);
+    renderPenaltyHeatmap(penalties);
+  } else if (state.tab === 'tables') {
+    renderExtraTables(rows, penalties);
+  } else if (state.tab === 'performance') {
+    renderPerformance(rows);
+    renderKpiTrend(rows);
+    renderPerformancePage(rows);
+    renderPerformanceEndVisuals(rows);
+  } else if (state.tab === 'perf-explanation') {
+    renderPerformanceExplanationEngine(rows);
+  } else if (state.tab === 'decision') {
+    renderDecision(rows, penalties);
+  } else if (state.tab === 'pmo') {
+    renderPmoAll();
+    bindPmoInputs();
+  } else if (state.tab === 'reports') {
+    renderExecutiveReports();
+  }
+
   updateDetailedAnalysisButtons();
   dashboardFilterIntegrityCheck();
 }
@@ -6718,10 +6777,9 @@ function setTab(tabName) {
   const reportsSection = document.getElementById('tab-reports');
   if (reportsSection) reportsSection.classList.toggle('hidden', tabName !== 'reports');
   document.querySelectorAll('.report-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
-  if (tabName === 'reports') renderExecutiveReports();
   const globalFilters = document.getElementById('filters');
   if (globalFilters) globalFilters.style.display = tabName === 'pmo' ? 'none' : '';
-  if (tabName === 'pmo') { bindPmoInputs(); renderPmoAll(); }
+  renderAll();
 }
 document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
