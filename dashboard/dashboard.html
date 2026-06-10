@@ -1814,10 +1814,71 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
 .presentation-export-btn:hover{filter:brightness(1.05);transform:translateY(-1px);}
 .presentation-export-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
 
+
+/* V29: Executive Reports performance selector and lazy rendering */
+.report-selection-panel{
+  margin-top:16px;
+  border:1px dashed #bdd5f3;
+  border-radius:18px;
+  background:linear-gradient(135deg,#f8fbff,#eef6ff);
+  padding:14px 16px;
+}
+.report-selection-head{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:10px;
+}
+.report-selection-head h3{
+  margin:0;
+  color:#10223a;
+  font-size:17px;
+  font-weight:1000;
+}
+.report-selection-actions{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+}
+.report-selection-grid{
+  display:grid;
+  grid-template-columns:repeat(4,minmax(180px,1fr));
+  gap:10px;
+}
+.report-check{
+  display:flex;
+  align-items:center;
+  gap:8px;
+  padding:10px 12px;
+  border:1px solid #d8e6f7;
+  border-radius:14px;
+  background:#fff;
+  color:#1f3858;
+  font-weight:900;
+  font-size:13px;
+  box-shadow:0 6px 14px rgba(15,23,42,.04);
+}
+.report-check input{accent-color:#2563eb; transform:scale(1.08);}
+.report-preview-note{
+  margin-top:10px;
+  color:#64748b;
+  font-size:13px;
+  font-weight:700;
+}
+@media(max-width:1000px){
+  .report-selection-grid{grid-template-columns:repeat(2,minmax(160px,1fr));}
+}
+@media(max-width:640px){
+  .report-selection-grid{grid-template-columns:1fr;}
+  .report-selection-head{align-items:flex-start;flex-direction:column;}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
+<!-- V29_EXECUTIVE_REPORTS_LAZY_SELECTOR: Reports preview and PPT export use selected report types only; renderAll no longer builds Executive Reports until Reports tab is active. -->
 <!-- V27_FINANCIAL_REPORT_AUDIT_FIX: Executive Financial Report uses getFilteredPenalties(rows) and active filtered scope only. -->
 <!-- CLOSURE_STATUS_MAPPING_FIX: Embedded latest u_osp_work_order and strict status-to-score maps for PAT/AsBuilt/Documents/Handover O&M/Handover Consultant. -->
 <!-- CLOSURE_ORDER_FIX: Closure Readiness sub-items are rendered directly under Closure Readiness in the original KPI renderer. -->
@@ -2239,9 +2300,29 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="reports-hero">
         <h2>Executive Reports Center</h2>
         <div class="subtle">Consolidated executive reporting page based on the same active dashboard filters, data links, and Streamlit integration. This page combines the main executive KPI cards, portfolio cost exposure, SOR revenue exposure, and overall stages cost exposure in one view.</div>
-        <div class="presentation-export-row">
-          <div class="subtle"><b>Presentation export:</b> Generates a PowerPoint report using the active dashboard filters and the same orange executive layout as the reference presentation.</div>
-          <button class="presentation-export-btn" id="export-executive-pptx" type="button">📊 Export as Presentation</button>
+        <div class="report-selection-panel" id="reports-selection-panel">
+          <div class="report-selection-head">
+            <div>
+              <h3>Choose Executive Reports to Preview / Export</h3>
+              <div class="subtle">Select only the reports required. This reduces loading time and exports only the selected slides to PowerPoint.</div>
+            </div>
+            <div class="report-selection-actions">
+              <button class="btn" id="reports-select-all" type="button">Select All</button>
+              <button class="btn" id="reports-clear-all" type="button">Clear All</button>
+              <button class="btn" id="reports-generate-preview" type="button">Generate Preview</button>
+              <button class="presentation-export-btn" id="export-executive-pptx" type="button">📊 Export as Presentation</button>
+            </div>
+          </div>
+          <div class="report-selection-grid">
+            <label class="report-check"><input type="checkbox" class="report-choice" value="fullscope"> Dawiyat Project Full Scope</label>
+            <label class="report-check"><input type="checkbox" class="report-choice" value="regional"> Regional Performance Summary</label>
+            <label class="report-check"><input type="checkbox" class="report-choice" value="completion"> Sites Completion Analysis</label>
+            <label class="report-check"><input type="checkbox" class="report-choice" value="cost"> Sites Cost Analysis</label>
+            <label class="report-check"><input type="checkbox" class="report-choice" value="monthly"> Monthly Progress Trend</label>
+            <label class="report-check"><input type="checkbox" class="report-choice" value="financial"> Executive Financial Report</label>
+            <label class="report-check"><input type="checkbox" class="report-choice" value="readiness"> Executive Readiness Report</label>
+          </div>
+          <div class="report-preview-note">Tip: Preview is generated only after clicking <b>Generate Preview</b>. Browser refresh will remain faster because reports are lazy-loaded.</div>
         </div>
       </div>
       <div class="report-section-card">
@@ -6341,23 +6422,37 @@ function reportReadinessReport(rows){
     <div class="readiness-note">Scope: ${fmtInt(repo.length)} filtered Link Codes. Counts are aggregated per document type, not per Work Order.</div>
   </div>`;
 }
+function getSelectedExecutiveReportKeys(){
+  const boxes = Array.from(document.querySelectorAll('.report-choice'));
+  return boxes.filter(b=>b.checked).map(b=>b.value);
+}
+function setExecutiveReportChoices(mode){
+  const boxes = Array.from(document.querySelectorAll('.report-choice'));
+  boxes.forEach(b => { b.checked = mode === 'all'; });
+}
 function renderAdditionalOrangeReports(rows){
   const host = document.getElementById('reports-orange-dynamic');
   if(!host) return;
   rows = rows || [];
+  const selected = getSelectedExecutiveReportKeys();
+  if(!selected.length){
+    host.innerHTML = '<div class="empty">Select one or more report types above, then click Generate Preview. This avoids loading all reports unnecessarily.</div>';
+    return;
+  }
   if(!rows.length){
     host.innerHTML = '<div class="empty">No dynamic executive reports available under current filters.</div>';
     return;
   }
-  host.innerHTML = [
-    reportRegionScope(rows),
-    reportRegionalPerformance(rows),
-    reportCompletionAnalysis(rows),
-    reportCostAnalysis(rows),
-    reportMonthlyTrend(rows),
-    reportFinancialReport(rows),
-    reportReadinessReport(rows)
-  ].join('');
+  const builders = {
+    fullscope: reportRegionScope,
+    regional: reportRegionalPerformance,
+    completion: reportCompletionAnalysis,
+    cost: reportCostAnalysis,
+    monthly: reportMonthlyTrend,
+    financial: reportFinancialReport,
+    readiness: reportReadinessReport
+  };
+  host.innerHTML = selected.map(k => builders[k] ? builders[k](rows) : '').join('');
 }
 
 
@@ -6534,22 +6629,24 @@ function pptSlideThanks(pptx, logos){
 }
 async function exportExecutiveReportsPresentation(){
   const btn=document.getElementById('export-executive-pptx');
+  const selected = getSelectedExecutiveReportKeys();
+  if(!selected.length){ alert('Please select at least one report type before exporting the presentation.'); return; }
   if(!window.pptxgen){ alert('PowerPoint export library is still loading. Please try again in a few seconds.'); return; }
   try{
-    if(btn){btn.disabled=true;btn.textContent='Generating Presentation...';}
+    if(btn){btn.disabled=true;btn.textContent='Generating Selected Presentation...';}
     const rows=pptRows(); const logos=pptLogoData();
     const deck=new pptxgen(); deck.layout='LAYOUT_WIDE'; deck.author='Middle Sea Telecom / MET'; deck.subject='Dawiyat Executive Reports'; deck.title='Dawiyat Project Full Scope 2025 & 2026'; deck.company='Middle Sea Telecom'; deck.lang='en-US'; deck.theme={headFontFace:'Arial',bodyFontFace:'Arial',lang:'en-US'};
     pptAddCover(deck,logos);
-    pptSlideFullScope(deck,rows,logos);
-    pptSlideRegional(deck,rows,logos);
-    pptSlideCompletion(deck,rows,logos);
-    pptSlideCost(deck,rows,logos);
-    pptSlideMonthly(deck,rows,logos);
-    pptSlideFinancial(deck,rows,logos);
-    pptSlideReadiness(deck,rows,logos);
+    if(selected.includes('fullscope')) pptSlideFullScope(deck,rows,logos);
+    if(selected.includes('regional')) pptSlideRegional(deck,rows,logos);
+    if(selected.includes('completion')) pptSlideCompletion(deck,rows,logos);
+    if(selected.includes('cost')) pptSlideCost(deck,rows,logos);
+    if(selected.includes('monthly')) pptSlideMonthly(deck,rows,logos);
+    if(selected.includes('financial')) pptSlideFinancial(deck,rows,logos);
+    if(selected.includes('readiness')) pptSlideReadiness(deck,rows,logos);
     pptSlideThanks(deck,logos);
     const stamp=new Date().toISOString().slice(0,10);
-    await deck.writeFile({ fileName:`Dawiyat_Executive_Reports_${stamp}.pptx` });
+    await deck.writeFile({ fileName:`Dawiyat_Executive_Reports_Selected_${stamp}.pptx` });
   }catch(err){ console.error(err); alert('Unable to export presentation: '+(err && err.message ? err.message : err)); }
   finally{ if(btn){btn.disabled=false;btn.textContent='📊 Export as Presentation';} }
 }
@@ -6591,7 +6688,7 @@ function renderAll() {
   renderExtraTables(rows, penalties);
   renderDecision(rows, penalties);
   renderPmoAll();
-  renderExecutiveReports();
+  if (state.tab === 'reports') renderExecutiveReports();
   bindPmoInputs();
   updateDetailedAnalysisButtons();
   dashboardFilterIntegrityCheck();
@@ -6635,6 +6732,9 @@ document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'pmo-view-master') { e.preventDefault(); pmoSetView('master'); }
 
   if (e.target && e.target.id === 'pmo-export-master-excel') { e.preventDefault(); pmoExportMasterExcel(); }
+  if (e.target && e.target.id === 'reports-select-all') { e.preventDefault(); setExecutiveReportChoices('all'); }
+  if (e.target && e.target.id === 'reports-clear-all') { e.preventDefault(); setExecutiveReportChoices('clear'); renderAdditionalOrangeReports([]); }
+  if (e.target && e.target.id === 'reports-generate-preview') { e.preventDefault(); let dynamicRows = getFilteredWorkorders(); dynamicRows = applyFilteredKpiContext(dynamicRows); renderAdditionalOrangeReports(dynamicRows); }
 });
 document.querySelectorAll('[data-perf-trend]').forEach(btn => btn.addEventListener('click', () => { state.perfTrendMode = btn.dataset.perfTrend; renderPerformanceTrend(getFilteredWorkorders()); }));
 document.getElementById('reset-filters').addEventListener('click', () => {
