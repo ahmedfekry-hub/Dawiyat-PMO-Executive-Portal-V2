@@ -1523,6 +1523,83 @@ body.dark-ui .doc-link-btn:hover{background:#2563eb!important;color:#fff!importa
 body.dark-ui .doc-repo-note{background:#0b1626!important;border-color:#334155!important;color:#cbd5e1!important;}
 body.dark-ui .doc-status-text{color:#9fb0c7!important;}
 
+
+/* Executive Reports consolidated page */
+.report-tab {
+  border:1px solid #dbe5f1;
+  background:#fff;
+  color:#526985;
+  border-radius:999px;
+  padding:13px 20px;
+  font-weight:900;
+  font-size:14px;
+  cursor:pointer;
+  box-shadow:0 8px 18px rgba(15,23,42,.04);
+}
+.report-tab.active {
+  background:#1e3a5f;
+  color:#fff;
+  border-color:#1e3a5f;
+}
+.reports-page {
+  display:flex;
+  flex-direction:column;
+  gap:18px;
+}
+.reports-hero {
+  border:1px solid #dbe5f1;
+  border-radius:22px;
+  background:linear-gradient(135deg,#ffffff 0%,#f8fbff 100%);
+  box-shadow:0 12px 28px rgba(15,23,42,.06);
+  padding:22px 24px;
+}
+.reports-hero h2 {
+  margin:0 0 6px;
+  color:#10223a;
+  font-size:28px;
+  font-weight:1000;
+}
+.reports-hero .subtle {font-size:14px;}
+.report-section-card {
+  border:1px solid #dbe5f1;
+  border-radius:22px;
+  background:#fff;
+  box-shadow:0 10px 24px rgba(15,23,42,.055);
+  padding:18px 18px 20px;
+}
+.report-section-card > .report-title {
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:12px;
+  margin-bottom:12px;
+}
+.report-section-card h3 {
+  margin:0;
+  color:#10223a;
+  font-size:22px;
+  font-weight:1000;
+}
+.report-section-card .report-tag {
+  border-radius:999px;
+  background:#eff6ff;
+  color:#1d4ed8;
+  font-size:12px;
+  font-weight:900;
+  padding:8px 12px;
+  white-space:nowrap;
+}
+.report-kpi-copy .kpi-grid {margin-bottom:0;}
+.reports-page button, .reports-page select, .reports-page .action-row {
+  pointer-events:none;
+}
+.reports-page button, .reports-page .action-row .btn {
+  opacity:.45;
+}
+@media(max-width:900px){
+  .report-section-card > .report-title{align-items:flex-start;flex-direction:column;}
+}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -1583,6 +1660,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
     <button class="tab" data-tab="tables">Tables &amp; Exports</button>
     <button class="tab" data-tab="decision">Executive PMO Report Assistant</button>
     <button class="tab" data-tab="pmo">PMO Audit</button>
+    <button class="report-tab" data-tab="reports" type="button">Executive Reports</button>
     <button class="tab" data-tab="perf-explanation">Performance Explanation</button>
   </div>
 
@@ -1938,6 +2016,31 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="assist-card"><h3>Fiber / PAT Bottlenecks</h3><div class="assist-table-wrap"><table class="assist-table" id="assistant-fiber-table"></table></div></div>
       <div class="assist-card"><h3>Billing Blockers</h3><div class="assist-table-wrap"><table class="assist-table" id="assistant-bill-table"></table></div></div>
     </section>
+  </section>
+
+  <section id="tab-reports" class="hidden">
+    <div class="reports-page">
+      <div class="reports-hero">
+        <h2>Executive Reports Center</h2>
+        <div class="subtle">Consolidated executive reporting page based on the same active dashboard filters, data links, and Streamlit integration. This page combines the main executive KPI cards, portfolio cost exposure, SOR revenue exposure, and overall stages cost exposure in one view.</div>
+      </div>
+      <div class="report-section-card">
+        <div class="report-title"><h3>Executive KPI Cards</h3><span class="report-tag">Live Filtered Scope</span></div>
+        <div id="reports-kpi-grid" class="report-kpi-copy"></div>
+      </div>
+      <div class="report-section-card">
+        <div class="report-title"><h3>Portfolio Summary & Cost Exposure</h3><span class="report-tag">Project / Stage</span></div>
+        <div id="reports-portfolio-summary"></div>
+      </div>
+      <div class="report-section-card">
+        <div class="report-title"><h3>SOR Summary & Revenue Exposure</h3><span class="report-tag">Billing / SOR</span></div>
+        <div id="reports-sor-summary"></div>
+      </div>
+      <div class="report-section-card">
+        <div class="report-title"><h3>Overall Stages Summary & Cost Exposure</h3><span class="report-tag">Execution Stages</span></div>
+        <div id="reports-stage-summary"></div>
+      </div>
+    </div>
   </section>
 
   <section id="tab-pmo" class="hidden">
@@ -5688,6 +5791,37 @@ function renderExecutiveOverviewSummary(rows) {
   </div>`;
 }
 
+
+function reportSanitizeClone(html){
+  return String(html || '')
+    .replace(/id="[^"]*"/g, '')
+    .replace(/\bid='[^']*'/g, '')
+    .replace(/onclick="[^"]*"/g, '')
+    .replace(/onclick='[^']*'/g, '');
+}
+function reportCopyHtml(sourceSelector, targetId, emptyMessage){
+  const target = document.getElementById(targetId);
+  if(!target) return;
+  const source = document.querySelector(sourceSelector);
+  if(source && source.innerHTML.trim()){
+    target.innerHTML = reportSanitizeClone(source.innerHTML);
+  } else {
+    target.innerHTML = `<div class="empty">${escapeHtml(emptyMessage || 'No report data available under current filters.')}</div>`;
+  }
+}
+function renderExecutiveReports(){
+  const kpiTarget = document.getElementById('reports-kpi-grid');
+  const kpiSource = document.getElementById('kpi-grid');
+  if(kpiTarget){
+    kpiTarget.innerHTML = kpiSource && kpiSource.innerHTML.trim()
+      ? `<div class="kpi-grid">${reportSanitizeClone(kpiSource.innerHTML)}</div>`
+      : '<div class="empty">No KPI cards available under current filters.</div>';
+  }
+  reportCopyHtml('#executive-overview-summary','reports-portfolio-summary','Portfolio summary is not available under current filters.');
+  reportCopyHtml('#pmo-sor-exec-summary','reports-sor-summary','SOR summary is not available under current filters.');
+  reportCopyHtml('#pmo-stage-exec-summary','reports-stage-summary','Stage cost exposure summary is not available under current filters.');
+}
+
 function renderAll() {
   renderFilters();
   let rows = getFilteredWorkorders();
@@ -5708,6 +5842,7 @@ function renderAll() {
   renderExtraTables(rows, penalties);
   renderDecision(rows, penalties);
   renderPmoAll();
+  renderExecutiveReports();
   bindPmoInputs();
   updateDetailedAnalysisButtons();
   dashboardFilterIntegrityCheck();
@@ -5734,11 +5869,16 @@ function setTab(tabName) {
   document.getElementById('tab-tables').classList.toggle('hidden', tabName !== 'tables');
   document.getElementById('tab-decision').classList.toggle('hidden', tabName !== 'decision');
   document.getElementById('tab-pmo').classList.toggle('hidden', tabName !== 'pmo');
+  const reportsSection = document.getElementById('tab-reports');
+  if (reportsSection) reportsSection.classList.toggle('hidden', tabName !== 'reports');
+  document.querySelectorAll('.report-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+  if (tabName === 'reports') renderExecutiveReports();
   const globalFilters = document.getElementById('filters');
   if (globalFilters) globalFilters.style.display = tabName === 'pmo' ? 'none' : '';
   if (tabName === 'pmo') { bindPmoInputs(); renderPmoAll(); }
 }
 document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
+document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 // Robust PMO sub-view switching, including when the PMO section is re-rendered.
 document.addEventListener('click', (e) => {
   if (e.target && (e.target.id === 'toggle-detailed-analysis' || e.target.id === 'toggle-perf-detailed-analysis' || e.target.id === 'toggle-timeline-detailed-analysis')) { e.preventDefault(); toggleDetailedAnalysis(); }
