@@ -1810,6 +1810,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
+<!-- V27_FINANCIAL_REPORT_AUDIT_FIX: Executive Financial Report uses getFilteredPenalties(rows) and active filtered scope only. -->
 <!-- CLOSURE_STATUS_MAPPING_FIX: Embedded latest u_osp_work_order and strict status-to-score maps for PAT/AsBuilt/Documents/Handover O&M/Handover Consultant. -->
 <!-- CLOSURE_ORDER_FIX: Closure Readiness sub-items are rendered directly under Closure Readiness in the original KPI renderer. -->
 <!-- ROOT_PROGRESS_FILTER_CONTEXT_FIX: KPI Progress uses current filtered Work Orders first; visible tables keep raw completion values; KPI score capped only inside computeProgressComponents. -->
@@ -6256,26 +6257,46 @@ function reportMonthlyTrend(rows){
   </div>`;
 }
 function reportFinancialReport(rows){
-  const totalCost = sum(rows.map(reportCostOf));
-  const penalties = sum(rows.map(r=>Number(r.penaltyAmount || 0)));
-  const completedCost = sum(rows.filter(r=>Number(r.actualProgress||0)>=100).map(reportCostOf));
-  const atRiskCost = sum(rows.filter(r=>String(r.performance||'').toLowerCase().includes('risk') || String(r.performance||'').toLowerCase().includes('off')).map(reportCostOf));
+  // V27 Financial Audit Fix:
+  // Financial report must use the same active filtered rows and the same filtered penalties source as the main KPI cards / Penalties Heatmap.
+  // This avoids double counting Penalties from row-level Work Orders or CSV Grand Total rows.
+  rows = rows || [];
+  const penaltiesRows = getFilteredPenalties(rows);
+  const totalCost = sum(rows.map(r => effectiveCost(r)));
+  const penalties = sum(penaltiesRows.map(p => Number(p.penaltyAmount || 0)));
+  const totalDeviations = sum(penaltiesRows.map(p => Number(p.deviationCount || 0)));
+  const closedDeviations = sum(penaltiesRows.map(p => Number(p.closedDeviationCount || 0)));
+  const openDeviations = sum(penaltiesRows.map(p => Number(p.openDeviationCount || 0)));
+
+  const completedCost = sum(rows.filter(r=>Number(r.actualProgress||0)>=100).map(r=>effectiveCost(r)));
+  const atRiskCost = sum(rows.filter(r=>{
+    const p = String(r.performance || r.status || '').toLowerCase();
+    return p.includes('risk') || p.includes('off');
+  }).map(r=>effectiveCost(r)));
+  const pendingClosureCost = sum(rows.filter(r=>r.closureStatus === 'Pending Closure').map(r=>effectiveCost(r)));
   const openClosure = rows.filter(r=>r.closureStatus !== 'Closed').length;
+  const uniqueLinks = unique(rows.map(r=>r.linkCode)).length;
+
   const data = [
     ['Total WO Cost', fmtMoney(totalCost)],
     ['Completed Cost Exposure', fmtMoney(completedCost)],
     ['Penalty Amount', fmtMoney(penalties)],
+    ['Deviation Count', fmtInt(totalDeviations)],
+    ['Closed / Open Deviations', `${fmtInt(closedDeviations)} / ${fmtInt(openDeviations)}`],
     ['At Risk / Off Track Cost', fmtMoney(atRiskCost)],
+    ['Pending Closure Cost', fmtMoney(pendingClosureCost)],
     ['Open Closure WOs', fmtInt(openClosure)]
   ];
   return `<div class="orange-report-slide">
     ${reportOrangeBrand('Executive Financial Report')}
-    <div class="orange-report-desc">Financial exposure summary calculated from the active filtered scope, including cost, penalties, closure exposure, and risk concentration.</div>
+    <div class="orange-report-desc">Financial exposure summary calculated from the same active dashboard filters used in KPI Cards and Penalties Heatmap. Penalty Amount excludes CSV total rows and avoids duplicated Work Order counting.</div>
     <div class="orange-wide-table">${reportOrangeTable(['Metric','Value'], data)}</div>
+    <div class="readiness-note">Validation scope: ${fmtInt(uniqueLinks)} Link Codes | ${fmtInt(rows.length)} WOs | ${fmtInt(penaltiesRows.length)} penalty records.</div>
     <div class="orange-small-chart">${reportBars([
       {name:'Total WO Cost',cost:totalCost},
       {name:'Completed Exposure',cost:completedCost},
       {name:'At Risk Cost',cost:atRiskCost},
+      {name:'Pending Closure Cost',cost:pendingClosureCost},
       {name:'Penalties',cost:penalties}
     ], x=>x.cost, x=>x.name)}</div>
   </div>`;
