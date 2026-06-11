@@ -867,6 +867,17 @@ def parse_num(value) -> float:
         return 0.0
 
 
+
+def effective_row_cost_from_wo(wo_df: pd.DataFrame) -> pd.Series:
+    """Match dashboard effectiveCost: first positive value from WO Cost, then Cost, then related cost columns."""
+    candidates = ["WO Cost", "Cost", "WO Cost / Cost", "Work Order Cost", "Total WO Cost", "Total Cost"]
+    result = pd.Series([0.0] * len(wo_df), index=wo_df.index, dtype="float64")
+    for col in candidates:
+        if col in wo_df.columns:
+            vals = wo_df[col].apply(parse_num)
+            result = result.where(result > 0, vals)
+    return result.fillna(0.0)
+
 def first_existing_col(df: pd.DataFrame, candidates: List[str]) -> str:
     normalized = {re.sub(r"[^a-z0-9]", "", c.lower()): c for c in df.columns}
     for c in candidates:
@@ -1861,7 +1872,7 @@ def load_ppt_workorders() -> pd.DataFrame:
         "Stage": wo[stage_col].astype(str) if stage_col else "",
         "SOR Status": wo[sor_col].astype(str) if sor_col else "",
         "SOR Reference Number": wo[sor_ref_col].astype(str) if sor_ref_col else "",
-        "Cost": wo[cost_col].apply(parse_num) if cost_col else 0.0,
+        "Cost": effective_row_cost_from_wo(wo),
         "Progress": wo[progress_col].apply(parse_num) if progress_col else 0.0,
         "Subclass": wo[subclass_col].astype(str) if subclass_col else "",
         "Updated": wo[updated_col].astype(str) if updated_col else "",
@@ -1911,11 +1922,13 @@ def load_ppt_workorders() -> pd.DataFrame:
 
 
 def link_level_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    rows = _ensure_ppt_columns(rows)
     if rows.empty:
-        return pd.DataFrame(columns=["Link Code", "Region", "City", "Cost", "Progress", "Status"])
+        return pd.DataFrame(columns=["Link Code", "Region", "City", "SOR Status", "Cost", "Progress", "Status"])
     grouped = rows.groupby("Link Code", dropna=False).agg(
         Region=("Region", lambda s: _clean_text(next((x for x in s if str(x).strip()), "N/A"))),
         City=("City", lambda s: _clean_text(next((x for x in s if str(x).strip()), "N/A"))),
+        **{"SOR Status": ("SOR Status", lambda s: _clean_text(next((x for x in s if str(x).strip()), "N/A")))},
         Cost=("Cost", "sum"),
         Progress=("Progress", "mean"),
     ).reset_index()
@@ -2195,6 +2208,8 @@ def sor_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
     if rows.empty:
         return pd.DataFrame(columns=["SOR Status", "Link Codes", "WO Cost", "Share"])
     links = link_level_dataframe(rows)
+    if "SOR Status" not in links.columns:
+        links["SOR Status"] = "N/A"
     total_cost = links["Cost"].sum() or 1
     g = links.groupby("SOR Status", dropna=False).agg(
         **{"Link Codes": ("Link Code", "nunique"), "WO Cost": ("Cost", "sum")}
@@ -2484,7 +2499,7 @@ def executive_ppt_builder_page() -> None:
     c1, c2, c3 = st.columns(3)
     c1.metric("Filtered Link Codes", f"{metrics_links:,}")
     c2.metric("Filtered Work Orders", f"{len(rows):,}")
-    c3.metric("Filtered WO Cost", f"{metrics_cost:,.0f}")
+    c3.metric("Filtered WO Cost", f"{metrics_cost:,.0f}", help="Uses the same cost logic as dashboard: first positive WO Cost, otherwise Cost.")
 
     selected = st.multiselect(
         "Select reports to include in PowerPoint",
