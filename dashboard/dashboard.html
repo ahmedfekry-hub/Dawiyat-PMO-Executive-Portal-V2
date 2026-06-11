@@ -1810,6 +1810,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
+<!-- V32_STABLE_STREAMLIT_PPT_BUILDER: Executive PPT generation is handled in a separate Streamlit page; dashboard does not render Executive Reports on initial load. -->
 <!-- V27_FINANCIAL_REPORT_AUDIT_FIX: Executive Financial Report uses getFilteredPenalties(rows) and active filtered scope only. -->
 <!-- CLOSURE_STATUS_MAPPING_FIX: Embedded latest u_osp_work_order and strict status-to-score maps for PAT/AsBuilt/Documents/Handover O&M/Handover Consultant. -->
 <!-- CLOSURE_ORDER_FIX: Closure Readiness sub-items are rendered directly under Closure Readiness in the original KPI renderer. -->
@@ -2250,8 +2251,8 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       </div>
 
       <div class="report-section-card">
-        <div class="report-title"><h3>Additional Executive Orange Reports</h3><span class="report-tag">Dynamic / Filter Linked</span></div>
-        <div class="subtle">The following executive reports are calculated from the same active dashboard filters and current uploaded CSV data. Existing reports above are kept unchanged.</div>
+        <div class="report-title"><h3>Executive Reports Library</h3><span class="report-tag">Dynamic / Filter Linked</span></div>
+        <div class="subtle">Executive reports below are calculated from the active dashboard filters and current uploaded CSV data.</div>
         <div id="reports-orange-dynamic" class="orange-reports-grid"></div>
       </div>
     </div>
@@ -6384,7 +6385,7 @@ function renderAll() {
   renderExtraTables(rows, penalties);
   renderDecision(rows, penalties);
   renderPmoAll();
-  renderExecutiveReports();
+  if (state.tab === 'reports') renderExecutiveReports();
   bindPmoInputs();
   updateDetailedAnalysisButtons();
   dashboardFilterIntegrityCheck();
