@@ -42,6 +42,7 @@ DATA_FILES = {
 ASSETS_DIR = BASE_DIR / "assets"
 DAWIYAT_LOGO_PATH = ASSETS_DIR / "dawiyat_logo.jpg"
 MET_LOGO_PATH = ASSETS_DIR / "met_logo.jpg"
+PPT_COVER_PATH = ASSETS_DIR / "ppt_cover.png"
 
 DOCUMENT_TYPES = ["Design", "Permit", "Photos", "PAT", "AsBuilt", "Handover", "Commercial"]
 DOCUMENT_FOLDER_MAP = {
@@ -1761,6 +1762,10 @@ def build_pdf_report() -> bytes:
 # This module is intentionally outside dashboard.html to keep the dashboard fast.
 # -----------------------------------------------------------------------------
 PPT_REPORT_OPTIONS = {
+    "kpi_cards": "Executive KPI Cards",
+    "portfolio": "Portfolio Summary & Cost Exposure",
+    "sor_summary": "SOR Summary & Revenue Exposure",
+    "stage_summary": "Overall Stages Summary & Cost Exposure",
     "full_scope": "Dawiyat Project Full Scope",
     "regional": "Regional Performance Summary",
     "completion": "Sites Completion Analysis",
@@ -1821,12 +1826,15 @@ def _parse_date_any(v: Any):
 
 
 def load_ppt_workorders() -> pd.DataFrame:
-    """Load the same CSV files as the dashboard, but keep it Streamlit-native."""
+    """Load the same CSV files as the dashboard, but keep it Streamlit-native.
+    Includes fields needed for PPT Builder filters and reports.
+    """
     wo = safe_read_csv(WO_PATH).copy()
     if wo.empty:
         return pd.DataFrame()
 
     dist = safe_read_csv(DISTRICT_PATH).copy()
+
     link_col = first_existing_col(wo, ["Link Code"])
     wo_col = first_existing_col(wo, ["Work Order"])
     cost_col = first_existing_col(wo, ["WO Cost", "Cost"])
@@ -1834,6 +1842,11 @@ def load_ppt_workorders() -> pd.DataFrame:
     subclass_col = first_existing_col(wo, ["Subclass"])
     region_col = first_existing_col(wo, ["Region"])
     city_col = first_existing_col(wo, ["City"])
+    district_col = first_existing_col(wo, ["District", "District "])
+    project_col = first_existing_col(wo, ["Project"])
+    stage_col = first_existing_col(wo, ["Stage"])
+    sor_col = first_existing_col(wo, ["SOR Status"])
+    sor_ref_col = first_existing_col(wo, ["SOR Reference Number"])
     updated_col = first_existing_col(wo, ["Updated", "Created"])
     closure_col = first_existing_col(wo, ["Work Order Status"])
     performance_col = first_existing_col(wo, ["Performance Status", "Performance"])
@@ -1843,6 +1856,11 @@ def load_ppt_workorders() -> pd.DataFrame:
         "Work Order": wo[wo_col].astype(str) if wo_col else "",
         "Region": wo[region_col].astype(str) if region_col else "",
         "City": wo[city_col].astype(str) if city_col else "",
+        "District": wo[district_col].astype(str) if district_col else "",
+        "Project": wo[project_col].astype(str) if project_col else "",
+        "Stage": wo[stage_col].astype(str) if stage_col else "",
+        "SOR Status": wo[sor_col].astype(str) if sor_col else "",
+        "SOR Reference Number": wo[sor_ref_col].astype(str) if sor_ref_col else "",
         "Cost": wo[cost_col].apply(parse_num) if cost_col else 0.0,
         "Progress": wo[progress_col].apply(parse_num) if progress_col else 0.0,
         "Subclass": wo[subclass_col].astype(str) if subclass_col else "",
@@ -1856,26 +1874,30 @@ def load_ppt_workorders() -> pd.DataFrame:
         d_wo = first_existing_col(dist, ["Work Order"])
         d_region = first_existing_col(dist, ["Region"])
         d_city = first_existing_col(dist, ["City"])
+        d_district = first_existing_col(dist, ["District", "District "])
         cols = []
-        if d_link: cols.append(d_link)
-        if d_wo: cols.append(d_wo)
-        if d_region: cols.append(d_region)
-        if d_city: cols.append(d_city)
+        for c in [d_link, d_wo, d_region, d_city, d_district]:
+            if c and c not in cols:
+                cols.append(c)
         if d_link and d_wo and cols:
             d = dist[cols].copy()
             rename = {d_link: "Link Code", d_wo: "Work Order"}
             if d_region: rename[d_region] = "Region_map"
             if d_city: rename[d_city] = "City_map"
+            if d_district: rename[d_district] = "District_map"
             d = d.rename(columns=rename)
             out = out.merge(d, on=["Link Code", "Work Order"], how="left")
             if "Region_map" in out:
                 out["Region"] = out["Region_map"].where(out["Region_map"].astype(str).str.strip().ne(""), out["Region"])
             if "City_map" in out:
                 out["City"] = out["City_map"].where(out["City_map"].astype(str).str.strip().ne(""), out["City"])
-            out = out.drop(columns=[c for c in ["Region_map", "City_map"] if c in out.columns])
+            if "District_map" in out:
+                out["District"] = out["District_map"].where(out["District_map"].astype(str).str.strip().ne(""), out["District"])
+            out = out.drop(columns=[c for c in ["Region_map", "City_map", "District_map"] if c in out.columns])
 
-    out["Region"] = out["Region"].replace("", "N/A").fillna("N/A")
-    out["City"] = out["City"].replace("", "N/A").fillna("N/A")
+    for c in ["Region", "City", "District", "Project", "Stage", "SOR Status", "SOR Reference Number"]:
+        out[c] = out[c].fillna("").astype(str).str.strip()
+        out[c] = out[c].replace({"": "N/A", "nan": "N/A", "NaN": "N/A", "None": "N/A"})
     out["Status"] = out["Progress"].apply(_status_from_progress)
     out["Updated_dt"] = out["Updated"].apply(_parse_date_any)
     return out
@@ -2018,13 +2040,16 @@ def _add_header(slide, title: str):
 
 
 def _add_footer(slide):
-    _, _, _, _, PP_ALIGN, _, _, Inches, Pt, RGBColor = _ppt_imports()
-    box = slide.shapes.add_textbox(Inches(3.1), Inches(7.08), Inches(7.2), Inches(0.25))
+    """Fixed footer on all slides except the final Thanks slide."""
+    _, _, _, _, PP_ALIGN, _, MSO_SHAPE, Inches, Pt, RGBColor = _ppt_imports()
+    bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1.3), Inches(7.05), Inches(10.75), Inches(0.32))
+    bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(0, 0, 128); bar.line.fill.background()
+    box = slide.shapes.add_textbox(Inches(1.35), Inches(7.07), Inches(10.65), Inches(0.24))
     p = box.text_frame.paragraphs[0]
     p.text = "Prepared by Eng/Ahmed Fekry — Quality & Performance Director"
     p.alignment = PP_ALIGN.CENTER
     run = p.runs[0]
-    run.font.bold = True; run.font.size = Pt(9); run.font.color.rgb = RGBColor(30, 58, 138)
+    run.font.bold = True; run.font.size = Pt(13); run.font.color.rgb = RGBColor(255, 221, 0)
 
 
 def _add_table(slide, headers: List[str], rows: List[List[Any]], x: float, y: float, w: float, h: float, font_size: int = 11):
@@ -2080,31 +2105,171 @@ def _add_pie_chart(slide, title: str, labels: List[str], values: List[float], x:
     chart.legend.include_in_layout = False
 
 
-def build_ppt_report(selected_reports: List[str]) -> bytes:
+
+def apply_ppt_filters(rows: pd.DataFrame, filters: Mapping[str, Any]) -> pd.DataFrame:
+    """Apply PPT Builder filters. This replaces iframe-to-Streamlit filter sharing, which is not reliable in Streamlit components."""
+    if rows.empty or not filters:
+        return rows
+    out = rows.copy()
+    for col, val in filters.items():
+        if col not in out.columns:
+            continue
+        if val is None:
+            continue
+        vals = val if isinstance(val, (list, tuple, set)) else [val]
+        vals = [str(v).strip() for v in vals if str(v).strip() and str(v).strip() != "All"]
+        if vals:
+            out = out[out[col].astype(str).isin(vals)]
+    return out
+
+
+def _opt_values(df: pd.DataFrame, col: str) -> List[str]:
+    if df.empty or col not in df.columns:
+        return []
+    vals = sorted([str(x) for x in df[col].dropna().astype(str).unique() if str(x).strip() and str(x).strip() not in ["nan", "None"]])
+    return vals
+
+
+def portfolio_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    if rows.empty:
+        return pd.DataFrame(columns=["Project", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"])
+    total_cost = rows["Cost"].sum() or 1
+    g = rows.groupby("Project", dropna=False).agg(
+        **{"Link Codes": ("Link Code", "nunique"), "WOs": ("Work Order", "count"), "WO Cost": ("Cost", "sum"), "Avg Progress": ("Progress", "mean")}
+    ).reset_index()
+    g["Share"] = g["WO Cost"] / total_cost * 100
+    return g.sort_values("WO Cost", ascending=False)
+
+
+def stage_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    if rows.empty:
+        return pd.DataFrame(columns=["Stage", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"])
+    total_cost = rows["Cost"].sum() or 1
+    g = rows.groupby("Stage", dropna=False).agg(
+        **{"Link Codes": ("Link Code", "nunique"), "WOs": ("Work Order", "count"), "WO Cost": ("Cost", "sum"), "Avg Progress": ("Progress", "mean")}
+    ).reset_index()
+    g["Share"] = g["WO Cost"] / total_cost * 100
+    return g.sort_values("WO Cost", ascending=False)
+
+
+def sor_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    if rows.empty:
+        return pd.DataFrame(columns=["SOR Status", "Link Codes", "WO Cost", "Share"])
+    links = link_level_dataframe(rows)
+    total_cost = links["Cost"].sum() or 1
+    g = links.groupby("SOR Status", dropna=False).agg(
+        **{"Link Codes": ("Link Code", "nunique"), "WO Cost": ("Cost", "sum")}
+    ).reset_index()
+    g["Share"] = g["WO Cost"] / total_cost * 100
+    return g.sort_values("WO Cost", ascending=False)
+
+
+def kpi_cards_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    penalties = penalty_total_filtered(rows)
+    links = rows["Link Code"].nunique() if not rows.empty else 0
+    cost = rows["Cost"].sum() if not rows.empty else 0
+    civil = rows[rows["Subclass"].str.lower().str.contains("civil", na=False)]
+    fiber = rows[rows["Subclass"].str.lower().str.contains("fiber", na=False)]
+    closed = rows[rows["Closure Status"].astype(str).str.lower().str.contains("closed", na=False)]
+    pending = rows[(rows["Progress"] >= 100) & (~rows.index.isin(closed.index))]
+    data = [
+        ["Total Link Codes", f"{links:,}"],
+        ["Total WO Cost", _fmt_money(cost)],
+        ["Civil Completion Rate", _fmt_pct(civil["Progress"].mean() if not civil.empty else 0)],
+        ["Fiber Completion Rate", _fmt_pct(fiber["Progress"].mean() if not fiber.empty else 0)],
+        ["Penalties", _fmt_money(penalties)],
+        ["Closed Indicators", f"{closed['Link Code'].nunique():,}"],
+        ["Pending Closure", f"{pending['Link Code'].nunique():,}"],
+    ]
+    return pd.DataFrame(data, columns=["Metric", "Value"])
+
+
+def _add_cover_slide(prs, blank):
+    _, _, _, _, PP_ALIGN, _, MSO_SHAPE, Inches, Pt, RGBColor = _ppt_imports()
+    slide = prs.slides.add_slide(blank)
+    if PPT_COVER_PATH.exists():
+        slide.shapes.add_picture(str(PPT_COVER_PATH), Inches(0), Inches(0), width=Inches(13.333), height=Inches(7.5))
+    else:
+        _slide_bg(slide, rgb=(16, 34, 58))
+        _add_logo(slide, DAWIYAT_LOGO_PATH, 0.6, 0.45, 2.5, 0.9)
+        _add_logo(slide, MET_LOGO_PATH, 10.4, 0.45, 2.2, 1.0)
+        box = slide.shapes.add_textbox(Inches(1.0), Inches(3.0), Inches(11.3), Inches(0.75))
+        p = box.text_frame.paragraphs[0]
+        p.text = "Dawiyat Executive Presentation"
+        p.alignment = PP_ALIGN.CENTER
+        p.runs[0].font.bold = True; p.runs[0].font.size = Pt(32); p.runs[0].font.color.rgb = RGBColor(255,255,255)
+    _add_footer(slide)
+    return slide
+
+
+def _add_thanks_slide(prs, blank):
+    _, _, _, _, PP_ALIGN, _, MSO_SHAPE, Inches, Pt, RGBColor = _ppt_imports()
+    slide = prs.slides.add_slide(blank)
+    _slide_bg(slide)
+    title = slide.shapes.add_textbox(Inches(3.3), Inches(2.55), Inches(6.8), Inches(0.9))
+    p = title.text_frame.paragraphs[0]
+    p.text = "Thanks"
+    p.alignment = PP_ALIGN.CENTER
+    p.runs[0].font.size = Pt(54); p.runs[0].font.color.rgb = RGBColor(0, 32, 96)
+    bar = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(1.45), Inches(5.35), Inches(10.45), Inches(0.45))
+    bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(0, 0, 128); bar.line.fill.background()
+    tx = slide.shapes.add_textbox(Inches(1.55), Inches(5.39), Inches(10.25), Inches(0.35))
+    p = tx.text_frame.paragraphs[0]
+    p.text = "Prepared by Eng/Ahmed Fekry — Quality & Performance Director"
+    p.alignment = PP_ALIGN.CENTER
+    p.runs[0].font.bold = True; p.runs[0].font.size = Pt(22); p.runs[0].font.color.rgb = RGBColor(255, 221, 0)
+    return slide
+
+
+
+def build_ppt_report(selected_reports: List[str], rows: pd.DataFrame | None = None) -> bytes:
     Presentation, *_ = _ppt_imports()
     prs = Presentation()
     prs.slide_width = 12192000  # 13.333 in
     prs.slide_height = 6858000  # 7.5 in
     blank = prs.slide_layouts[6]
-    rows = load_ppt_workorders()
+
+    rows = rows.copy() if rows is not None else load_ppt_workorders()
     cities = city_summary_dataframe(rows)
     status_cost = status_cost_dataframe(rows)
     months = monthly_progress_dataframe(rows)
     readiness = readiness_summary_dataframe(rows)
+    portfolio = portfolio_summary_dataframe(rows)
+    stages = stage_summary_dataframe(rows)
+    sor = sor_summary_dataframe(rows)
 
-    # Cover
-    slide = prs.slides.add_slide(blank)
-    _slide_bg(slide)
-    _add_logo(slide, MET_LOGO_PATH, 0.7, 0.45, 2.4, 1.1)
-    _add_logo(slide, DAWIYAT_LOGO_PATH, 10.0, 0.45, 2.6, 0.8)
-    _, _, _, _, PP_ALIGN, _, _, Inches, Pt, RGBColor = _ppt_imports()
-    title = slide.shapes.add_textbox(Inches(1.0), Inches(2.35), Inches(11.3), Inches(0.7))
-    p = title.text_frame.paragraphs[0]; p.text = "Performance & Quality Management System"; p.alignment = PP_ALIGN.CENTER
-    p.runs[0].font.bold = True; p.runs[0].font.size = Pt(28); p.runs[0].font.color.rgb = RGBColor(0, 0, 0)
-    sub = slide.shapes.add_textbox(Inches(2.0), Inches(3.15), Inches(9.3), Inches(0.35))
-    p = sub.text_frame.paragraphs[0]; p.text = "Dawiyat Executive Presentation Builder"; p.alignment = PP_ALIGN.CENTER
-    p.runs[0].font.bold = True; p.runs[0].font.size = Pt(18); p.runs[0].font.color.rgb = RGBColor(244, 122, 42)
-    _add_footer(slide)
+    # Fixed first page
+    _add_cover_slide(prs, blank)
+
+    if "kpi_cards" in selected_reports:
+        slide = prs.slides.add_slide(blank); _add_header(slide, "Executive KPI Cards")
+        kpi = kpi_cards_dataframe(rows)
+        _add_table(slide, ["Metric", "Value"], kpi.values.tolist(), 1.45, 1.35, 10.4, 4.6, 15)
+        _add_footer(slide)
+
+    if "portfolio" in selected_reports:
+        slide = prs.slides.add_slide(blank); _add_header(slide, "Portfolio Summary & Cost Exposure")
+        t = portfolio.head(10).copy()
+        body = [[r["Project"], f'{int(r["Link Codes"]):,}', f'{int(r["WOs"]):,}', _fmt_money(r["WO Cost"]), _fmt_pct(r["Avg Progress"]), _fmt_pct(r["Share"])] for _, r in t.iterrows()]
+        _add_table(slide, ["Project", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"], body, 0.35, 1.25, 12.6, 3.7, 9)
+        _add_bar_chart(slide, "Project Distribution by Cost", t["Project"].astype(str).tolist(), t["WO Cost"].tolist(), 0.8, 5.3, 11.5, 1.35)
+        _add_footer(slide)
+
+    if "sor_summary" in selected_reports:
+        slide = prs.slides.add_slide(blank); _add_header(slide, "SOR Summary & Revenue Exposure")
+        t = sor.head(10).copy()
+        body = [[r["SOR Status"], f'{int(r["Link Codes"]):,}', _fmt_money(r["WO Cost"]), _fmt_pct(r["Share"])] for _, r in t.iterrows()]
+        _add_table(slide, ["SOR Status", "Link Codes", "WO Cost", "Share"], body, 0.7, 1.25, 5.8, 4.8, 10)
+        _add_pie_chart(slide, "SOR Status Distribution", t["SOR Status"].astype(str).tolist(), t["WO Cost"].tolist(), 7.0, 1.35, 5.6, 4.7)
+        _add_footer(slide)
+
+    if "stage_summary" in selected_reports:
+        slide = prs.slides.add_slide(blank); _add_header(slide, "Overall Stages Summary & Cost Exposure")
+        t = stages.head(10).copy()
+        body = [[r["Stage"], f'{int(r["Link Codes"]):,}', f'{int(r["WOs"]):,}', _fmt_money(r["WO Cost"]), _fmt_pct(r["Avg Progress"]), _fmt_pct(r["Share"])] for _, r in t.iterrows()]
+        _add_table(slide, ["Stage", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"], body, 0.35, 1.15, 12.6, 3.8, 8)
+        _add_bar_chart(slide, "Stage Cost Ranking", t["Stage"].astype(str).tolist(), t["WO Cost"].tolist(), 0.8, 5.2, 11.5, 1.45)
+        _add_footer(slide)
 
     if "full_scope" in selected_reports:
         slide = prs.slides.add_slide(blank); _add_header(slide, "Dawiyat Project Full Scope 2025  & 2026")
@@ -2120,122 +2285,165 @@ def build_ppt_report(selected_reports: List[str]) -> bytes:
         t = cities.head(12)
         body = [[r["Region"], r["City"], f'{int(r["No. of Link Codes"]):,}', int(r["Completed"]), int(r["In Progress"]), int(r["Not Start"]), _fmt_pct(r["Completion %"])] for _, r in t.iterrows()]
         _add_table(slide, ["Region", "City", "No. of Link Codes", "Completed", "In Progress", "Not Start", "Completion %"], body, 0.35, 1.25, 12.6, 3.6, 9)
-        _add_bar_chart(slide, "City Chart Area", t["City"].tolist(), t["WO Amount"].tolist(), 0.8, 5.25, 11.5, 1.6)
+        _add_bar_chart(slide, "City Chart Area", t["City"].tolist(), t["WO Amount"].tolist(), 0.8, 5.25, 11.5, 1.45)
         _add_footer(slide)
 
     if "completion" in selected_reports:
         slide = prs.slides.add_slide(blank); _add_header(slide, "Sites Completion Analysis")
         txt = slide.shapes.add_textbox(Inches(0.25), Inches(1.25), Inches(12.8), Inches(0.75))
-        txt.text = "The Site Completion Analysis provides a comprehensive overview of project progress by evaluating the status of all planned FTTH sites under the current data scope."
+        txt.text = "The Site Completion Analysis provides a comprehensive overview of project progress by evaluating the status of all planned FTTH sites under the current filtered data scope."
         total_links = max(1, link_level_dataframe(rows)["Link Code"].nunique())
         body = []
         for _, r in status_cost.iterrows():
-            body.append([r["Status"], int(r["CIVIL"]), _fmt_pct(int(r["CIVIL"]) / total_links * 100), int(r["FIBRE"]), _fmt_pct(int(r["FIBRE"]) / total_links * 100), _fmt_pct((int(r["CIVIL"])+int(r["FIBRE"])) / max(1,total_links*2) * 100)])
-        _add_table(slide, ["Status", "CIVIL", "CIVIL%", "FIBRE", "FIBRE%", "OVERALL%"], body, 1.25, 2.3, 10.1, 2.0, 13)
-        _add_pie_chart(slide, "Site Completion Analysis", status_cost["Status"].tolist(), (status_cost["CIVIL"]+status_cost["FIBRE"]).tolist(), 4.65, 4.75, 4.0, 1.8)
+            body.append([r["Status"], int(r["CIVIL"]), _fmt_pct(int(r["CIVIL"]) / total_links * 100), int(r["FIBRE"]), _fmt_pct(int(r["FIBRE"]) / total_links * 100), _fmt_pct((int(r["CIVIL"]) + int(r["FIBRE"])) / (2 * total_links) * 100)])
+        _add_table(slide, ["Status", "CIVIL", "CIVIL%", "FIBRE", "FIBRE%", "OVERALL%"], body, 1.3, 2.45, 10.4, 2.15, 12)
+        _add_pie_chart(slide, "Site Completion Analysis", status_cost["Status"].tolist(), status_cost["Total WO Cost"].tolist(), 4.2, 4.85, 4.5, 1.55)
         _add_footer(slide)
 
     if "cost" in selected_reports:
         slide = prs.slides.add_slide(blank); _add_header(slide, "Sites Cost Analysis")
         txt = slide.shapes.add_textbox(Inches(0.25), Inches(1.25), Inches(12.8), Inches(0.75))
-        txt.text = "The Site Cost Analysis provides a detailed assessment of project expenditures and cost efficiency across all implemented FTTH sites."
+        txt.text = "The Site Cost Analysis provides a detailed assessment of project expenditures and cost efficiency across all implemented FTTH sites under the current filtered data scope."
         body = [[r["Status"], int(r["CIVIL"]), _fmt_money(r["WO Cost Civil"]), int(r["FIBRE"]), _fmt_money(r["WO Cost Fibre"]), _fmt_money(r["Total WO Cost"])] for _, r in status_cost.iterrows()]
-        _add_table(slide, ["Status", "CIVIL", "WO Cost", "FIBRE", "WO Cost", "Total WO Cost"], body, 1.05, 2.2, 10.7, 2.0, 13)
-        _add_bar_chart(slide, "Cost Analysis", status_cost["Status"].tolist(), status_cost["Total WO Cost"].tolist(), 2.2, 4.95, 9.2, 1.6)
+        _add_table(slide, ["Status", "CIVIL", "WO Cost", "FIBRE", "WO Cost", "Total WO Cost"], body, 1.2, 2.2, 10.8, 2.35, 12)
+        _add_bar_chart(slide, "Cost Analysis", status_cost["Status"].tolist(), status_cost["Total WO Cost"].tolist(), 2.3, 5.2, 8.7, 1.25)
         _add_footer(slide)
 
     if "monthly" in selected_reports:
         slide = prs.slides.add_slide(blank); _add_header(slide, "Monthly Progress Trend 2025-2026")
-        txt = slide.shapes.add_textbox(Inches(0.25), Inches(1.25), Inches(12.8), Inches(0.75))
-        txt.text = "Monthly progress trend demonstrates the project's advancement across Civil and Fiber implementation activities based on available update dates."
+        txt = slide.shapes.add_textbox(Inches(0.25), Inches(1.32), Inches(12.8), Inches(0.65))
+        txt.text = "Monthly progress trend demonstrates advancement across Civil and Fiber implementation activities based on the available Updated dates in the current filtered data scope."
         body = [[r["Month"], _fmt_pct(r["Civil %"]), _fmt_pct(r["Fiber %"]), _fmt_pct(r["Overall %"])] for _, r in months.iterrows()]
-        _add_table(slide, ["Month", "Civil %", "Fiber %", "Overall %"], body, 0.7, 2.25, 5.75, 3.6, 12)
-        _add_bar_chart(slide, "Monthly Overall Progress", months["Month"].tolist(), months["Overall %"].tolist(), 7.05, 2.35, 5.55, 3.65)
+        _add_table(slide, ["Month", "Civil %", "Fiber %", "Overall %"], body, 0.65, 2.25, 5.6, 4.2, 11)
+        _add_bar_chart(slide, "Overall Monthly Progress", months["Month"].tolist(), months["Overall %"].tolist(), 6.8, 2.35, 5.6, 3.7)
         _add_footer(slide)
 
     if "financial" in selected_reports:
         slide = prs.slides.add_slide(blank); _add_header(slide, "Executive Financial Report")
-        total_cost = rows["Cost"].sum() if not rows.empty else 0
-        penalty = penalty_total_filtered(rows)
-        completed_cost = rows[rows["Progress"].ge(100)]["Cost"].sum() if not rows.empty else 0
-        at_risk_cost = rows[rows["Progress"].lt(100)]["Cost"].sum() if not rows.empty else 0
-        body = [["Total WO Cost", _fmt_money(total_cost)], ["Completed Cost Exposure", _fmt_money(completed_cost)], ["Penalty Amount", _fmt_money(penalty)], ["At Risk / Not Completed Cost", _fmt_money(at_risk_cost)], ["Total WOs", f"{len(rows):,}"]]
-        _add_table(slide, ["Metric", "Value"], body, 2.1, 1.8, 9.1, 2.6, 12)
-        _add_bar_chart(slide, "Financial Exposure", [x[0] for x in body[:4]], [total_cost, completed_cost, penalty, at_risk_cost], 2.4, 4.9, 8.8, 1.6)
+        penalties = penalty_total_filtered(rows)
+        completed_cost = rows.loc[rows["Progress"] >= 100, "Cost"].sum()
+        risk_cost = rows.loc[rows["Performance"].str.lower().str.contains("risk|off", na=False), "Cost"].sum()
+        pending_closure = rows.loc[(rows["Progress"] >= 100) & (~rows["Closure Status"].str.lower().str.contains("closed", na=False)), "Cost"].sum()
+        data = [
+            ["Total WO Cost", _fmt_money(rows["Cost"].sum())],
+            ["Completed Cost Exposure", _fmt_money(completed_cost)],
+            ["Penalty Amount", _fmt_money(penalties)],
+            ["At Risk / Off Track Cost", _fmt_money(risk_cost)],
+            ["Pending Closure Cost", _fmt_money(pending_closure)],
+        ]
+        _add_table(slide, ["Metric", "Value"], data, 2.0, 1.55, 9.3, 3.6, 12)
+        _add_bar_chart(slide, "Financial Exposure", [x[0] for x in data], [parse_num(x[1]) for x in data], 2.3, 5.35, 8.8, 1.3)
         _add_footer(slide)
 
     if "readiness" in selected_reports:
         slide = prs.slides.add_slide(blank); _add_header(slide, "Executive Readiness Report")
-        body = [[r["Document Type"], int(r["Uploaded"]), int(r["Partial"]), int(r["Missing"])] for _, r in readiness.iterrows()]
-        _add_table(slide, ["Document Type", "Uploaded", "Partial", "Missing"], body, 2.0, 1.7, 9.3, 3.4, 12)
-        _add_bar_chart(slide, "Missing Documents by Type", readiness["Document Type"].tolist(), readiness["Missing"].tolist(), 2.4, 5.25, 8.8, 1.45)
+        if readiness.empty:
+            _add_table(slide, ["Document Type", "Uploaded", "Partial", "Missing"], [], 1.3, 1.5, 10.5, 3.5, 12)
+        else:
+            body = [[r["Document Type"], int(r["Uploaded"]), int(r["Partial"]), int(r["Missing"])] for _, r in readiness.iterrows()]
+            _add_table(slide, ["Document Type", "Uploaded", "Partial", "Missing"], body, 1.3, 1.4, 10.6, 4.6, 12)
         _add_footer(slide)
 
-    # Thanks
-    slide = prs.slides.add_slide(blank)
-    _slide_bg(slide)
-    _add_logo(slide, MET_LOGO_PATH, 0.7, 0.45, 2.4, 1.1)
-    _add_logo(slide, DAWIYAT_LOGO_PATH, 10.0, 0.45, 2.6, 0.8)
-    box = slide.shapes.add_textbox(Inches(2.7), Inches(2.6), Inches(8.0), Inches(0.7))
-    p = box.text_frame.paragraphs[0]; p.text = "Thanks"; p.alignment = PP_ALIGN.CENTER
-    p.runs[0].font.bold = True; p.runs[0].font.size = Pt(34); p.runs[0].font.color.rgb = RGBColor(0, 0, 0)
-    _add_footer(slide)
+    # Fixed last page - no footer
+    _add_thanks_slide(prs, blank)
 
-    buffer = io.BytesIO()
-    prs.save(buffer)
-    return buffer.getvalue()
+    out = io.BytesIO()
+    prs.save(out)
+    return out.getvalue()
 
 
 def executive_ppt_builder_page() -> None:
     st.title("📊 Executive PPT Builder")
-    st.caption("Independent PowerPoint generator. Select the required reports and download the presentation without loading heavy report charts inside dashboard.html.")
+    st.caption("Independent PowerPoint generator with its own dashboard-aligned filters. Generate selected slides only when needed.")
 
-    st.info("This page is separated from Executive Reports to keep the dashboard stable and fast. It reads the latest CSV files from the Data folder and generates PowerPoint only on demand.")
-
-    rows = load_ppt_workorders()
-    if rows.empty:
+    all_rows = load_ppt_workorders()
+    if all_rows.empty:
         st.warning("No work order data is available.")
         return
+
+    st.info(
+        "Important: Streamlit cannot reliably read filters selected inside the embedded HTML dashboard iframe. "
+        "Therefore, this PPT Builder includes the same main filters here and uses them dynamically when generating PowerPoint."
+    )
+
+    with st.expander("🎛️ PPT Builder Filters", expanded=True):
+        c1, c2, c3 = st.columns(3)
+        with c1:
+            region_sel = st.multiselect("Region", _opt_values(all_rows, "Region"), default=[])
+            project_sel = st.multiselect("Project", _opt_values(all_rows, "Project"), default=[])
+        filtered_for_city = apply_ppt_filters(all_rows, {"Region": region_sel, "Project": project_sel})
+        with c2:
+            city_sel = st.multiselect("City", _opt_values(filtered_for_city, "City"), default=[])
+            stage_sel = st.multiselect("Stage", _opt_values(all_rows, "Stage"), default=[])
+        filtered_for_dist = apply_ppt_filters(filtered_for_city, {"City": city_sel, "Stage": stage_sel})
+        with c3:
+            district_sel = st.multiselect("District", _opt_values(filtered_for_dist, "District"), default=[])
+            sor_sel = st.multiselect("SOR Status", _opt_values(all_rows, "SOR Status"), default=[])
+
+        link_options = _opt_values(apply_ppt_filters(all_rows, {
+            "Region": region_sel,
+            "Project": project_sel,
+            "City": city_sel,
+            "Stage": stage_sel,
+            "District": district_sel,
+            "SOR Status": sor_sel,
+        }), "Link Code")
+        link_sel = st.multiselect("Link Code", link_options[:500], default=[])
+
+    ppt_filters = {
+        "Region": region_sel,
+        "Project": project_sel,
+        "City": city_sel,
+        "Stage": stage_sel,
+        "District": district_sel,
+        "SOR Status": sor_sel,
+        "Link Code": link_sel,
+    }
+    rows = apply_ppt_filters(all_rows, ppt_filters)
 
     metrics_links = rows["Link Code"].nunique()
     metrics_cost = rows["Cost"].sum()
     c1, c2, c3 = st.columns(3)
-    c1.metric("Link Codes", f"{metrics_links:,}")
-    c2.metric("Work Orders", f"{len(rows):,}")
-    c3.metric("WO Cost", f"{metrics_cost:,.0f}")
+    c1.metric("Filtered Link Codes", f"{metrics_links:,}")
+    c2.metric("Filtered Work Orders", f"{len(rows):,}")
+    c3.metric("Filtered WO Cost", f"{metrics_cost:,.0f}")
 
-    default_reports = ["full_scope", "regional", "completion", "cost", "monthly"]
     selected = st.multiselect(
         "Select reports to include in PowerPoint",
         options=list(PPT_REPORT_OPTIONS.keys()),
-        default=default_reports,
+        default=list(PPT_REPORT_OPTIONS.keys()),
         format_func=lambda k: PPT_REPORT_OPTIONS[k],
     )
 
-    st.info("Only selected reports will be generated. The main Dashboard page will not be affected or slowed down.")
+    st.info("Fixed slides are always included: first cover page + last Thanks page. Footer is fixed at the bottom of every slide except the last page.")
 
     preview_cols = st.columns(2)
     with preview_cols[0]:
         st.subheader("Selected Slide Order")
-        order = ["Cover"] + [PPT_REPORT_OPTIONS[k] for k in selected] + ["Thanks"]
+        order = ["Fixed Cover"] + [PPT_REPORT_OPTIONS[k] for k in selected] + ["Fixed Thanks"]
         st.write(pd.DataFrame({"#": range(1, len(order)+1), "Slide": order}))
     with preview_cols[1]:
-        st.subheader("Data Scope")
+        st.subheader("Filtered Data Scope")
         city_summary = city_summary_dataframe(rows)
         st.dataframe(city_summary[["Region", "City", "No. of Link Codes", "WO Amount"]].head(10), use_container_width=True, hide_index=True)
 
+    if rows.empty:
+        st.warning("No records match the selected filters.")
+        return
     if not selected:
         st.warning("Please select at least one report.")
         return
 
-    ppt_bytes = build_ppt_report(selected)
-    st.download_button(
-        "📥 Download Selected PowerPoint Presentation",
-        data=ppt_bytes,
-        file_name=f"Dawiyat_Executive_Presentation_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx",
-        mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        use_container_width=True,
-    )
+    if st.button("📊 Generate PowerPoint", use_container_width=True, type="primary"):
+        with st.spinner("Generating PowerPoint presentation..."):
+            ppt_bytes = build_ppt_report(selected, rows)
+        st.download_button(
+            "📥 Download Selected PowerPoint Presentation",
+            data=ppt_bytes,
+            file_name=f"Dawiyat_Executive_Presentation_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx",
+            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+            use_container_width=True,
+        )
 
 
 def reports_page() -> None:
