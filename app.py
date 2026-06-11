@@ -2279,7 +2279,7 @@ def _add_thanks_slide(prs, blank):
 
 def build_ppt_report(selected_reports: List[str], rows: pd.DataFrame | None = None) -> bytes:
     rows = _ensure_ppt_columns(rows if rows is not None else load_ppt_workorders())
-    Presentation, *_ = _ppt_imports()
+    Presentation, ChartData, XL_CHART_TYPE, XL_LEGEND_POSITION, PP_ALIGN, MSO_ANCHOR, MSO_SHAPE, Inches, Pt, RGBColor = _ppt_imports()
     prs = Presentation()
     prs.slide_width = 12192000  # 13.333 in
     prs.slide_height = 6858000  # 7.5 in
@@ -2541,7 +2541,7 @@ def executive_ppt_builder_page() -> None:
             )
         except Exception as exc:
             st.error(f"Unable to generate PowerPoint: {exc}")
-            st.info("Please try clearing filters or selecting fewer report sections. The full technical error is hidden to avoid exposing data.")
+            st.info("Please try selecting fewer report sections or contact the PMO System Administrator if the issue continues.")
 
 
 def reports_page() -> None:
