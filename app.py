@@ -1872,6 +1872,8 @@ def load_ppt_workorders() -> pd.DataFrame:
         "Type": wo[first_existing_col(wo, ["Type"])].astype(str) if first_existing_col(wo, ["Type"]) else "",
         "Class": wo[first_existing_col(wo, ["Class"])].astype(str) if first_existing_col(wo, ["Class"]) else "",
         "Scope Target": wo[first_existing_col(wo, ["Scope Target"])].astype(str) if first_existing_col(wo, ["Scope Target"]) else "",
+        "1st 50 Invoice Status": wo[first_existing_col(wo, ["1st 50 Invoice Status"])].astype(str) if first_existing_col(wo, ["1st 50 Invoice Status"]) else "",
+        "Missing MET Actual / PM Review": wo[first_existing_col(wo, ["Missing MET Actual / PM Review", "Missing MET Actual", "PM Review", "PM Review Status"])].astype(str) if first_existing_col(wo, ["Missing MET Actual / PM Review", "Missing MET Actual", "PM Review", "PM Review Status"]) else "",
     })
 
     if not dist.empty:
@@ -1900,7 +1902,7 @@ def load_ppt_workorders() -> pd.DataFrame:
                 out["District"] = out["District_map"].where(out["District_map"].astype(str).str.strip().ne(""), out["District"])
             out = out.drop(columns=[c for c in ["Region_map", "City_map", "District_map"] if c in out.columns])
 
-    for c in ["Region", "City", "District", "Project", "Stage", "SOR Status", "SOR Reference Number", "Year", "Work Order Status", "Type", "Class", "Scope Target", "Subclass"]:
+    for c in ["Region", "City", "District", "Project", "Stage", "SOR Status", "SOR Reference Number", "Year", "Work Order Status", "Type", "Class", "Scope Target", "Subclass", "1st 50 Invoice Status", "Missing MET Actual / PM Review"]:
         out[c] = out[c].fillna("").astype(str).str.strip()
         out[c] = out[c].replace({"": "N/A", "nan": "N/A", "NaN": "N/A", "None": "N/A"})
     out["Status"] = out["Progress"].apply(_status_from_progress)
@@ -2111,8 +2113,37 @@ def _add_pie_chart(slide, title: str, labels: List[str], values: List[float], x:
 
 
 
+
+def _ensure_ppt_columns(rows: pd.DataFrame) -> pd.DataFrame:
+    """Ensure PPT report columns exist to prevent KeyError during PowerPoint generation."""
+    required = {
+        "Link Code": "", "Work Order": "", "Region": "N/A", "City": "N/A", "District": "N/A",
+        "Project": "N/A", "Stage": "N/A", "SOR Status": "N/A", "SOR Reference Number": "N/A",
+        "Cost": 0.0, "Progress": 0.0, "Subclass": "N/A", "Updated": "",
+        "Closure Status": "N/A", "Performance": "N/A", "Year": "N/A",
+        "Work Order Status": "N/A", "Type": "N/A", "Class": "N/A", "Scope Target": "N/A",
+        "1st 50 Invoice Status": "N/A", "Missing MET Actual / PM Review": "N/A",
+    }
+    if rows is None or rows.empty:
+        return pd.DataFrame(columns=list(required.keys()))
+    out = rows.copy()
+    for col, default in required.items():
+        if col not in out.columns:
+            out[col] = default
+    out["Cost"] = pd.to_numeric(out["Cost"], errors="coerce").fillna(0.0)
+    out["Progress"] = pd.to_numeric(out["Progress"], errors="coerce").fillna(0.0)
+    for col, default in required.items():
+        if col not in ["Cost", "Progress"]:
+            out[col] = out[col].fillna(default).astype(str).replace({"": str(default), "nan": str(default), "None": str(default)})
+    if "Status" not in out.columns:
+        out["Status"] = out["Progress"].apply(_status_from_progress)
+    if "Updated_dt" not in out.columns:
+        out["Updated_dt"] = out["Updated"].apply(_parse_date_any)
+    return out
+
 def apply_ppt_filters(rows: pd.DataFrame, filters: Mapping[str, Any]) -> pd.DataFrame:
     """Apply PPT Builder filters. This replaces iframe-to-Streamlit filter sharing, which is not reliable in Streamlit components."""
+    rows = _ensure_ppt_columns(rows)
     if rows.empty or not filters:
         return rows
     out = rows.copy()
@@ -2136,6 +2167,7 @@ def _opt_values(df: pd.DataFrame, col: str) -> List[str]:
 
 
 def portfolio_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    rows = _ensure_ppt_columns(rows)
     if rows.empty:
         return pd.DataFrame(columns=["Project", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"])
     total_cost = rows["Cost"].sum() or 1
@@ -2147,6 +2179,7 @@ def portfolio_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
 
 
 def stage_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    rows = _ensure_ppt_columns(rows)
     if rows.empty:
         return pd.DataFrame(columns=["Stage", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"])
     total_cost = rows["Cost"].sum() or 1
@@ -2158,6 +2191,7 @@ def stage_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
 
 
 def sor_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    rows = _ensure_ppt_columns(rows)
     if rows.empty:
         return pd.DataFrame(columns=["SOR Status", "Link Codes", "WO Cost", "Share"])
     links = link_level_dataframe(rows)
@@ -2170,6 +2204,7 @@ def sor_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
 
 
 def kpi_cards_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    rows = _ensure_ppt_columns(rows)
     penalties = penalty_total_filtered(rows)
     links = rows["Link Code"].nunique() if not rows.empty else 0
     cost = rows["Cost"].sum() if not rows.empty else 0
@@ -2228,13 +2263,13 @@ def _add_thanks_slide(prs, blank):
 
 
 def build_ppt_report(selected_reports: List[str], rows: pd.DataFrame | None = None) -> bytes:
+    rows = _ensure_ppt_columns(rows if rows is not None else load_ppt_workorders())
     Presentation, *_ = _ppt_imports()
     prs = Presentation()
     prs.slide_width = 12192000  # 13.333 in
     prs.slide_height = 6858000  # 7.5 in
     blank = prs.slide_layouts[6]
 
-    rows = rows.copy() if rows is not None else load_ppt_workorders()
     cities = city_summary_dataframe(rows)
     status_cost = status_cost_dataframe(rows)
     months = monthly_progress_dataframe(rows)
@@ -2398,7 +2433,12 @@ def executive_ppt_builder_page() -> None:
             type_sel = st.multiselect("Type", _opt_values(all_rows, "Type"), default=[])
             class_sel = st.multiselect("Class", _opt_values(all_rows, "Class"), default=[])
 
-        scope_sel = st.multiselect("Scope Target", _opt_values(all_rows, "Scope Target"), default=[])
+        extra1, extra2 = st.columns(2)
+        with extra1:
+            scope_sel = st.multiselect("Scope Target", _opt_values(all_rows, "Scope Target"), default=[])
+            invoice50_sel = st.multiselect("1st 50 Invoice Status", _opt_values(all_rows, "1st 50 Invoice Status"), default=[])
+        with extra2:
+            missing_met_sel = st.multiselect("Missing MET Actual / PM Review", _opt_values(all_rows, "Missing MET Actual / PM Review"), default=[])
 
         link_base = apply_ppt_filters(all_rows, {
             "Region": region_sel,
@@ -2414,6 +2454,8 @@ def executive_ppt_builder_page() -> None:
             "Type": type_sel,
             "Class": class_sel,
             "Scope Target": scope_sel,
+            "1st 50 Invoice Status": invoice50_sel,
+            "Missing MET Actual / PM Review": missing_met_sel,
         })
         link_sel = st.multiselect("Link Code", _opt_values(link_base, "Link Code")[:1000], default=[])
 
@@ -2431,6 +2473,8 @@ def executive_ppt_builder_page() -> None:
         "Type": type_sel,
         "Class": class_sel,
         "Scope Target": scope_sel,
+        "1st 50 Invoice Status": invoice50_sel,
+        "Missing MET Actual / PM Review": missing_met_sel,
         "Link Code": link_sel,
     }
     rows = apply_ppt_filters(all_rows, ppt_filters)
@@ -2469,15 +2513,20 @@ def executive_ppt_builder_page() -> None:
         return
 
     if st.button("📊 Generate PowerPoint", use_container_width=True, type="primary"):
-        with st.spinner("Generating PowerPoint presentation..."):
-            ppt_bytes = build_ppt_report(selected, rows)
-        st.download_button(
-            "📥 Download Selected PowerPoint Presentation",
-            data=ppt_bytes,
-            file_name=f"Dawiyat_Executive_Presentation_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx",
-            mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-            use_container_width=True,
-        )
+        try:
+            with st.spinner("Generating PowerPoint presentation..."):
+                ppt_bytes = build_ppt_report(selected, rows)
+            st.success("PowerPoint generated successfully.")
+            st.download_button(
+                "📥 Download Selected PowerPoint Presentation",
+                data=ppt_bytes,
+                file_name=f"Dawiyat_Executive_Presentation_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx",
+                mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
+                use_container_width=True,
+            )
+        except Exception as exc:
+            st.error(f"Unable to generate PowerPoint: {exc}")
+            st.info("Please try clearing filters or selecting fewer report sections. The full technical error is hidden to avoid exposing data.")
 
 
 def reports_page() -> None:
