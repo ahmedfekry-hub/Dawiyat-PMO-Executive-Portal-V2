@@ -2526,96 +2526,232 @@ def _slide_stage_summary(prs, blank, rows, stages):
     _ppt_dashboard_table(slide, ["District", "Stage", "WO Cost"], d_rows, 8.50, 3.05, 4.25, 3.55, [1.25,1.55,1.45], 6.2, 6)
 
 
+
+# ---------------- V39 Executive Dashboard Replica Edition helpers ----------------
+def _orange_theme():
+    _, _, _, _, _, _, _, _, _, RGBColor = _ppt_imports()
+    return {
+        "bg": RGBColor(253, 226, 204),
+        "bg2": RGBColor(255, 239, 223),
+        "orange": RGBColor(244, 122, 42),
+        "orange_dark": RGBColor(219, 92, 18),
+        "navy": RGBColor(16, 34, 58),
+        "text": RGBColor(0, 0, 0),
+        "muted": RGBColor(82, 82, 82),
+        "white": RGBColor(255, 255, 255),
+        "blue": RGBColor(61, 132, 214),
+        "teal": RGBColor(20, 184, 166),
+        "green": RGBColor(34, 160, 107),
+        "red": RGBColor(239, 68, 68),
+        "yellow": RGBColor(245, 158, 11),
+    }
+
+
+def _ppt_orange_bg(slide):
+    """Background close to the old Presentation DWT orange template."""
+    _, _, _, _, _, _, MSO_SHAPE, Inches, _, RGBColor = _ppt_imports()
+    th = _orange_theme()
+    fill = slide.background.fill
+    fill.solid(); fill.fore_color.rgb = th["bg"]
+    base = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(0), Inches(0), Inches(13.333), Inches(7.5))
+    base.fill.solid(); base.fill.fore_color.rgb = th["bg"]; base.line.fill.background()
+    # subtle light bands to approximate the source PowerPoint template
+    for i in range(5):
+        x = 0.4 + i * 1.15
+        line = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(0), Inches(0.05), Inches(7.5))
+        line.rotation = 34
+        line.fill.solid(); line.fill.fore_color.rgb = RGBColor(255, 241, 225); line.line.fill.background()
+
+
+def _ppt_orange_header(slide, title: str, subtitle: str = ""):
+    _, _, _, _, PP_ALIGN, _, _, Inches, Pt, RGBColor = _ppt_imports()
+    th = _orange_theme()
+    _ppt_orange_bg(slide)
+    # Match Presentation DWT: MET on left, Dawiyat on right
+    _add_logo(slide, MET_LOGO_PATH, 0.25, 0.12, 1.95, 0.82)
+    _add_logo(slide, DAWIYAT_LOGO_PATH, 10.45, 0.12, 2.55, 0.68)
+    _ppt_text(slide, title, 2.25, 0.44, 8.8, 0.38, size=20, bold=True, color=th["text"], align=PP_ALIGN.CENTER)
+    if subtitle:
+        _ppt_text(slide, subtitle, 0.35, 1.12, 12.6, 0.34, size=10.2, bold=False, color=th["text"])
+
+
+def _ppt_orange_section_title(slide, text, x, y, w, h=0.38, size=14):
+    _, _, _, _, PP_ALIGN, _, MSO_SHAPE, Inches, Pt, RGBColor = _ppt_imports()
+    th = _orange_theme()
+    shp = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x), Inches(y), Inches(w), Inches(h))
+    shp.fill.solid(); shp.fill.fore_color.rgb = th["orange"]; shp.line.color.rgb = th["white"]
+    _ppt_text(slide, text, x, y+0.06, w, h-0.08, size=size, bold=True, color=th["white"], align=PP_ALIGN.CENTER)
+
+
+def _ppt_orange_table(slide, headers, rows, x, y, w, h, col_widths=None, font_size=10, max_rows=8):
+    _, _, _, _, PP_ALIGN, MSO_ANCHOR, _, Inches, Pt, RGBColor = _ppt_imports()
+    th = _orange_theme()
+    rows = rows[:max_rows]
+    table = slide.shapes.add_table(len(rows)+1, len(headers), Inches(x), Inches(y), Inches(w), Inches(h)).table
+    if col_widths:
+        for i, cw in enumerate(col_widths[:len(headers)]):
+            table.columns[i].width = Inches(cw)
+    else:
+        for i in range(len(headers)):
+            table.columns[i].width = Inches(w/len(headers))
+    for j, head in enumerate(headers):
+        cell = table.cell(0, j)
+        cell.text = str(head)
+        cell.fill.solid(); cell.fill.fore_color.rgb = th["orange"]
+        cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+        for p in cell.text_frame.paragraphs:
+            p.alignment = PP_ALIGN.CENTER
+            for r in p.runs:
+                r.font.name = "Aptos"; r.font.bold = True; r.font.size = Pt(font_size); r.font.color.rgb = th["text"]
+    for i, row in enumerate(rows, start=1):
+        for j, val in enumerate(row):
+            cell = table.cell(i, j)
+            cell.text = str(val)
+            cell.fill.solid(); cell.fill.fore_color.rgb = RGBColor(252, 231, 215)
+            cell.vertical_anchor = MSO_ANCHOR.MIDDLE
+            for p in cell.text_frame.paragraphs:
+                p.alignment = PP_ALIGN.CENTER
+                for r in p.runs:
+                    r.font.name = "Aptos"; r.font.size = Pt(font_size); r.font.color.rgb = th["text"]
+                    if str(val).lower() in ["grand total", "total"] or i == len(rows):
+                        r.font.bold = True
+    return table
+
+
+def _ppt_orange_bar_list(slide, labels, values, x, y, w, h, title="", accent=None, max_items=8):
+    _, _, _, _, PP_ALIGN, _, MSO_SHAPE, Inches, Pt, RGBColor = _ppt_imports()
+    th = _orange_theme(); accent = accent or th["blue"]
+    if title:
+        _ppt_text(slide, title, x, y-0.35, w, 0.24, size=11.5, bold=True, color=th["muted"], align=PP_ALIGN.CENTER)
+    vals = [float(v or 0) for v in list(values)[:max_items]]
+    labs = [str(l) for l in list(labels)[:max_items]]
+    max_val = max(vals + [1])
+    row_h = h / max(1, len(vals))
+    for i, (lab, val) in enumerate(zip(labs, vals)):
+        yy = y + i*row_h
+        _ppt_text(slide, lab[:24], x, yy, w*0.28, row_h*0.65, size=8.0, bold=False, color=th["text"], align=PP_ALIGN.RIGHT)
+        track_x = x + w*0.31
+        track_w = w*0.55
+        track = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(track_x), Inches(yy+0.05), Inches(track_w), Inches(0.12))
+        track.fill.solid(); track.fill.fore_color.rgb = RGBColor(239, 226, 216); track.line.fill.background()
+        fw = max(0.03, track_w * val / max_val)
+        fill = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(track_x), Inches(yy+0.05), Inches(fw), Inches(0.12))
+        fill.fill.solid(); fill.fill.fore_color.rgb = accent; fill.line.fill.background()
+        _ppt_text(slide, _fmt_money(val), x+w*0.87, yy-0.02, w*0.13, row_h*0.75, size=8.0, bold=True, color=th["text"])
+
+
+def _ppt_orange_metric_bar(slide, label, value, max_value, x, y, w, color=None):
+    _, _, _, _, _, _, MSO_SHAPE, Inches, _, RGBColor = _ppt_imports()
+    th = _orange_theme(); color = color or th["blue"]
+    _ppt_text(slide, label, x, y, 2.0, 0.18, size=8.0, bold=True, color=th["muted"])
+    track = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x+2.0), Inches(y+0.03), Inches(w-3.0), Inches(0.12))
+    track.fill.solid(); track.fill.fore_color.rgb = RGBColor(238, 226, 216); track.line.fill.background()
+    fill_w = max(0.04, (w-3.0) * float(value or 0) / max(float(max_value or 1), 1.0))
+    fill = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(x+2.0), Inches(y+0.03), Inches(fill_w), Inches(0.12))
+    fill.fill.solid(); fill.fill.fore_color.rgb = color; fill.line.fill.background()
+    _ppt_text(slide, _fmt_money(value), x+w-0.85, y-0.02, 0.85, 0.20, size=8.0, bold=True, color=th["text"])
+
+
 def _slide_full_scope(prs, blank, rows, cities):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "Dawiyat Project Full Scope 2025 & 2026", "Business volume summary by City under the current filtered scope.")
-    _ppt_section_box(slide, "Dawiyat Project Full Scope", "", 0.28, 1.20, 6.45, 5.65)
-    c = cities.head(10)
-    body = [[r["Region"], r["City"], f'{int(r["No. of Link Codes"]):,}', _fmt_money(r["WO Amount"])] for _,r in c.iterrows()]
+    _, _, _, _, _, _, MSO_SHAPE, Inches, _, RGBColor = _ppt_imports()
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "Dawiyat Project Full Scope 2025  & 2026")
+    c = cities.head(8).copy()
+    body = [[r["Region"], r["City"], f'{int(r["No. of Link Codes"]):,}', _fmt_money(r["WO Amount"])] for _, r in c.iterrows()]
     body.append(["Grand Total", "", f'{int(cities["No. of Link Codes"].sum()):,}', _fmt_money(cities["WO Amount"].sum())])
-    _ppt_dashboard_table(slide, ["Region", "City", "No. of Link Codes", "WO Amount"], body, 0.55, 1.72, 5.95, 4.35, [1.25,1.55,1.35,1.8], 6.8, 11)
-    _ppt_section_box(slide, "Business Volume", "Chart area based on City only", 6.95, 1.20, 6.1, 5.65)
-    _ppt_bar_list(slide, c["City"].astype(str).tolist(), c["WO Amount"].tolist(), 7.35, 2.05, 5.25, 3.8, "City Business Volume", theme["blue"], 8)
+    _ppt_orange_section_title(slide, "Dawiyat Project Full Scope", 0.35, 1.16, 6.55, 0.42, 14)
+    _ppt_orange_table(slide, ["Region", "City", "No. of Link Codes", "WO Amount"], body, 0.35, 1.58, 6.55, 3.9, [1.55, 1.55, 1.55, 1.9], 9.2, 9)
+    # chart area on City only
+    area = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, Inches(7.15), Inches(1.16), Inches(5.85), Inches(4.3))
+    area.fill.solid(); area.fill.fore_color.rgb = RGBColor(235, 235, 235); area.line.color.rgb = RGBColor(210, 210, 210)
+    _add_pie_chart(slide, "Business Volume", c["City"].astype(str).tolist(), c["WO Amount"].tolist(), 7.35, 1.45, 5.45, 3.75)
 
 
 def _slide_regional(prs, blank, rows, cities):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "Regional Performance Summary", "City-level performance summary and chart area based on City only.")
-    c = cities.head(10)
-    body = [[r["Region"], r["City"], f'{int(r["No. of Link Codes"]):,}', int(r["Completed"]), int(r["In Progress"]), int(r["Not Start"]), _fmt_pct(r["Completion %"])] for _,r in c.iterrows()]
-    _ppt_dashboard_table(slide, ["Region", "City", "No. of Link Codes", "Completed", "In Progress", "Not Start", "Completion %"], body, 0.35, 1.15, 12.6, 3.2, [1.4,1.5,1.65,1.4,1.4,1.4,1.55], 7.0, 10)
-    _ppt_bar_list(slide, c["City"].astype(str).tolist(), c["WO Amount"].tolist(), 0.7, 4.75, 11.8, 1.65, "City Chart Area", theme["orange"], 10)
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "Regional Performance Summary")
+    c = cities.head(10).copy()
+    body = [[r["Region"], r["City"], f'{int(r["No. of Link Codes"]):,}', int(r["Completed"]), int(r["In Progress"]), int(r["Not Start"]), _fmt_pct(r["Completion %"])] for _, r in c.iterrows()]
+    _ppt_orange_table(slide, ["Region", "City", "No. of Link Codes", "Completed", "In Progress", "Not Start", "Completion %"], body, 0.35, 1.45, 12.55, 3.25, [1.25,1.35,1.8,1.45,1.45,1.45,1.55], 8.6, 10)
+    _ppt_orange_bar_list(slide, c["City"].astype(str).tolist(), c["WO Amount"].tolist(), 0.60, 5.25, 11.9, 1.35, "City Chart Area", th["blue"], 10)
 
 
 def _slide_completion(prs, blank, rows, status_cost):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "Sites Completion Analysis", "Progress status distribution for Civil and Fiber implementation activities.")
-    _ppt_text(slide, "The Site Completion Analysis provides a comprehensive overview of project progress by evaluating the status of all planned FTTH sites. The analysis categorizes sites into completed, in-progress, and pending stages, enabling effective monitoring of project performance and identification of areas requiring additional attention.", 0.35, 1.15, 12.45, 0.72, size=10.5, color=theme["text"])
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "Sites Completion Analysis")
+    _ppt_text(slide, "The Site Completion Analysis provides a comprehensive overview of project progress by evaluating the status of all planned FTTH sites. The analysis categorizes sites into completed, in-progress, and pending stages, enabling effective monitoring of project performance and identification of areas requiring additional attention.", 0.30, 1.30, 12.65, 0.75, size=13.5, color=th["text"])
     total_links = max(1, link_level_dataframe(rows)["Link Code"].nunique())
-    body = [[r["Status"], int(r["CIVIL"]), _fmt_pct(_pct(r["CIVIL"], total_links)), int(r["FIBRE"]), _fmt_pct(_pct(r["FIBRE"], total_links)), _fmt_pct(_pct(int(r["CIVIL"])+int(r["FIBRE"]), 2*total_links))] for _,r in status_cost.iterrows()]
-    _ppt_dashboard_table(slide, ["Status", "CIVIL", "CIVIL%", "FIBRE", "FIBRE%", "OVERALL%"], body, 1.05, 2.32, 11.3, 2.0, [1.8,1.5,1.5,1.5,1.5,1.9], 10, 3)
-    _ppt_bar_list(slide, status_cost["Status"].astype(str).tolist(), status_cost["Total WO Cost"].tolist(), 3.2, 5.05, 7.0, 1.35, "Site Completion Analysis", theme["teal"], 3)
+    body = [[r["Status"], int(r["CIVIL"]), _fmt_pct(_pct(r["CIVIL"], total_links)), int(r["FIBRE"]), _fmt_pct(_pct(r["FIBRE"], total_links)), _fmt_pct(_pct(int(r["CIVIL"])+int(r["FIBRE"]), 2*total_links))] for _, r in status_cost.iterrows()]
+    _ppt_orange_table(slide, ["Status", "CIVIL", "CIVIL%", "FIBRE", "FIBRE%", "OVERALL%"], body, 1.15, 2.55, 11.0, 2.05, [1.8,1.5,1.55,1.5,1.55,2.0], 12, 3)
+    _ppt_orange_bar_list(slide, status_cost["Status"].astype(str).tolist(), status_cost["Total WO Cost"].tolist(), 3.1, 5.20, 7.2, 1.3, "Site Completion Analysis", th["orange"], 3)
 
 
 def _slide_cost(prs, blank, rows, status_cost):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "Sites Cost Analysis", "Cost exposure assessment by completion status for Civil and Fiber implementation.")
-    _ppt_text(slide, "The Site Cost Analysis provides a detailed assessment of project expenditures and cost efficiency across all implemented FTTH sites. The analysis enables management to monitor project spending, evaluate resource utilization, and ensure alignment with approved budgets and project targets.", 0.35, 1.15, 12.45, 0.65, size=10.2, color=theme["text"])
-    body = [[r["Status"], int(r["CIVIL"]), _fmt_money(r["WO Cost Civil"]), int(r["FIBRE"]), _fmt_money(r["WO Cost Fibre"]), _fmt_money(r["Total WO Cost"])] for _,r in status_cost.iterrows()]
-    _ppt_dashboard_table(slide, ["Status", "CIVIL", "WO Cost", "FIBRE", "WO Cost", "Total WO Cost"], body, 1.0, 2.22, 11.3, 2.1, [1.6,1.35,2.1,1.35,2.1,2.4], 10, 3)
-    _ppt_bar_list(slide, status_cost["Status"].astype(str).tolist(), status_cost["Total WO Cost"].tolist(), 2.2, 5.08, 9.0, 1.35, "Cost Analysis", theme["blue"], 3)
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "Sites Cost Analysis")
+    _ppt_text(slide, "The Site Cost Analysis provides a detailed assessment of project expenditures and cost efficiency across all implemented FTTH sites. The analysis enables management to monitor project spending, evaluate resource utilization, and ensure alignment with approved budgets and project targets.", 0.30, 1.30, 12.65, 0.75, size=13.0, color=th["text"])
+    body = [[r["Status"], int(r["CIVIL"]), _fmt_money(r["WO Cost Civil"]), int(r["FIBRE"]), _fmt_money(r["WO Cost Fibre"]), _fmt_money(r["Total WO Cost"])] for _, r in status_cost.iterrows()]
+    _ppt_orange_table(slide, ["Status", "CIVIL", "WO Cost", "FIBRE", "WO Cost", "Total WO Cost"], body, 1.05, 2.35, 11.2, 2.15, [1.8,1.3,2.0,1.3,2.0,2.8], 12, 3)
+    _ppt_orange_bar_list(slide, status_cost["Status"].astype(str).tolist(), status_cost["Total WO Cost"].tolist(), 2.1, 5.15, 9.5, 1.35, "Cost Analysis", th["blue"], 3)
 
 
 def _slide_monthly(prs, blank, rows, months):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "Monthly Progress Trend 2025-2026", "Monthly progress trend for Civil and Fiber implementation activities.")
-    _ppt_text(slide, "Monthly progress trend demonstrates the project's advancement across Civil and Fiber implementation activities. The chart uses the available Updated dates under the selected PPT Builder filters.", 0.35, 1.20, 12.45, 0.55, size=10.2, color=theme["text"])
-    body = [[r["Month"], _fmt_pct(r["Civil %"]), _fmt_pct(r["Fiber %"]), _fmt_pct(r["Overall %"])] for _,r in months.iterrows()]
-    _ppt_dashboard_table(slide, ["Month", "Civil %", "Fiber %", "Overall %"], body, 0.65, 2.15, 5.15, 4.0, [2.0,1.05,1.05,1.05], 9.0, 9)
-    _ppt_bar_list(slide, months["Month"].astype(str).tolist(), months["Overall %"].tolist(), 6.45, 2.35, 6.0, 3.75, "Overall Progress", theme["blue"], 9)
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "Monthly Progress Trend 2025-2026")
+    _ppt_text(slide, "Monthly progress trend demonstrates the project's consistent advancement across Civil and Fiber implementation activities. Through effective planning, resource allocation, and coordination with stakeholders, the project performance is monitored throughout the reporting period.", 0.30, 1.30, 12.65, 0.72, size=12.6, color=th["text"])
+    body = [[r["Month"], _fmt_pct(r["Civil %"]), _fmt_pct(r["Fiber %"]), _fmt_pct(r["Overall %"])] for _, r in months.iterrows()]
+    _ppt_orange_table(slide, ["Month", "Civil %", "Fiber %", "Overall %"], body, 0.65, 2.28, 5.55, 4.05, [2.1,1.15,1.15,1.15], 12, 9)
+    _ppt_orange_bar_list(slide, months["Month"].astype(str).tolist(), months["Overall %"].tolist(), 6.75, 2.70, 5.7, 3.30, "Overall Progress", th["blue"], 9)
 
 
 def _slide_financial(prs, blank, rows):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "Executive Financial Report", "Financial exposure summary calculated from the active filtered scope, including cost, penalties, closure exposure, and risk concentration.")
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "Executive Financial Report")
+    _ppt_text(slide, "Financial exposure summary calculated from the active filtered scope, including cost, penalties, closure exposure, and risk concentration.", 0.35, 1.25, 12.6, 0.35, size=11.5, color=th["text"])
     penalties = penalty_total_filtered(rows)
     completed_cost = rows.loc[rows["Progress"] >= 100, "Cost"].sum()
     risk_cost = rows.loc[rows["Performance"].str.lower().str.contains("risk|off", na=False), "Cost"].sum()
     pending_closure = rows.loc[(rows["Progress"] >= 100) & (~rows["Closure Status"].str.lower().str.contains("closed", na=False)), "Cost"].sum()
     data = [["Total WO Cost", _fmt_money(rows["Cost"].sum())], ["Completed Cost Exposure", _fmt_money(completed_cost)], ["Penalty Amount", _fmt_money(penalties)], ["At Risk / Off Track Cost", _fmt_money(risk_cost)], ["Pending Closure Cost", _fmt_money(pending_closure)]]
-    _ppt_dashboard_table(slide, ["Metric", "Value"], data, 2.20, 1.42, 8.95, 3.25, [5.5,3.45], 9.5, 5)
-    _ppt_bar_list(slide, [x[0] for x in data], [parse_num(x[1]) for x in data], 2.55, 5.18, 8.3, 1.35, "Financial Exposure", theme["blue"], 5)
+    _ppt_orange_table(slide, ["Metric", "Value"], data, 2.15, 1.75, 9.05, 3.25, [5.7,3.35], 10.2, 5)
+    vals = [parse_num(x[1]) for x in data]
+    maxv = max(vals+[1])
+    y = 5.25
+    colors = [th["blue"], th["teal"], th["orange"], th["red"], th["green"]]
+    for i, (row, val) in enumerate(zip(data, vals)):
+        _ppt_orange_metric_bar(slide, row[0], val, maxv, 2.55, y+i*0.32, 8.4, colors[i % len(colors)])
 
 
 def _slide_readiness(prs, blank, rows, readiness):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "Executive Readiness Report", "Document readiness summary by document type under the current filtered Link Code scope.")
-    body = [[r["Document Type"], int(r["Uploaded"]), int(r["Partial"]), int(r["Missing"])] for _,r in readiness.iterrows()] if not readiness.empty else []
-    _ppt_dashboard_table(slide, ["Document Type", "Uploaded", "Partial", "Missing"], body, 1.3, 1.35, 10.7, 4.85, [3.2,2.2,2.2,2.2], 10, 7)
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "Executive Readiness Report")
+    _ppt_text(slide, "Document readiness summary by document type under the current filtered Link Code scope.", 0.35, 1.25, 12.6, 0.32, size=11.5, color=th["text"])
+    body = [[r["Document Type"], int(r["Uploaded"]), int(r["Partial"]), int(r["Missing"])] for _, r in readiness.iterrows()] if not readiness.empty else []
+    _ppt_orange_table(slide, ["Document Type", "Uploaded", "Partial", "Missing"], body, 1.3, 1.80, 10.7, 4.05, [3.6,2.35,2.35,2.35], 11.5, 7)
     totals = readiness[["Uploaded","Partial","Missing"]].sum() if not readiness.empty else {"Uploaded":0,"Partial":0,"Missing":0}
-    _ppt_card(slide, "Uploaded", f'{int(totals["Uploaded"]):,}', "Total uploaded document categories", 1.3, 6.30, 3.1, 0.65, theme["green"])
-    _ppt_card(slide, "Partial", f'{int(totals["Partial"]):,}', "Total partial document categories", 5.1, 6.30, 3.1, 0.65, theme["orange"])
-    _ppt_card(slide, "Missing", f'{int(totals["Missing"]):,}', "Total missing document categories", 8.9, 6.30, 3.1, 0.65, theme["red"])
+    _ppt_card(slide, "Uploaded", f'{int(totals["Uploaded"]):,}', "Total uploaded document categories", 1.35, 6.15, 3.1, 0.75, th["green"])
+    _ppt_card(slide, "Partial", f'{int(totals["Partial"]):,}', "Total partial document categories", 5.10, 6.15, 3.1, 0.75, th["yellow"])
+    _ppt_card(slide, "Missing", f'{int(totals["Missing"]):,}', "Total missing document categories", 8.85, 6.15, 3.1, 0.75, th["red"])
 
 
 def _slide_pmo_audit(prs, blank, rows):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "PMO Audit Summary", "PMO audit control summary under the current filtered scope.")
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "PMO Audit Summary")
     audited_wos = len(rows); audited_links = rows["Link Code"].nunique(); pm_review = int(((rows["Progress"] < 100) & (rows["Closure Status"].str.lower().str.contains("complete|closed", na=False))).sum())
     missing_review = rows["Missing MET Actual / PM Review"].astype(str).str.lower().ne("n/a").sum() if "Missing MET Actual / PM Review" in rows.columns else 0
-    _ppt_card(slide, "Audited WOs", f"{audited_wos:,}", f"{audited_links:,} Link Codes", 0.45, 1.25, 3.0, 1.0, theme["blue"], 100)
-    _ppt_card(slide, "PM Review", f"{pm_review:,}", "Completed status but progress < 100%", 3.75, 1.25, 3.0, 1.0, theme["orange"], min(100, _pct(pm_review, audited_wos)))
-    _ppt_card(slide, "Missing MET Actual", f"{missing_review:,}", "Rows flagged for review", 7.05, 1.25, 3.0, 1.0, theme["red"], min(100, _pct(missing_review, audited_wos)))
-    _ppt_card(slide, "Filtered Cost", _fmt_money(rows["Cost"].sum()), "WO Cost / Cost", 10.35, 1.25, 2.55, 1.0, theme["teal"], 100)
+    cards = [("Audited WOs", f"{audited_wos:,}", f"{audited_links:,} Link Codes", th["blue"]), ("PM Review", f"{pm_review:,}", "Completed status but progress < 100%", th["yellow"]), ("Missing MET Actual", f"{missing_review:,}", "Rows flagged for review", th["red"]), ("Filtered Cost", _fmt_money(rows["Cost"].sum()), "WO Cost / Cost", th["teal"])]
+    for i, (lab, val, meta, color) in enumerate(cards):
+        _ppt_card(slide, lab, val, meta, 0.45 + i*3.2, 1.25, 2.85, 1.05, color)
     by_stage = stage_summary_dataframe(rows).head(8)
-    _ppt_section_box(slide, "Audit Concentration by Stage", "Top stage exposure in the current audit scope", 0.45, 2.75, 12.1, 3.9)
-    body = [[r["Stage"], f'{int(r["Link Codes"]):,}', f'{int(r["WOs"]):,}', _fmt_money(r["WO Cost"]), _fmt_pct(r["Avg Progress"])] for _,r in by_stage.iterrows()]
-    _ppt_dashboard_table(slide, ["Stage", "Link Codes", "WOs", "WO Cost", "Avg Progress"], body, 0.75, 3.25, 11.5, 3.0, [3.6,1.8,1.5,2.4,2.2], 8.0, 8)
+    _ppt_orange_section_title(slide, "Audit Concentration by Stage", 0.70, 2.72, 11.85, 0.40, 13)
+    body = [[r["Stage"], f'{int(r["Link Codes"]):,}', f'{int(r["WOs"]):,}', _fmt_money(r["WO Cost"]), _fmt_pct(r["Avg Progress"])] for _, r in by_stage.iterrows()]
+    _ppt_orange_table(slide, ["Stage", "Link Codes", "WOs", "WO Cost", "Avg Progress"], body, 0.70, 3.12, 11.85, 3.25, [4.0,1.75,1.35,2.4,2.35], 9.0, 8)
 
 
 def _slide_assistant_insights(prs, blank, rows):
-    theme = _ppt_theme(); slide = prs.slides.add_slide(blank)
-    _ppt_header(slide, "PMO Report Assistant Insights", "Executive insights generated from the current filtered portfolio data.")
+    _, _, _, _, _, _, _, _, _, RGBColor = _ppt_imports()
+    th = _orange_theme(); slide = prs.slides.add_slide(blank)
+    _ppt_orange_header(slide, "PMO Report Assistant Insights")
     portfolio = portfolio_summary_dataframe(rows); stages = stage_summary_dataframe(rows); sor = sor_summary_dataframe(rows)
     insights = []
     if not portfolio.empty:
@@ -2628,9 +2764,9 @@ def _slide_assistant_insights(prs, blank, rows):
     insights.append(f'Total filtered scope includes {rows["Link Code"].nunique():,} Link Codes, {len(rows):,} WOs, and {_fmt_money(rows["Cost"].sum())} SAR cost exposure.')
     y = 1.45
     for i, txt in enumerate(insights[:7], start=1):
-        _ppt_round_rect(slide, 0.9, y, 11.5, 0.62, fill_rgb=theme["card"], line_rgb=theme["line"])
-        _ppt_chip(slide, str(i), 1.05, y+0.13, 0.35, 0.28, RGBColor(239,246,255), theme["blue"], 8)
-        _ppt_text(slide, txt, 1.55, y+0.13, 10.6, 0.30, size=10.5, bold=False, color=theme["text"])
+        _ppt_round_rect(slide, 0.85, y, 11.75, 0.65, fill_rgb=RGBColor(252,231,215), line_rgb=th["orange"])
+        _ppt_chip(slide, str(i), 1.05, y+0.14, 0.35, 0.30, th["orange"], th["white"], 9)
+        _ppt_text(slide, txt, 1.55, y+0.13, 10.7, 0.32, size=10.5, bold=False, color=th["text"])
         y += 0.78
 
 def build_ppt_report(selected_reports: List[str], rows: pd.DataFrame | None = None) -> bytes:
@@ -2695,7 +2831,7 @@ def build_ppt_report(selected_reports: List[str], rows: pd.DataFrame | None = No
 
 def executive_ppt_builder_page() -> None:
     st.title("📊 Executive PPT Builder")
-    st.caption("Independent PowerPoint generator using dashboard-aligned filters and selected report slides.")
+    st.caption("V39 Executive Dashboard Replica Edition — PowerPoint output follows Executive Reports layout and selected report slides.")
 
     if st.button("← Back to Dashboard", use_container_width=True, type="secondary"):
         st.session_state["force_dashboard"] = True
