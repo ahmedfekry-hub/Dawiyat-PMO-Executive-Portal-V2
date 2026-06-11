@@ -942,6 +942,20 @@ def render_dashboard() -> None:
             st.session_state["force_document_upload_center"] = True
             st.rerun()
 
+    if can("reports"):
+        st.markdown(
+            """
+            <div class="upload-center-hero">
+                <div class="uc-title">📊 Executive PPT Builder</div>
+                <div class="uc-subtitle">صفحة مستقلة لتجهيز PowerPoint حسب التقارير المختارة بدون تحميل ثقيل داخل الداشبورد.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("📊 Open Executive PPT Builder", use_container_width=True, type="secondary"):
+            st.session_state["force_ppt_builder"] = True
+            st.rerun()
+
     dashboard_html = DASHBOARD_PATH.read_text(encoding="utf-8", errors="ignore")
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
 
@@ -2174,7 +2188,9 @@ def build_ppt_report(selected_reports: List[str]) -> bytes:
 
 def executive_ppt_builder_page() -> None:
     st.title("📊 Executive PPT Builder")
-    st.caption("Separate PowerPoint export page. This keeps dashboard.html stable and prevents heavy report rendering inside the dashboard iframe.")
+    st.caption("Independent PowerPoint generator. Select the required reports and download the presentation without loading heavy report charts inside dashboard.html.")
+
+    st.info("This page is separated from Executive Reports to keep the dashboard stable and fast. It reads the latest CSV files from the Data folder and generates PowerPoint only on demand.")
 
     rows = load_ppt_workorders()
     if rows.empty:
@@ -2421,7 +2437,7 @@ def main() -> None:
             pages.append("Smart Alerts")
         if can("reports"):
             pages.append("Executive Reports")
-            pages.append("Executive PPT Builder")
+            pages.append("📊 Executive PPT Builder")
         if can("upload"):
             pages.append("Upload CSV")
         if can("documents"):
@@ -2441,6 +2457,10 @@ def main() -> None:
         if st.session_state.get("force_document_upload_center") and "📤 Document Upload Center" in pages:
             st.session_state["main_nav"] = "📤 Document Upload Center"
             st.session_state["force_document_upload_center"] = False
+
+        if st.session_state.get("force_ppt_builder") and "📊 Executive PPT Builder" in pages:
+            st.session_state["main_nav"] = "📊 Executive PPT Builder"
+            st.session_state["force_ppt_builder"] = False
 
         if st.session_state.get("main_nav") not in pages:
             st.session_state["main_nav"] = "Dashboard"
@@ -2462,7 +2482,7 @@ def main() -> None:
         smart_alerts_page()
     elif page == "Executive Reports":
         reports_page()
-    elif page == "Executive PPT Builder":
+    elif page == "📊 Executive PPT Builder":
         executive_ppt_builder_page()
     elif page == "Upload CSV":
         upload_data_page()
