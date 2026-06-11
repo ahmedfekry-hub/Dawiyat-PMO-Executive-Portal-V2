@@ -1867,6 +1867,11 @@ def load_ppt_workorders() -> pd.DataFrame:
         "Updated": wo[updated_col].astype(str) if updated_col else "",
         "Closure Status": wo[closure_col].astype(str) if closure_col else "",
         "Performance": wo[performance_col].astype(str) if performance_col else "",
+        "Year": wo[first_existing_col(wo, ["Year"])].astype(str) if first_existing_col(wo, ["Year"]) else "",
+        "Work Order Status": wo[first_existing_col(wo, ["Work Order Status"])].astype(str) if first_existing_col(wo, ["Work Order Status"]) else "",
+        "Type": wo[first_existing_col(wo, ["Type"])].astype(str) if first_existing_col(wo, ["Type"]) else "",
+        "Class": wo[first_existing_col(wo, ["Class"])].astype(str) if first_existing_col(wo, ["Class"]) else "",
+        "Scope Target": wo[first_existing_col(wo, ["Scope Target"])].astype(str) if first_existing_col(wo, ["Scope Target"]) else "",
     })
 
     if not dist.empty:
@@ -1895,7 +1900,7 @@ def load_ppt_workorders() -> pd.DataFrame:
                 out["District"] = out["District_map"].where(out["District_map"].astype(str).str.strip().ne(""), out["District"])
             out = out.drop(columns=[c for c in ["Region_map", "City_map", "District_map"] if c in out.columns])
 
-    for c in ["Region", "City", "District", "Project", "Stage", "SOR Status", "SOR Reference Number"]:
+    for c in ["Region", "City", "District", "Project", "Stage", "SOR Status", "SOR Reference Number", "Year", "Work Order Status", "Type", "Class", "Scope Target", "Subclass"]:
         out[c] = out[c].fillna("").astype(str).str.strip()
         out[c] = out[c].replace({"": "N/A", "nan": "N/A", "NaN": "N/A", "None": "N/A"})
     out["Status"] = out["Progress"].apply(_status_from_progress)
@@ -2354,7 +2359,11 @@ def build_ppt_report(selected_reports: List[str], rows: pd.DataFrame | None = No
 
 def executive_ppt_builder_page() -> None:
     st.title("📊 Executive PPT Builder")
-    st.caption("Independent PowerPoint generator with its own dashboard-aligned filters. Generate selected slides only when needed.")
+    st.caption("Independent PowerPoint generator using dashboard-aligned filters and selected report slides.")
+
+    if st.button("← Back to Dashboard", use_container_width=True, type="secondary"):
+        st.session_state["force_dashboard"] = True
+        st.rerun()
 
     all_rows = load_ppt_workorders()
     if all_rows.empty:
@@ -2362,41 +2371,66 @@ def executive_ppt_builder_page() -> None:
         return
 
     st.info(
-        "Important: Streamlit cannot reliably read filters selected inside the embedded HTML dashboard iframe. "
-        "Therefore, this PPT Builder includes the same main filters here and uses them dynamically when generating PowerPoint."
+        "Due to Streamlit iframe isolation, the native Streamlit page cannot automatically read filter values selected inside dashboard.html. "
+        "For reliability, this page provides the same dashboard filters here and applies them dynamically to the PowerPoint output."
     )
 
-    with st.expander("🎛️ PPT Builder Filters", expanded=True):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            region_sel = st.multiselect("Region", _opt_values(all_rows, "Region"), default=[])
-            project_sel = st.multiselect("Project", _opt_values(all_rows, "Project"), default=[])
-        filtered_for_city = apply_ppt_filters(all_rows, {"Region": region_sel, "Project": project_sel})
-        with c2:
-            city_sel = st.multiselect("City", _opt_values(filtered_for_city, "City"), default=[])
-            stage_sel = st.multiselect("Stage", _opt_values(all_rows, "Stage"), default=[])
-        filtered_for_dist = apply_ppt_filters(filtered_for_city, {"City": city_sel, "Stage": stage_sel})
-        with c3:
-            district_sel = st.multiselect("District", _opt_values(filtered_for_dist, "District"), default=[])
-            sor_sel = st.multiselect("SOR Status", _opt_values(all_rows, "SOR Status"), default=[])
+    with st.expander("🎛️ Dashboard Filters for PPT", expanded=True):
+        f1, f2, f3 = st.columns(3)
 
-        link_options = _opt_values(apply_ppt_filters(all_rows, {
+        with f1:
+            region_sel = st.multiselect("Region", _opt_values(all_rows, "Region"), default=[])
+            city_base = apply_ppt_filters(all_rows, {"Region": region_sel})
+            city_sel = st.multiselect("City", _opt_values(city_base, "City"), default=[])
+            district_base = apply_ppt_filters(city_base, {"City": city_sel})
+            district_sel = st.multiselect("District", _opt_values(district_base, "District"), default=[])
+            project_sel = st.multiselect("Project", _opt_values(all_rows, "Project"), default=[])
+
+        with f2:
+            stage_sel = st.multiselect("Stage", _opt_values(all_rows, "Stage"), default=[])
+            subclass_sel = st.multiselect("Subclass", _opt_values(all_rows, "Subclass"), default=[])
+            year_sel = st.multiselect("Year", _opt_values(all_rows, "Year"), default=[])
+            wo_status_sel = st.multiselect("Work Order Status", _opt_values(all_rows, "Work Order Status"), default=[])
+
+        with f3:
+            sor_sel = st.multiselect("SOR Status", _opt_values(all_rows, "SOR Status"), default=[])
+            sor_ref_sel = st.multiselect("SOR Reference Number", _opt_values(all_rows, "SOR Reference Number"), default=[])
+            type_sel = st.multiselect("Type", _opt_values(all_rows, "Type"), default=[])
+            class_sel = st.multiselect("Class", _opt_values(all_rows, "Class"), default=[])
+
+        scope_sel = st.multiselect("Scope Target", _opt_values(all_rows, "Scope Target"), default=[])
+
+        link_base = apply_ppt_filters(all_rows, {
             "Region": region_sel,
-            "Project": project_sel,
             "City": city_sel,
-            "Stage": stage_sel,
             "District": district_sel,
+            "Project": project_sel,
+            "Stage": stage_sel,
+            "Subclass": subclass_sel,
+            "Year": year_sel,
+            "Work Order Status": wo_status_sel,
             "SOR Status": sor_sel,
-        }), "Link Code")
-        link_sel = st.multiselect("Link Code", link_options[:500], default=[])
+            "SOR Reference Number": sor_ref_sel,
+            "Type": type_sel,
+            "Class": class_sel,
+            "Scope Target": scope_sel,
+        })
+        link_sel = st.multiselect("Link Code", _opt_values(link_base, "Link Code")[:1000], default=[])
 
     ppt_filters = {
         "Region": region_sel,
-        "Project": project_sel,
         "City": city_sel,
-        "Stage": stage_sel,
         "District": district_sel,
+        "Project": project_sel,
+        "Stage": stage_sel,
+        "Subclass": subclass_sel,
+        "Year": year_sel,
+        "Work Order Status": wo_status_sel,
         "SOR Status": sor_sel,
+        "SOR Reference Number": sor_ref_sel,
+        "Type": type_sel,
+        "Class": class_sel,
+        "Scope Target": scope_sel,
         "Link Code": link_sel,
     }
     rows = apply_ppt_filters(all_rows, ppt_filters)
@@ -2669,6 +2703,10 @@ def main() -> None:
         if st.session_state.get("force_ppt_builder") and "📊 Executive PPT Builder" in pages:
             st.session_state["main_nav"] = "📊 Executive PPT Builder"
             st.session_state["force_ppt_builder"] = False
+
+        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
+            st.session_state["main_nav"] = "Dashboard"
+            st.session_state["force_dashboard"] = False
 
         if st.session_state.get("main_nav") not in pages:
             st.session_state["main_nav"] = "Dashboard"
