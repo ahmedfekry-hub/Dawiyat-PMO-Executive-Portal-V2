@@ -1807,17 +1807,10 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   .orange-report-title{font-size:24px;}
 }
 
-
-/* V28 Presentation Export Button */
-.presentation-export-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-top:14px;flex-wrap:wrap;}
-.presentation-export-btn{border:1px solid #f97316;background:linear-gradient(135deg,#f97316,#ea580c);color:#fff;border-radius:999px;padding:12px 20px;font-weight:1000;font-size:14px;cursor:pointer;box-shadow:0 10px 22px rgba(234,88,12,.22);}
-.presentation-export-btn:hover{filter:brightness(1.05);transform:translateY(-1px);}
-.presentation-export-btn:disabled{opacity:.6;cursor:not-allowed;transform:none;}
-
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/pptxgenjs@3.12.0/dist/pptxgen.bundle.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
+<!-- V32_STABLE_STREAMLIT_PPT_BUILDER: Executive PPT generation is handled in a separate Streamlit page; dashboard does not render Executive Reports on initial load. -->
 <!-- V27_FINANCIAL_REPORT_AUDIT_FIX: Executive Financial Report uses getFilteredPenalties(rows) and active filtered scope only. -->
 <!-- CLOSURE_STATUS_MAPPING_FIX: Embedded latest u_osp_work_order and strict status-to-score maps for PAT/AsBuilt/Documents/Handover O&M/Handover Consultant. -->
 <!-- CLOSURE_ORDER_FIX: Closure Readiness sub-items are rendered directly under Closure Readiness in the original KPI renderer. -->
@@ -2239,10 +2232,6 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="reports-hero">
         <h2>Executive Reports Center</h2>
         <div class="subtle">Consolidated executive reporting page based on the same active dashboard filters, data links, and Streamlit integration. This page combines the main executive KPI cards, portfolio cost exposure, SOR revenue exposure, and overall stages cost exposure in one view.</div>
-        <div class="presentation-export-row">
-          <div class="subtle"><b>Presentation export:</b> Generates a PowerPoint report using the active dashboard filters and the same orange executive layout as the reference presentation.</div>
-          <button class="presentation-export-btn" id="export-executive-pptx" type="button">📊 Export as Presentation</button>
-        </div>
       </div>
       <div class="report-section-card">
         <div class="report-title"><h3>Executive KPI Cards</h3><span class="report-tag">Live Filtered Scope</span></div>
@@ -2262,8 +2251,8 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       </div>
 
       <div class="report-section-card">
-        <div class="report-title"><h3>Additional Executive Orange Reports</h3><span class="report-tag">Dynamic / Filter Linked</span></div>
-        <div class="subtle">The following executive reports are calculated from the same active dashboard filters and current uploaded CSV data. Existing reports above are kept unchanged.</div>
+        <div class="report-title"><h3>Executive Reports Library</h3><span class="report-tag">Dynamic / Filter Linked</span></div>
+        <div class="subtle">Executive reports below are calculated from the active dashboard filters and current uploaded CSV data.</div>
         <div id="reports-orange-dynamic" class="orange-reports-grid"></div>
       </div>
     </div>
@@ -6360,201 +6349,6 @@ function renderAdditionalOrangeReports(rows){
   ].join('');
 }
 
-
-/* V28 Executive Reports PowerPoint Export - same order/style as Presentation DWT template */
-function pptFmtMoney(v){ return fmtMoney(Number(v||0)); }
-function pptPercent(v){ return fmtPct(Number(v||0)); }
-function pptClean(t){ return String(t ?? '').trim() || 'N/A'; }
-function pptRows(){ let rows = getFilteredWorkorders(); return applyFilteredKpiContext(rows); }
-function pptLinkScope(rows){
-  const links = new Map();
-  (rows||[]).forEach(r=>{
-    const link = pptClean(r.linkCode);
-    if(!links.has(link)) links.set(link,{linkCode:link, region:r.region||'N/A', city:r.city||'N/A', rows:[], cost:0, progress:[]});
-    const o=links.get(link); o.rows.push(r); o.cost += reportCostOf(r); o.progress.push(Number(r.actualProgress||0));
-    if(!o.city || o.city==='N/A') o.city = r.city || 'N/A';
-    if(!o.region || o.region==='N/A') o.region = r.region || 'N/A';
-  });
-  return [...links.values()].map(o=>({...o, avgProgress:average(o.progress)}));
-}
-function pptCityGroups(rows){
-  const links = pptLinkScope(rows);
-  const m = new Map();
-  links.forEach(l=>{
-    const key = `${pptClean(l.region)}||${pptClean(l.city)}`;
-    if(!m.has(key)) m.set(key,{region:pptClean(l.region), city:pptClean(l.city), links:[], cost:0});
-    const o=m.get(key); o.links.push(l); o.cost += l.cost;
-  });
-  return [...m.values()].map(o=>{
-    let completed=0,inProgress=0,notStart=0;
-    o.links.forEach(l=>{
-      if(l.avgProgress>=100) completed++;
-      else if(l.avgProgress>0) inProgress++;
-      else notStart++;
-    });
-    return {...o, linkCount:o.links.length, completed, inProgress, notStart, completionPct:o.links.length?completed/o.links.length*100:0};
-  }).sort((a,b)=>b.cost-a.cost || b.linkCount-a.linkCount || a.city.localeCompare(b.city));
-}
-function pptDocStatusTotals(rows){
-  const repo = buildDocumentRepositoryRows(rows||[]);
-  const keys = [['Design','design'],['Permit','permit'],['Photos','photos'],['PAT','pat'],['AsBuilt','asBuilt'],['Handover','handover'],['Commercial','commercial']];
-  return keys.map(([label,key])=>{
-    let uploaded=0, partial=0, missing=0;
-    repo.forEach(r=>{ const st = cleanDocState((r[key] && r[key].text) || r[key] || ''); if(st.text==='Uploaded') uploaded++; else if(st.text==='Partial') partial++; else missing++; });
-    return {label, uploaded, partial, missing};
-  });
-}
-function pptMonthGroups(rows){
-  const names=['January','February','March','April','May','June','July','August','September','October','November','December'];
-  const m=new Map();
-  (rows||[]).forEach(r=>{ const d=r.updatedAt||r.createdAt||r.baseline; if(!d) return; const key=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`; if(!m.has(key)) m.set(key,{key,label:`${names[d.getMonth()]} ${d.getFullYear()}`,rows:[]}); m.get(key).rows.push(r); });
-  return [...m.values()].sort((a,b)=>a.key.localeCompare(b.key)).slice(-9).map(x=>{
-    const civil=x.rows.filter(r=>String(r.subclass||'').toLowerCase().includes('civil'));
-    const fiber=x.rows.filter(r=>String(r.subclass||'').toLowerCase().includes('fiber'));
-    return {label:x.label, civil:average(civil.map(r=>Number(r.actualProgress||0))), fiber:average(fiber.map(r=>Number(r.actualProgress||0))), overall:average(x.rows.map(r=>Number(r.actualProgress||0)))};
-  });
-}
-function pptStatusCost(rows){
-  const statuses=['Completed','In Progress','Not Start'];
-  function by(type,status){ return (rows||[]).filter(r=>{ const sub=String(r.subclass||'').toLowerCase(); const ok=type==='Overall'||sub.includes(type.toLowerCase()); return ok && reportClassifyProgress(r.actualProgress)===status; }); }
-  return statuses.map(st=>{ const civil=by('Civil',st), fiber=by('Fiber',st), overall=by('Overall',st); return {status:st, civilCount:unique(civil.map(r=>r.linkCode)).length, civilCost:sum(civil.map(reportCostOf)), fiberCount:unique(fiber.map(r=>r.linkCode)).length, fiberCost:sum(fiber.map(reportCostOf)), totalCost:sum(overall.map(reportCostOf)), overallCount:unique(overall.map(r=>r.linkCode)).length}; });
-}
-function pptLogoData(){
-  const met = document.querySelector('.executive-left-logo img, img[alt*="Middle Sea"], img[alt="MET"]');
-  const daw = document.querySelector('.executive-right-logo img, img[alt*="Dawiyat"]');
-  return {met: met ? met.src : '', daw: daw ? daw.src : ''};
-}
-function pptAddBg(slide){
-  slide.background = { color:'FDE2C8' };
-  slide.addShape('rect',{x:0,y:0,w:13.333,h:7.5,fill:{color:'FDE2C8'},line:{color:'FDE2C8'}});
-  slide.addShape('rect',{x:0,y:0,w:13.333,h:7.5,fill:{color:'FFF7ED',transparency:45},line:{color:'FFF7ED',transparency:100},rotate:18});
-}
-function pptAddHeader(slide,title,logos){
-  pptAddBg(slide);
-  if(logos.met) slide.addImage({data:logos.met,x:0.25,y:0.12,w:1.95,h:0.85});
-  if(logos.daw) slide.addImage({data:logos.daw,x:10.55,y:0.12,w:2.55,h:0.75});
-  slide.addText(title,{x:2.05,y:0.52,w:9.2,h:0.42,fontFace:'Arial',fontSize:20,bold:true,color:'000000',align:'center',margin:0});
-}
-function pptAddFooter(slide){ slide.addText('Prepared by Eng/Ahmed Fekry — Quality & Performance Director',{x:3.6,y:7.08,w:6.1,h:0.22,fontSize:9,bold:true,color:'1E3A8A',align:'center'}); }
-function pptTable(slide, headers, rows, x, y, w, fontSize=12, rowH=0.36){
-  const table = [headers.map(h=>({text:String(h),options:{bold:true,fill:'F47A2A',color:'000000',align:'center',valign:'mid'}}))]
-    .concat(rows.map(r=>r.map(c=>({text:String(c),options:{fill:'FCE7D7',color:'000000',align:'center',valign:'mid'}}))));
-  slide.addTable(table,{x,y,w,h:rowH*(rows.length+1),fontFace:'Arial',fontSize,rowH,margin:0.04,border:{type:'solid',color:'FFFFFF',pt:0.8},valign:'mid'});
-}
-function pptAddBarChart(slide, title, labels, values, x, y, w, h, color='F47A2A'){
-  slide.addText(title,{x,y:y-0.25,w,h:0.22,fontSize:12,bold:true,color:'555555',align:'center',margin:0});
-  const max = Math.max(1,...values.map(v=>Number(v||0)));
-  labels.slice(0,10).forEach((lb,i)=>{
-    const yy=y+0.12+i*(h/10);
-    const bw=Math.max(0.08,(Number(values[i]||0)/max)*(w-2.1));
-    slide.addText(String(lb),{x,y:yy,w:1.6,h:0.15,fontSize:7,color:'555555',align:'right',margin:0});
-    slide.addShape('rect',{x:x+1.75,y:yy,w:bw,h:0.12,fill:{color},line:{color}});
-    slide.addText(fmtMoneyShort(values[i]||0),{x:x+1.75+bw+0.08,y:yy-0.01,w:1.05,h:0.15,fontSize:7,color:'555555',margin:0});
-  });
-}
-function pptAddPie(slide,title,labels,values,x,y,w,h){
-  slide.addText(title,{x,y:y-0.28,w,h:0.25,fontSize:14,bold:true,color:'333333',align:'center'});
-  try{
-    slide.addChart('pie',[{name:title,labels:labels.slice(0,8),values:values.slice(0,8)}],{x,y,w,h,showLegend:true,showPercent:true,legendPos:'b',showTitle:false,holeSize:0,ser:{dataLabelPosition:'bestFit'}});
-  }catch(e){
-    pptAddBarChart(slide,title,labels,values,x,y,w,h,'5DA1D8');
-  }
-}
-function pptAddCover(pptx, logos){
-  const slide=pptx.addSlide(); pptAddBg(slide);
-  if(logos.met) slide.addImage({data:logos.met,x:0.7,y:0.45,w:2.4,h:1.1});
-  if(logos.daw) slide.addImage({data:logos.daw,x:10.0,y:0.45,w:2.6,h:0.8});
-  slide.addText('Performance & Quality Management System',{x:1.1,y:2.35,w:11.1,h:0.62,fontSize:28,bold:true,color:'000000',align:'center'});
-  slide.addText('Dawiyat Executive Reports',{x:2.2,y:3.15,w:8.9,h:0.38,fontSize:18,bold:true,color:'F47A2A',align:'center'});
-  slide.addText('Dynamic report generated from current dashboard filters',{x:2.2,y:3.65,w:8.9,h:0.3,fontSize:13,color:'374151',align:'center'});
-  pptAddFooter(slide);
-}
-function pptSlideFullScope(pptx, rows, logos){
-  const slide=pptx.addSlide(); pptAddHeader(slide,'Dawiyat Project Full Scope 2025  & 2026',logos);
-  const groups=pptCityGroups(rows); const totalCost=sum(groups.map(g=>g.cost)); const totalLinks=sum(groups.map(g=>g.linkCount));
-  slide.addText('Dawiyat Project Full Scope',{x:0.3,y:1.28,w:6.6,h:0.36,fontSize:16,bold:true,color:'FFFFFF',align:'center',fill:{color:'F47A2A'}});
-  const tRows=groups.slice(0,10).map(g=>[g.region.toUpperCase(),g.city,fmtInt(g.linkCount),pptFmtMoney(g.cost)]);
-  tRows.push(['Grand Total','',fmtInt(totalLinks),pptFmtMoney(totalCost)]);
-  pptTable(slide,['Region','City','No. of Link Codes','WO Amount'],tRows,0.3,1.65,6.6,11,0.35);
-  const labels=groups.map(g=>g.city), vals=groups.map(g=>g.cost);
-  pptAddPie(slide,'Business Volume',labels,vals,7.05,1.35,5.75,4.55);
-}
-function pptSlideRegional(pptx, rows, logos){
-  const slide=pptx.addSlide(); pptAddHeader(slide,'Regional Performance Summary',logos);
-  const groups=pptCityGroups(rows);
-  const tRows=groups.slice(0,12).map(g=>[g.region.toUpperCase(),g.city,fmtInt(g.linkCount),fmtInt(g.completed),fmtInt(g.inProgress),fmtInt(g.notStart),pptPercent(g.completionPct)]);
-  pptTable(slide,['Region','City','No. of Link Codes','Completed','In Progress','Not Start','Completion %'],tRows,0.35,1.35,12.6,11,0.33);
-  pptAddBarChart(slide,'City Chart Area',groups.map(g=>g.city),groups.map(g=>g.cost),0.65,5.35,11.5,1.65,'4F86D9');
-}
-function pptSlideCompletion(pptx, rows, logos){
-  const slide=pptx.addSlide(); pptAddHeader(slide,'Sites Completion Analysis',logos);
-  slide.addText('The Site Completion Analysis provides a comprehensive overview of project progress by evaluating the status of all planned FTTH sites. The analysis categorizes sites into completed, in-progress, and pending stages, enabling effective monitoring of project performance and identification of areas requiring additional attention.',{x:0.25,y:1.35,w:12.8,h:0.6,fontSize:12,color:'000000',breakLine:false,fit:'shrink'});
-  const status=pptStatusCost(rows); const totalLinks=pptLinkScope(rows).length || 1;
-  const rowsTbl=status.map(s=>[s.status,fmtInt(s.civilCount),pptPercent(s.civilCount/totalLinks*100),fmtInt(s.fiberCount),pptPercent(s.fiberCount/totalLinks*100),pptPercent(s.overallCount/totalLinks*100)]);
-  pptTable(slide,['Status','CIVIL','CIVIL%','FIBRE','FIBRE%','OVERALL%'],rowsTbl,1.25,2.45,10.1,14,0.45);
-  pptAddPie(slide,'Site Completion Analysis',status.map(s=>s.status),status.map(s=>s.overallCount),4.65,4.95,4.0,1.7);
-}
-function pptSlideCost(pptx, rows, logos){
-  const slide=pptx.addSlide(); pptAddHeader(slide,'Sites Cost Analysis',logos);
-  slide.addText('The Site Cost Analysis provides a detailed assessment of project expenditures and cost efficiency across all implemented FTTH sites. The analysis enables management to monitor project spending, evaluate resource utilization, and ensure alignment with approved budgets and project targets.',{x:0.25,y:1.35,w:12.8,h:0.6,fontSize:12,color:'000000',fit:'shrink'});
-  const status=pptStatusCost(rows);
-  const rowsTbl=status.map(s=>[s.status,fmtInt(s.civilCount),pptFmtMoney(s.civilCost),fmtInt(s.fiberCount),pptFmtMoney(s.fiberCost),pptFmtMoney(s.totalCost)]);
-  pptTable(slide,['Status','CIVIL','WO Cost','FIBRE','WO Cost','Total WO Cost'],rowsTbl,1.05,2.25,10.7,14,0.43);
-  pptAddBarChart(slide,'Cost Analysis',status.map(s=>s.status),status.map(s=>s.totalCost),2.1,4.95,9.6,1.65,'2563EB');
-}
-function pptSlideMonthly(pptx, rows, logos){
-  const slide=pptx.addSlide(); pptAddHeader(slide,'Monthly Progress Trend 2025-2026',logos);
-  slide.addText("Monthly progress trend demonstrates the project's consistent advancement across Civil and Fiber implementation activities. Through effective planning, resource allocation, and coordination with stakeholders, the project has maintained a positive growth trajectory throughout the reporting period.",{x:0.25,y:1.35,w:12.8,h:0.55,fontSize:12,color:'000000',fit:'shrink'});
-  const data=pptMonthGroups(rows);
-  pptTable(slide,['Month','Civil %','Fiber %','Overall %'],data.map(x=>[x.label,pptPercent(x.civil),pptPercent(x.fiber),pptPercent(x.overall)]),0.7,2.35,5.75,13,0.32);
-  pptAddBarChart(slide,'Monthly Overall Progress',data.map(x=>x.label),data.map(x=>x.overall),7.05,2.35,5.55,3.65,'5DA1D8');
-}
-function pptSlideFinancial(pptx, rows, logos){
-  const slide=pptx.addSlide(); pptAddHeader(slide,'Executive Financial Report',logos);
-  slide.addText('Financial exposure summary calculated from the same active dashboard filters used in KPI Cards and Penalties Heatmap. Penalty Amount excludes CSV total rows and avoids duplicated Work Order counting.',{x:0.3,y:1.25,w:12.5,h:0.5,fontSize:11,color:'374151'});
-  const penaltiesRows=getFilteredPenalties(rows); const totalCost=sum(rows.map(r=>effectiveCost(r))); const penalties=sum(penaltiesRows.map(p=>Number(p.penaltyAmount||0))); const completedCost=sum(rows.filter(r=>Number(r.actualProgress||0)>=100).map(r=>effectiveCost(r))); const atRiskCost=sum(rows.filter(r=>String(r.performance||r.status||'').toLowerCase().includes('risk')||String(r.performance||r.status||'').toLowerCase().includes('off')).map(r=>effectiveCost(r))); const pending=sum(rows.filter(r=>r.closureStatus==='Pending Closure').map(r=>effectiveCost(r)));
-  const tbl=[['Total WO Cost',pptFmtMoney(totalCost)],['Completed Cost Exposure',pptFmtMoney(completedCost)],['Penalty Amount',pptFmtMoney(penalties)],['At Risk / Off Track Cost',pptFmtMoney(atRiskCost)],['Pending Closure Cost',pptFmtMoney(pending)],['Open Closure WOs',fmtInt(rows.filter(r=>r.closureStatus!=='Closed').length)]];
-  pptTable(slide,['Metric','Value'],tbl,2.1,1.95,9.1,12,0.38);
-  pptAddBarChart(slide,'Financial Exposure',tbl.slice(0,5).map(x=>x[0]),[totalCost,completedCost,penalties,atRiskCost,pending],2.4,4.95,8.8,1.55,'F47A2A');
-}
-function pptSlideReadiness(pptx, rows, logos){
-  const slide=pptx.addSlide(); pptAddHeader(slide,'Executive Readiness Report',logos);
-  slide.addText('Readiness report shows total count of Link Codes by document status for each required document type. Counts are aggregated per document type, not per Work Order.',{x:0.3,y:1.22,w:12.5,h:0.45,fontSize:11,color:'374151'});
-  const docs=pptDocStatusTotals(rows);
-  const tbl=docs.map(d=>[d.label,fmtInt(d.uploaded),fmtInt(d.partial),fmtInt(d.missing)]);
-  pptTable(slide,['Document Type','Uploaded','Partial','Missing'],tbl,2.0,1.9,9.3,13,0.36);
-  pptAddBarChart(slide,'Missing Documents by Type',docs.map(d=>d.label),docs.map(d=>d.missing),2.4,5.15,8.8,1.45,'EF4444');
-}
-function pptSlideThanks(pptx, logos){
-  const slide=pptx.addSlide(); pptAddBg(slide);
-  if(logos.met) slide.addImage({data:logos.met,x:0.7,y:0.45,w:2.4,h:1.1});
-  if(logos.daw) slide.addImage({data:logos.daw,x:10.0,y:0.45,w:2.6,h:0.8});
-  slide.addText('Thanks',{x:2.7,y:2.6,w:8.0,h:0.6,fontSize:34,bold:true,color:'000000',align:'center'});
-  slide.addText('Prepared by Eng/Ahmed Fekry — Quality & Performance Director',{x:2.1,y:3.4,w:9.2,h:0.35,fontSize:15,bold:true,color:'1E3A8A',align:'center'});
-}
-async function exportExecutiveReportsPresentation(){
-  const btn=document.getElementById('export-executive-pptx');
-  if(!window.pptxgen){ alert('PowerPoint export library is still loading. Please try again in a few seconds.'); return; }
-  try{
-    if(btn){btn.disabled=true;btn.textContent='Generating Presentation...';}
-    const rows=pptRows(); const logos=pptLogoData();
-    const deck=new pptxgen(); deck.layout='LAYOUT_WIDE'; deck.author='Middle Sea Telecom / MET'; deck.subject='Dawiyat Executive Reports'; deck.title='Dawiyat Project Full Scope 2025 & 2026'; deck.company='Middle Sea Telecom'; deck.lang='en-US'; deck.theme={headFontFace:'Arial',bodyFontFace:'Arial',lang:'en-US'};
-    pptAddCover(deck,logos);
-    pptSlideFullScope(deck,rows,logos);
-    pptSlideRegional(deck,rows,logos);
-    pptSlideCompletion(deck,rows,logos);
-    pptSlideCost(deck,rows,logos);
-    pptSlideMonthly(deck,rows,logos);
-    pptSlideFinancial(deck,rows,logos);
-    pptSlideReadiness(deck,rows,logos);
-    pptSlideThanks(deck,logos);
-    const stamp=new Date().toISOString().slice(0,10);
-    await deck.writeFile({ fileName:`Dawiyat_Executive_Reports_${stamp}.pptx` });
-  }catch(err){ console.error(err); alert('Unable to export presentation: '+(err && err.message ? err.message : err)); }
-  finally{ if(btn){btn.disabled=false;btn.textContent='📊 Export as Presentation';} }
-}
-document.addEventListener('click',(e)=>{ if(e.target && e.target.id==='export-executive-pptx'){ e.preventDefault(); exportExecutiveReportsPresentation(); } });
-
 function renderExecutiveReports(){
   const kpiTarget = document.getElementById('reports-kpi-grid');
   const kpiSource = document.getElementById('kpi-grid');
@@ -6591,7 +6385,7 @@ function renderAll() {
   renderExtraTables(rows, penalties);
   renderDecision(rows, penalties);
   renderPmoAll();
-  renderExecutiveReports();
+  if (state.tab === 'reports') renderExecutiveReports();
   bindPmoInputs();
   updateDetailedAnalysisButtons();
   dashboardFilterIntegrityCheck();
