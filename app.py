@@ -570,14 +570,49 @@ def _excel_clean(value) -> str:
     return text
 
 
+def _normalize_permission_sheet(raw_df: pd.DataFrame, required_cols: List[str]) -> pd.DataFrame:
+    """Normalize Excel sheets that have a title row before the real header."""
+    if raw_df is None or raw_df.empty:
+        return pd.DataFrame(columns=required_cols)
+    raw = raw_df.fillna("").copy()
+    required_lower = {str(c).strip().lower() for c in required_cols}
+    header_idx = None
+    for idx, row in raw.iterrows():
+        lower_values = {str(v).strip().lower() for v in row.tolist() if str(v).strip()}
+        if required_lower.issubset(lower_values):
+            header_idx = idx
+            break
+    if header_idx is None:
+        out = raw.copy()
+        out.columns = [str(c).strip() for c in out.columns]
+        return out
+    headers = [str(v).strip() if str(v).strip() else f"Unnamed_{i}" for i, v in enumerate(raw.loc[header_idx].tolist())]
+    out = raw.iloc[header_idx + 1:].copy()
+    out.columns = headers
+    out = out.reset_index(drop=True)
+    if not out.empty:
+        out = out.loc[~out.apply(lambda r: all(str(x).strip() == "" for x in r.tolist()), axis=1)].reset_index(drop=True)
+    return out
+
+
 def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
     """Read Excel permission matrix from data/permissions.xlsx.
-    If the file is missing or invalid, the app continues with Secrets/fallback permissions.
+    Robust against title rows / merged headers in the workbook template.
     """
     if not PERMISSIONS_XLSX_PATH.exists():
         return {}
     try:
-        return pd.read_excel(PERMISSIONS_XLSX_PATH, sheet_name=None, dtype=str).copy()
+        raw_sheets = pd.read_excel(PERMISSIONS_XLSX_PATH, sheet_name=None, dtype=str, header=None).copy()
+        specs = {
+            "Users": ["Username", "Password", "Role"],
+            "Role_Page_Access": ["Role", "Executive Overview"],
+            "Role_Component_Access": ["Role", "Page", "Component / Table", "Show"],
+            "User_Override": ["Username", "Page", "Component / Table", "Show"],
+        }
+        sheets: Dict[str, pd.DataFrame] = {}
+        for name, df in raw_sheets.items():
+            sheets[name] = _normalize_permission_sheet(df, specs.get(name, [])) if name in specs else df.fillna("")
+        return sheets
     except Exception as exc:
         st.warning(f"Unable to read permissions.xlsx. Falling back to Secrets/default permissions. Details: {exc}")
         return {}
@@ -587,27 +622,41 @@ def _excel_permission_available() -> bool:
     return PERMISSIONS_XLSX_PATH.exists()
 
 
-def get_excel_users() -> Dict[str, Dict[str, str]]:
+def get_excel_user_records() -> Tuple[Dict[str, Dict[str, str]], List[str]]:
+    """Return active users and inactive usernames from permissions.xlsx.
+    Active=No removes same username from Secrets/fallback.
+    """
     sheets = _read_permissions_excel()
     if "Users" not in sheets:
-        return {}
+        return {}, []
     df = sheets["Users"].fillna("")
     required = {"Username", "Password", "Role"}
     if not required.issubset(set(df.columns)):
-        return {}
+        return {}, []
 
-    out = {}
+    active_users: Dict[str, Dict[str, str]] = {}
+    inactive_users: List[str] = []
     for _, row in df.iterrows():
         username = _excel_clean(row.get("Username"))
         password = _excel_clean(row.get("Password"))
         role = _excel_clean(row.get("Role")).lower() or "viewer"
         active = _excel_clean(row.get("Active")).lower() or "yes"
-        if not username or not password or active in ["no", "false", "0", "inactive", "disabled"]:
+        if not username:
+            continue
+        if active in ["no", "false", "0", "inactive", "disabled"]:
+            inactive_users.append(username)
+            continue
+        if not password:
             continue
         if role not in ROLE_PERMISSIONS:
             role = "viewer"
-        out[username] = {"password": password, "role": role}
-    return out
+        active_users[username] = {"password": password, "role": role}
+    return active_users, inactive_users
+
+
+def get_excel_users() -> Dict[str, Dict[str, str]]:
+    users, _inactive = get_excel_user_records()
+    return users
 
 
 def _page_name_to_key(page_name: str) -> str:
@@ -751,13 +800,9 @@ def get_excel_user_override(username: str) -> Dict:
         return {}
 
     policy: Dict[str, Any] = {}
-    hidden_pages = set()
-    pages_yes = set()
-    hide_tables = set()
-    hide_buttons = set()
-    hide_excel_components = set()
-    hide_pdf_components = set()
-    hide_ppt_components = set()
+    pages_add, pages_remove, tabs_add, tabs_remove = set(), set(), set(), set()
+    hide_tables, show_tables, hide_buttons = set(), set(), set()
+    hide_excel_components, hide_pdf_components, hide_ppt_components = set(), set(), set()
 
     for _, row in rows.iterrows():
         page = _excel_clean(row.get("Page"))
@@ -767,104 +812,76 @@ def get_excel_user_override(username: str) -> Dict:
         ex_pdf = row.get("Export PDF")
         ex_ppt = row.get("Export PPT")
         hbtn = _excel_clean(row.get("Hide Button"))
-
         if hbtn:
             hide_buttons.add(hbtn)
-
         if comp:
-            if not _excel_bool(show, True):
-                hide_tables.add(comp)
-            if not _excel_bool(ex_excel, True):
-                hide_excel_components.add(comp)
-            if not _excel_bool(ex_pdf, True):
-                hide_pdf_components.add(comp)
-            if not _excel_bool(ex_ppt, True):
-                hide_ppt_components.add(comp)
-        elif page:
             if _excel_bool(show, True):
-                pages_yes.add(_page_display_name(page))
+                show_tables.add(comp)
             else:
-                hidden_pages.add(_page_display_name(page))
-
-    if hide_tables:
-        policy["hide_tables"] = list(hide_tables)
-    if hide_buttons:
-        policy["hide_buttons"] = list(hide_buttons)
-    if hide_excel_components:
-        policy["hide_excel_components"] = list(hide_excel_components)
-    if hide_pdf_components:
-        policy["hide_pdf_components"] = list(hide_pdf_components)
-    if hide_ppt_components:
-        policy["hide_ppt_components"] = list(hide_ppt_components)
-
-    if pages_yes:
-        policy["pages"] = list(pages_yes)
-    if hidden_pages:
-        base_pages = allowed_pages_for_current_user() if st.session_state.get("username") != username else _as_list(user_policy().get("pages"))
-        policy["pages"] = [p for p in base_pages if p not in hidden_pages]
-
+                hide_tables.add(comp)
+            if not _excel_bool(ex_excel, True): hide_excel_components.add(comp)
+            if not _excel_bool(ex_pdf, True): hide_pdf_components.add(comp)
+            if not _excel_bool(ex_ppt, True): hide_ppt_components.add(comp)
+        elif page:
+            display = _page_display_name(page)
+            tab = _page_name_to_dashboard_tab(page)
+            key = _page_name_to_key(page)
+            if _excel_bool(show, True):
+                pages_add.add(display)
+                if tab: tabs_add.add(tab)
+                if key: policy[key] = True
+                if page == "Executive PPT Builder": policy["export_ppt"] = _excel_bool(ex_ppt, True)
+            else:
+                pages_remove.add(display)
+                if tab: tabs_remove.add(tab)
+                if key: policy[key] = False
+                if page == "Executive PPT Builder": policy["export_ppt"] = False
+    if pages_add: policy["_pages_add"] = list(pages_add)
+    if pages_remove: policy["_pages_remove"] = list(pages_remove)
+    if tabs_add: policy["_tabs_add"] = list(tabs_add)
+    if tabs_remove: policy["_tabs_remove"] = list(tabs_remove)
+    if hide_tables: policy["hide_tables"] = list(hide_tables)
+    if show_tables: policy["show_tables"] = list(show_tables)
+    if hide_buttons: policy["hide_buttons"] = list(hide_buttons)
+    if hide_excel_components: policy["hide_excel_components"] = list(hide_excel_components)
+    if hide_pdf_components: policy["hide_pdf_components"] = list(hide_pdf_components)
+    if hide_ppt_components: policy["hide_ppt_components"] = list(hide_ppt_components)
     return policy
 
 
 def get_users() -> Dict[str, Dict[str, str]]:
-    """
-    Stable role-based user loader.
-
-    Recommended Streamlit Secrets format:
-
-    [users.ahmedfekry]
-    password = "20020099"
-    role = "admin"
-
-    [users.tamer_solyman]
-    password = "Tamer@12345$"
-    role = "finance"
-
-    [users.mohamed_syed]
-    password = "Mohamed@12345$"
-    role = "finance"
-
-    Notes:
-    - Users from Secrets are merged with fallback users.
-    - If a Secrets user is invalid or missing password, it is ignored.
-    - This prevents a bad Secrets entry from breaking all logins.
+    """Stable user loader with Excel permissions as the final authority.
+    Priority: fallback -> Secrets -> Excel. Excel Active=No removes user.
     """
     users = _default_users()
-
     try:
         raw_users = st.secrets.get("users", {})
     except Exception:
-        return users
-
-    if not raw_users:
-        users.update(get_excel_users())
-        return users
-
-    try:
-        items = raw_users.items() if hasattr(raw_users, "items") else []
-        for raw_username, data in items:
-            username = str(raw_username).strip()
-            if not username:
-                continue
-
-            if isinstance(data, str):
-                password = data.strip()
-                role = "viewer"
-            else:
-                password = _secret_get(data, "password", "").strip()
-                role = _secret_get(data, "role", "viewer").strip().lower()
-
-            if not password:
-                continue
-            if role not in ROLE_PERMISSIONS:
-                role = "viewer"
-
-            users[username] = {"password": password, "role": role}
-    except Exception:
-        # Never block login completely because of a malformed Secrets users section.
-        return users
-
-    users.update(get_excel_users())
+        raw_users = {}
+    if raw_users:
+        try:
+            items = raw_users.items() if hasattr(raw_users, "items") else []
+            for raw_username, data in items:
+                username = str(raw_username).strip()
+                if not username:
+                    continue
+                if isinstance(data, str):
+                    password = data.strip()
+                    role = "viewer"
+                else:
+                    password = _secret_get(data, "password", "").strip()
+                    role = _secret_get(data, "role", "viewer").strip().lower()
+                if not password:
+                    continue
+                if role not in ROLE_PERMISSIONS:
+                    role = "viewer"
+                users[username] = {"password": password, "role": role}
+        except Exception:
+            pass
+    excel_users, inactive_excel_users = get_excel_user_records()
+    users.update(excel_users)
+    for inactive in inactive_excel_users:
+        users.pop(inactive, None)
     return users
 
 
@@ -939,19 +956,37 @@ def user_policy(username: str | None = None, role: str | None = None) -> Dict:
     role = (role or current_role()).lower()
     base = ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["viewer"])
     policy = dict(base)
-
-    # V42 priority:
-    # 1) built-in role defaults
-    # 2) Excel role matrix from data/permissions.xlsx
-    # 3) Streamlit Secrets role overrides
-    # 4) Excel user-specific overrides
-    # 5) Streamlit Secrets user-specific overrides
     policy = _merge_policy(policy, get_excel_role_policy(role))
     policy = _merge_policy(policy, get_roles_override_from_secrets(role))
     if username:
-        policy = _merge_policy(policy, get_excel_user_override(username))
+        excel_override = get_excel_user_override(username)
+        pages = _as_list(policy.get("pages"))
+        tabs = _as_list(policy.get("dashboard_tabs"))
+        for p in _as_list(excel_override.pop("_pages_add", [])):
+            if p and p not in pages: pages.append(p)
+        for p in _as_list(excel_override.pop("_pages_remove", [])):
+            pages = [x for x in pages if x != p]
+        for t in _as_list(excel_override.pop("_tabs_add", [])):
+            if t and t not in tabs: tabs.append(t)
+        for t in _as_list(excel_override.pop("_tabs_remove", [])):
+            tabs = [x for x in tabs if x != t]
+        policy["pages"] = pages
+        policy["dashboard_tabs"] = tabs
+
+        old_hidden = set(_as_list(policy.get("hide_tables")))
+        shown = set(_as_list(excel_override.get("show_tables")))
+        hidden = set(_as_list(excel_override.get("hide_tables")))
+        old_hidden -= shown
+        old_hidden |= hidden
+        policy["hide_tables"] = list(old_hidden)
+        for list_key in ["hide_buttons", "hide_excel_components", "hide_pdf_components", "hide_ppt_components"]:
+            policy[list_key] = list(set(_as_list(policy.get(list_key))) | set(_as_list(excel_override.get(list_key))))
+        for k, v in excel_override.items():
+            if k not in ["show_tables", "hide_tables", "hide_buttons", "hide_excel_components", "hide_pdf_components", "hide_ppt_components"]:
+                policy[k] = v
         policy = _merge_policy(policy, get_user_override_from_secrets(username))
     return policy
+
 
 def allowed_pages_for_current_user() -> List[str]:
     policy = user_policy()
@@ -3864,7 +3899,7 @@ def admin_page() -> None:
         st.error("You do not have permission to access Admin Board.")
         return
 
-    st.title("⚙️ V42 Excel Permission Engine")
+    st.title("⚙️ V42.1 Excel Permission Engine")
     st.caption("Manage users, pages, tables/components and export permissions through data/permissions.xlsx.")
 
     st.subheader("Permission Workbook")
