@@ -75,40 +75,66 @@ def image_to_base64(path: Path) -> str:
 
 
 ROLE_PERMISSIONS = {
-    # Full system owner.
     "admin": {
         "dashboard": True, "assistant": True, "alerts": True, "reports": True,
-        "admin": True, "upload": True, "email": True, "documents": True,
-        "export": True, "export_excel": True, "export_pdf": True,
-        "dashboard_tabs": ["overview", "performance", "tables", "decision", "pmo", "perf-explanation"],
+        "admin": True, "upload": True, "email": True, "documents": True, "ppt_builder": True,
+        "export": True, "export_excel": True, "export_pdf": True, "export_ppt": True,
+        "pages": ["Dashboard", "AI Executive Assistant", "Smart Alerts", "Executive Reports", "📊 Executive PPT Builder", "Upload CSV", "📤 Document Upload Center", "Admin Board"],
+        "dashboard_tabs": ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"],
+        "hide_buttons": [], "hide_tables": [],
     },
-    # PMO can manage operational pages and upload CSV/documents, but cannot access Admin Board.
     "pmo": {
         "dashboard": True, "assistant": True, "alerts": True, "reports": True,
-        "admin": False, "upload": True, "email": False, "documents": True,
-        "export": True, "export_excel": True, "export_pdf": True,
-        "dashboard_tabs": ["overview", "performance", "tables", "decision", "pmo", "perf-explanation"],
+        "admin": False, "upload": True, "email": False, "documents": True, "ppt_builder": True,
+        "export": True, "export_excel": True, "export_pdf": True, "export_ppt": True,
+        "pages": ["Dashboard", "AI Executive Assistant", "Smart Alerts", "Executive Reports", "📊 Executive PPT Builder", "Upload CSV", "📤 Document Upload Center"],
+        "dashboard_tabs": ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"],
+        "hide_buttons": [], "hide_tables": [],
     },
-    # Board sees executive-level content only and PDF export.
     "board": {
         "dashboard": True, "assistant": False, "alerts": False, "reports": True,
-        "admin": False, "upload": False, "email": False, "documents": False,
-        "export": True, "export_excel": False, "export_pdf": True,
-        "dashboard_tabs": ["overview", "decision"],
+        "admin": False, "upload": False, "email": False, "documents": False, "ppt_builder": True,
+        "export": True, "export_excel": False, "export_pdf": True, "export_ppt": True,
+        "pages": ["Dashboard", "Executive Reports", "📊 Executive PPT Builder"],
+        "dashboard_tabs": ["overview", "performance", "decision", "reports"],
+        "hide_buttons": ["Export Excel", "Upload", "Delete", "Import"],
+        "hide_tables": ["PMO Audit", "Missing MET Actual", "Raw Data"],
     },
-    # Finance sees SOR/Billing/reporting areas and export, but no upload/admin/audit pages.
     "finance": {
         "dashboard": True, "assistant": False, "alerts": True, "reports": True,
-        "admin": False, "upload": False, "email": False, "documents": False,
-        "export": True, "export_excel": True, "export_pdf": True,
-        "dashboard_tabs": ["tables", "decision"],
+        "admin": False, "upload": False, "email": False, "documents": False, "ppt_builder": False,
+        "export": True, "export_excel": True, "export_pdf": True, "export_ppt": False,
+        "pages": ["Dashboard", "Smart Alerts", "Executive Reports"],
+        "dashboard_tabs": ["overview", "tables", "reports"],
+        "hide_buttons": ["Upload", "Delete", "Import"],
+        "hide_tables": ["PMO Audit", "Missing MET Actual", "PM Review"],
     },
-    # Viewer is read-only and sees Executive Overview only.
+    "audit": {
+        "dashboard": True, "assistant": False, "alerts": True, "reports": True,
+        "admin": False, "upload": False, "email": False, "documents": False, "ppt_builder": False,
+        "export": True, "export_excel": True, "export_pdf": True, "export_ppt": False,
+        "pages": ["Dashboard", "Smart Alerts", "Executive Reports"],
+        "dashboard_tabs": ["pmo", "reports"],
+        "hide_buttons": ["Upload", "Delete", "Import"],
+        "hide_tables": ["Executive Financial Report"],
+    },
+    "operations": {
+        "dashboard": True, "assistant": False, "alerts": True, "reports": True,
+        "admin": False, "upload": False, "email": False, "documents": True, "ppt_builder": False,
+        "export": True, "export_excel": True, "export_pdf": True, "export_ppt": False,
+        "pages": ["Dashboard", "Smart Alerts", "Executive Reports", "📤 Document Upload Center"],
+        "dashboard_tabs": ["overview", "tables", "performance", "reports"],
+        "hide_buttons": ["Delete", "Import"],
+        "hide_tables": ["PMO Audit", "Executive Financial Report"],
+    },
     "viewer": {
         "dashboard": True, "assistant": False, "alerts": False, "reports": False,
-        "admin": False, "upload": False, "email": False, "documents": False,
-        "export": False, "export_excel": False, "export_pdf": False,
+        "admin": False, "upload": False, "email": False, "documents": False, "ppt_builder": False,
+        "export": False, "export_excel": False, "export_pdf": False, "export_ppt": False,
+        "pages": ["Dashboard"],
         "dashboard_tabs": ["overview"],
+        "hide_buttons": ["Export", "Upload", "Delete", "Import"],
+        "hide_tables": ["PMO Audit", "Tables & Exports", "Raw Data"],
     },
 }
 
@@ -117,6 +143,8 @@ ROLE_DISPLAY_NAMES = {
     "pmo": "PMO",
     "board": "Board",
     "finance": "Finance",
+    "audit": "Audit",
+    "operations": "Operations",
     "viewer": "Viewer",
 }
 
@@ -581,6 +609,99 @@ def get_users() -> Dict[str, Dict[str, str]]:
 
     return users
 
+
+def _as_bool(value, default: bool = False) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    return str(value).strip().lower() in ["1", "true", "yes", "y", "on"]
+
+def _as_list(value) -> List[str]:
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return [str(x).strip() for x in value if str(x).strip()]
+    text = str(value).strip()
+    if not text:
+        return []
+    return [x.strip() for x in text.split(",") if x.strip()]
+
+def _secret_to_plain_dict(obj) -> Dict:
+    out = {}
+    try:
+        items = obj.items() if hasattr(obj, "items") else []
+        for k, v in items:
+            key = str(k)
+            if hasattr(v, "items"):
+                out[key] = _secret_to_plain_dict(v)
+            elif isinstance(v, (list, tuple)):
+                out[key] = [str(x) if not isinstance(x, bool) else x for x in v]
+            else:
+                out[key] = v
+    except Exception:
+        return {}
+    return out
+
+def _merge_policy(base: Dict, override: Dict) -> Dict:
+    merged = dict(base or {})
+    for key, value in (override or {}).items():
+        if key in ["password", "role"]:
+            continue
+        if key in ["pages", "dashboard_tabs", "hide_buttons", "hide_tables", "show_tables", "components"]:
+            merged[key] = _as_list(value)
+        elif isinstance(value, bool):
+            merged[key] = value
+        elif str(value).strip().lower() in ["true", "false", "yes", "no", "1", "0", "on", "off"]:
+            merged[key] = _as_bool(value)
+        else:
+            merged[key] = value
+    return merged
+
+def get_roles_override_from_secrets(role: str) -> Dict:
+    try:
+        raw_roles = st.secrets.get("roles", {})
+        if raw_roles and role in raw_roles:
+            return _secret_to_plain_dict(raw_roles[role])
+    except Exception:
+        pass
+    return {}
+
+def get_user_override_from_secrets(username: str) -> Dict:
+    try:
+        raw_users = st.secrets.get("users", {})
+        if raw_users and username in raw_users:
+            return _secret_to_plain_dict(raw_users[username])
+    except Exception:
+        pass
+    return {}
+
+def user_policy(username: str | None = None, role: str | None = None) -> Dict:
+    username = username or str(st.session_state.get("username", "")).strip()
+    role = (role or current_role()).lower()
+    base = ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["viewer"])
+    policy = dict(base)
+    policy = _merge_policy(policy, get_roles_override_from_secrets(role))
+    if username:
+        policy = _merge_policy(policy, get_user_override_from_secrets(username))
+    return policy
+
+def allowed_pages_for_current_user() -> List[str]:
+    policy = user_policy()
+    pages = _as_list(policy.get("pages"))
+    if pages:
+        return pages
+    out = []
+    if policy.get("dashboard"): out.append("Dashboard")
+    if policy.get("assistant"): out.append("AI Executive Assistant")
+    if policy.get("alerts"): out.append("Smart Alerts")
+    if policy.get("reports"): out.append("Executive Reports")
+    if policy.get("ppt_builder") or policy.get("export_ppt"): out.append("📊 Executive PPT Builder")
+    if policy.get("upload"): out.append("Upload CSV")
+    if policy.get("documents"): out.append("📤 Document Upload Center")
+    if policy.get("admin"): out.append("Admin Board")
+    return out or ["Dashboard"]
+
 def current_role() -> str:
     role = str(st.session_state.get("role", "viewer")).lower()
     return role if role in ROLE_PERMISSIONS else "viewer"
@@ -592,12 +713,13 @@ def role_policy(role: str | None = None) -> Dict:
 
 
 def can(permission: str) -> bool:
-    return bool(role_policy().get(permission, False))
+    return bool(user_policy().get(permission, False))
 
 
 def allowed_dashboard_tabs(role: str | None = None) -> List[str]:
-    tabs = role_policy(role).get("dashboard_tabs", ["overview"])
-    return [str(t) for t in tabs]
+    policy = user_policy(role=role) if role else user_policy()
+    tabs = _as_list(policy.get("dashboard_tabs", ["overview"]))
+    return tabs or ["overview"]
 
 
 def login_page() -> bool:
@@ -771,6 +893,8 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     hide_pdf = "true" if not policy.get("export_pdf", False) else "false"
     hide_all_exports = "true" if not policy.get("export", False) else "false"
     role_label = ROLE_DISPLAY_NAMES.get(role, role.title())
+    hide_buttons = json.dumps(_as_list(policy.get("hide_buttons")))
+    hide_tables = json.dumps(_as_list(policy.get("hide_tables")))
 
     portal_patch = f"""
 <style>
@@ -796,7 +920,9 @@ window.DAWIYAT_RBAC = {{
   allowedTabs: {allowed_tabs},
   hideExcel: {hide_excel},
   hidePdf: {hide_pdf},
-  hideAllExports: {hide_all_exports}
+  hideAllExports: {hide_all_exports},
+  hideButtons: {hide_buttons},
+  hideTables: {hide_tables}
 }};
 (function applyDawiyatRBAC() {{
   function norm(t) {{ return (t || '').replace(/\s+/g,' ').trim().toLowerCase(); }}
@@ -815,6 +941,20 @@ window.DAWIYAT_RBAC = {{
       if (cfg.hidePdf && txt.includes('export pdf')) {{
         el.style.display = 'none';
       }}
+      (cfg.hideButtons || []).forEach(needle => {{
+        if (needle && txt.includes(String(needle).toLowerCase())) el.style.display = 'none';
+      }});
+    }});
+  }}
+  function hideTablesByText() {{
+    const cfg = window.DAWIYAT_RBAC || {{}};
+    const needles = (cfg.hideTables || []).map(x => String(x || '').toLowerCase()).filter(Boolean);
+    if (!needles.length) return;
+    const blocks = Array.from(document.querySelectorAll('.panel, .kpi, .table-wrap, section, div'));
+    blocks.forEach(el => {{
+      const h = el.querySelector && el.querySelector('h1,h2,h3,.panel-head,.report-title');
+      const title = h ? norm(h.textContent) : '';
+      if (title && needles.some(n => title.includes(n))) el.style.display = 'none';
     }});
   }}
   function applyTabs() {{
@@ -825,7 +965,7 @@ window.DAWIYAT_RBAC = {{
       const ok = allowed.has(btn.dataset.tab);
       btn.style.display = ok ? '' : 'none';
     }});
-    ['overview','performance','tables','decision','pmo','perf-explanation'].forEach(tab => {{
+    ['overview','performance','tables','decision','pmo','perf-explanation','reports'].forEach(tab => {{
       const sec = document.getElementById('tab-' + tab);
       if (sec && !allowed.has(tab)) sec.classList.add('hidden');
     }});
@@ -836,13 +976,14 @@ window.DAWIYAT_RBAC = {{
       if (typeof window.setTab === 'function') window.setTab(first);
       else {{
         document.querySelectorAll('.tab[data-tab]').forEach(t => t.classList.toggle('active', t.dataset.tab === first));
-        ['overview','performance','tables','decision','pmo','perf-explanation'].forEach(tab => {{
+        ['overview','performance','tables','decision','pmo','perf-explanation','reports'].forEach(tab => {{
           const sec = document.getElementById('tab-' + tab);
           if (sec) sec.classList.toggle('hidden', tab !== first);
         }});
       }}
     }}
     hideExportButtons();
+    hideTablesByText();
   }}
   document.addEventListener('DOMContentLoaded', applyTabs);
   setTimeout(applyTabs, 800);
@@ -1082,6 +1223,10 @@ def smart_alerts_dataframe() -> pd.DataFrame:
 
 
 def smart_alerts_page() -> None:
+    if not can("alerts"):
+        st.error("You do not have permission to access Smart Alerts.")
+        return
+
     st.title("🚨 Smart Alerts Dashboard")
     st.caption("Early-warning executive module based on current uploaded CSV data.")
 
@@ -1153,6 +1298,10 @@ def send_alert_email(recipients: str, df: pd.DataFrame) -> Tuple[bool, str]:
 
 
 def ai_assistant_page() -> None:
+    if not can("assistant"):
+        st.error("You do not have permission to access AI Assistant.")
+        return
+
     st.title("🤖 AI Executive Assistant بالعربي")
     st.caption("Connected to the latest uploaded CSV files.")
 
@@ -1566,6 +1715,10 @@ def upload_widget_for_document_type(service, link_code: str, link_folder_id: str
 
 
 def document_upload_page() -> None:
+    if not can("documents"):
+        st.error("You do not have permission to access Document Upload Center.")
+        return
+
     top_left, top_right = st.columns([1, .22])
     with top_left:
         st.title("📂 Document Upload Center")
@@ -3243,6 +3396,10 @@ def build_ppt_report(selected_reports: List[str], rows: pd.DataFrame | None = No
     return out.getvalue()
 
 def executive_ppt_builder_page() -> None:
+    if not can("export_ppt"):
+        st.error("You do not have permission to generate PowerPoint presentations.")
+        return
+
     st.title("📊 Executive PPT Builder")
     st.caption("V40 Board Snapshot Edition — every selected Executive Report is exported as one full-slide image, avoiding split tables and scrollbars.")
 
@@ -3388,6 +3545,10 @@ def executive_ppt_builder_page() -> None:
 
 
 def reports_page() -> None:
+    if not can("reports"):
+        st.error("You do not have permission to access Executive Reports.")
+        return
+
     st.title("📄 Executive Reports")
     st.caption("Download PDF Executive Report based on current CSV data.")
 
@@ -3404,6 +3565,10 @@ def reports_page() -> None:
 
 
 def admin_page() -> None:
+    if not can("admin"):
+        st.error("You do not have permission to access Admin Board.")
+        return
+
     st.title("⚙️ Executive Admin Board")
     if not can("admin"):
         st.error("Admin permission required.")
@@ -3577,22 +3742,7 @@ def main() -> None:
         st.markdown("### Dawiyat PMO Portal V2")
         st.caption(f"User: {st.session_state.get('username','')}")
 
-        pages = []
-        if can("dashboard"):
-            pages.append("Dashboard")
-        if can("assistant"):
-            pages.append("AI Executive Assistant")
-        if can("alerts"):
-            pages.append("Smart Alerts")
-        if can("reports"):
-            pages.append("Executive Reports")
-            pages.append("📊 Executive PPT Builder")
-        if can("upload"):
-            pages.append("Upload CSV")
-        if can("documents"):
-            pages.append("📤 Document Upload Center")
-        if can("admin"):
-            pages.append("Admin Board")
+        pages = allowed_pages_for_current_user()
         if not pages:
             pages = ["Dashboard"]
 

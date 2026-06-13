@@ -180,3 +180,29 @@ Optional Streamlit Secrets:
 secret = "PUT_A_LONG_RANDOM_SECRET_HERE"
 ```
 If omitted, the app uses a deterministic fallback. For production, add a long random session secret.
+
+
+## V41 Enterprise Permission Management
+
+Supports page, dashboard tab, export, button, and table visibility control from Streamlit Secrets.
+
+Example:
+
+```toml
+[users.tamer_solyman]
+password = "Tamer@12345$"
+role = "finance"
+
+[users.board_member_1]
+password = "Board@12345"
+role = "board"
+pages = ["Dashboard", "Executive Reports", "📊 Executive PPT Builder"]
+dashboard_tabs = ["overview", "performance", "reports"]
+export_excel = false
+export_pdf = true
+export_ppt = true
+hide_buttons = ["Export Excel", "Upload", "Delete"]
+hide_tables = ["PMO Audit", "Missing MET Actual", "Raw Data"]
+```
+
+After changing Secrets, save and reboot the app.
