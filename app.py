@@ -1200,9 +1200,13 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     hide_excel_components = json.dumps(_as_list(policy.get("hide_excel_components")))
     hide_pdf_components = json.dumps(_as_list(policy.get("hide_pdf_components")))
     hide_ppt_components = json.dumps(_as_list(policy.get("hide_ppt_components")))
+    all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
+    denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
+    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
 
     portal_patch = f"""
 <style>
+{{deny_tab_css}}
 .file-label, #apply-imports {{ display: none !important; }}
 .header-actions::after {{
     content: "Data linked directly from Version 2 Executive Portal";
@@ -1233,7 +1237,22 @@ window.DAWIYAT_RBAC = {{
   hidePptComponents: {hide_ppt_components}
 }};
 (function applyDawiyatRBAC() {{
+  let rbacApplying = false;
   function norm(t) {{ return (t || '').replace(/\s+/g,' ').trim().toLowerCase(); }}
+  function softNorm(t) {{
+    return norm(t)
+      .replace(/executive/g, '')
+      .replace(/[–—-]/g, ' ')
+      .replace(/&/g, ' and ')
+      .replace(/[^a-z0-9؀-ۿ ]/g, ' ')
+      .replace(/\s+/g,' ')
+      .trim();
+  }}
+  function titleMatches(title, needle) {{
+    const a = softNorm(title), b = softNorm(needle);
+    if (!a || !b) return false;
+    return a.includes(b) || b.includes(a);
+  }}
   function hideExportButtons() {{
     const cfg = window.DAWIYAT_RBAC || {{}};
     const buttons = Array.from(document.querySelectorAll('button, a, .btn'));
@@ -1260,12 +1279,15 @@ window.DAWIYAT_RBAC = {{
   }}
   function hideTablesByText() {{
     const cfg = window.DAWIYAT_RBAC || {{}};
-    const needles = (cfg.hideTables || []).map(x => String(x || '').toLowerCase()).filter(Boolean);
+    const needles = (cfg.hideTables || []).map(x => String(x || '')).filter(Boolean);
     if (!needles.length) return;
-    const blocks = Array.from(document.querySelectorAll('.panel, .kpi, .table-wrap, section, div'));
+    const blocks = Array.from(document.querySelectorAll('.panel, .kpi, .table-wrap, section, .report-card, .report-section'));
     blocks.forEach(el => {{
       const title = blockTitle(el);
-      if (title && needles.some(n => title.includes(n))) el.style.display = 'none';
+      if (title && needles.some(n => titleMatches(title, n))) {{
+        el.style.setProperty('display', 'none', 'important');
+        el.style.setProperty('visibility', 'hidden', 'important');
+      }}
     }});
   }}
   function hideComponentExportButtons() {{
@@ -1274,9 +1296,9 @@ window.DAWIYAT_RBAC = {{
     blocks.forEach(block => {{
       const title = blockTitle(block);
       if (!title) return;
-      const hideExcel = (cfg.hideExcelComponents || []).some(n => title.includes(String(n).toLowerCase()));
-      const hidePdf = (cfg.hidePdfComponents || []).some(n => title.includes(String(n).toLowerCase()));
-      const hidePpt = (cfg.hidePptComponents || []).some(n => title.includes(String(n).toLowerCase()));
+      const hideExcel = (cfg.hideExcelComponents || []).some(n => titleMatches(title, n));
+      const hidePdf = (cfg.hidePdfComponents || []).some(n => titleMatches(title, n));
+      const hidePpt = (cfg.hidePptComponents || []).some(n => titleMatches(title, n));
       if (!hideExcel && !hidePdf && !hidePpt) return;
       Array.from(block.querySelectorAll('button, a, .btn')).forEach(el => {{
         const txt = norm(el.textContent);
@@ -1287,16 +1309,20 @@ window.DAWIYAT_RBAC = {{
     }});
   }}
   function applyTabs() {{
+    if (rbacApplying) return;
+    rbacApplying = true;
     const cfg = window.DAWIYAT_RBAC || {{ allowedTabs: ['overview'] }};
     const allowed = new Set(cfg.allowedTabs || ['overview']);
     document.body.classList.add('role-' + (cfg.role || 'viewer'));
     document.querySelectorAll('.tab[data-tab]').forEach(btn => {{
       const ok = allowed.has(btn.dataset.tab);
-      btn.style.display = ok ? '' : 'none';
+      if (ok) {{ btn.style.removeProperty('display'); btn.style.removeProperty('visibility'); }}
+      else {{ btn.style.setProperty('display','none','important'); btn.style.setProperty('visibility','hidden','important'); }}
     }});
     ['overview','performance','tables','decision','pmo','perf-explanation','reports'].forEach(tab => {{
       const sec = document.getElementById('tab-' + tab);
-      if (sec && !allowed.has(tab)) sec.classList.add('hidden');
+      if (sec && !allowed.has(tab)) {{ sec.classList.add('hidden'); sec.style.setProperty('display','none','important'); }}
+      if (sec && allowed.has(tab)) {{ sec.style.removeProperty('display'); }}
     }});
     const active = document.querySelector('.tab.active[data-tab]');
     const activeAllowed = active && allowed.has(active.dataset.tab);
@@ -1314,10 +1340,17 @@ window.DAWIYAT_RBAC = {{
     hideExportButtons();
     hideTablesByText();
     hideComponentExportButtons();
+    rbacApplying = false;
   }}
   document.addEventListener('DOMContentLoaded', applyTabs);
+  setTimeout(applyTabs, 250);
   setTimeout(applyTabs, 800);
   setTimeout(applyTabs, 1800);
+  setTimeout(applyTabs, 3500);
+  try {{
+    const mo = new MutationObserver(() => setTimeout(applyTabs, 60));
+    mo.observe(document.body, {{childList:true, subtree:true, attributes:true, attributeFilter:['class','style']}});
+  }} catch(e) {{}}
 }})();
 </script>
 """

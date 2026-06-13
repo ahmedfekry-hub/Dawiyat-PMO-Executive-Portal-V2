@@ -233,3 +233,10 @@ data/permissions.xlsx
 4. Reboot the Streamlit app.
 
 Secrets are still supported and can override Excel permissions when needed.
+
+## V42.3 Strict RBAC Rendering Fix
+
+- Disallowed dashboard tabs are now hidden with hard CSS and repeated JS enforcement.
+- Component/table matching now ignores the word Executive and punctuation differences, so `Executive SOR Summary` also matches dashboard title `SOR Summary`.
+- MutationObserver keeps permissions applied after dashboard re-rendering.
+- If a page is visible but all components inside it are set to `No`, the page may show only filters. Set the required components to `Yes` in `Role_Component_Access` or `User_Override`.
