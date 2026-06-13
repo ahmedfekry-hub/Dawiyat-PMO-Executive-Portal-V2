@@ -1189,8 +1189,8 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
         return html
 
     role = current_role()
-    policy = role_policy(role)
-    allowed_tabs = json.dumps(allowed_dashboard_tabs(role))
+    policy = user_policy()
+    allowed_tabs = json.dumps(allowed_dashboard_tabs())
     hide_excel = "true" if not policy.get("export_excel", False) else "false"
     hide_pdf = "true" if not policy.get("export_pdf", False) else "false"
     hide_all_exports = "true" if not policy.get("export", False) else "false"
@@ -1426,7 +1426,7 @@ def render_dashboard() -> None:
             st.session_state["force_document_upload_center"] = True
             st.rerun()
 
-    if can("reports"):
+    if can("export_ppt") or can("ppt_builder"):
         st.markdown(
             """
             <div class="upload-center-hero">
