@@ -240,3 +240,18 @@ Secrets are still supported and can override Excel permissions when needed.
 - Component/table matching now ignores the word Executive and punctuation differences, so `Executive SOR Summary` also matches dashboard title `SOR Summary`.
 - MutationObserver keeps permissions applied after dashboard re-rendering.
 - If a page is visible but all components inside it are set to `No`, the page may show only filters. Set the required components to `Yes` in `Role_Component_Access` or `User_Override`.
+
+
+## V43 User-Based Permission Engine
+
+V43 removes role-based permission decisions. The `Role` column in `Users` is now only a display label / department.
+
+The app reads permissions directly from:
+
+- `Users`
+- `User_Page_Access`
+- `User_Component_Access`
+
+Legacy sheets such as `Role_Page_Access`, `Role_Component_Access`, and `User_Override` are no longer required for day-to-day permission control.
+
+After changing `data/permissions.xlsx`, reboot the Streamlit app.

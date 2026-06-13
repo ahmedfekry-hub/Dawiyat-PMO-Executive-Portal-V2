@@ -623,14 +623,15 @@ def _excel_permission_available() -> bool:
 
 
 def get_excel_user_records() -> Tuple[Dict[str, Dict[str, str]], List[str]]:
-    """Return active users and inactive usernames from permissions.xlsx.
-    Active=No removes same username from Secrets/fallback.
+    """V43: Return active users from permissions.xlsx.
+    The Role/Department column is display-only and is no longer used for permissions.
+    Active=No removes the same username from Secrets/fallback users.
     """
     sheets = _read_permissions_excel()
     if "Users" not in sheets:
         return {}, []
     df = sheets["Users"].fillna("")
-    required = {"Username", "Password", "Role"}
+    required = {"Username", "Password"}
     if not required.issubset(set(df.columns)):
         return {}, []
 
@@ -639,7 +640,8 @@ def get_excel_user_records() -> Tuple[Dict[str, Dict[str, str]], List[str]]:
     for _, row in df.iterrows():
         username = _excel_clean(row.get("Username"))
         password = _excel_clean(row.get("Password"))
-        role = _excel_clean(row.get("Role")).lower() or "viewer"
+        role = _excel_clean(row.get("Role")) or _excel_clean(row.get("Department")) or "user"
+        role_key = str(role).lower()
         active = _excel_clean(row.get("Active")).lower() or "yes"
         if not username:
             continue
@@ -648,9 +650,8 @@ def get_excel_user_records() -> Tuple[Dict[str, Dict[str, str]], List[str]]:
             continue
         if not password:
             continue
-        if role not in ROLE_PERMISSIONS:
-            role = "viewer"
-        active_users[username] = {"password": password, "role": role}
+        # Keep the value for display only. If it is not a built-in role, current_role will safely fallback.
+        active_users[username] = {"password": password, "role": role_key}
     return active_users, inactive_users
 
 
@@ -700,6 +701,133 @@ def _page_display_name(page_name: str) -> str:
     if text == "Document Upload Center":
         return "📤 Document Upload Center"
     return text
+
+
+
+def get_user_based_policy_from_excel(username: str) -> Dict:
+    """V43 User-Based Permission Engine.
+    Permissions are taken from:
+      - Users: login + Active only
+      - User_Page_Access: page/tab access by Username
+      - User_Component_Access: component/table visibility and export buttons by Username
+    Role sheets are ignored for permissions.
+    """
+    sheets = _read_permissions_excel()
+    username = str(username or "").strip()
+    if not username:
+        return {}
+
+    policy: Dict[str, Any] = {
+        "dashboard": False,
+        "assistant": False,
+        "alerts": False,
+        "reports": False,
+        "admin": False,
+        "upload": False,
+        "email": False,
+        "documents": False,
+        "ppt_builder": False,
+        "export": False,
+        "export_excel": False,
+        "export_pdf": False,
+        "export_ppt": False,
+        "pages": [],
+        "dashboard_tabs": [],
+        "hide_buttons": [],
+        "hide_tables": [],
+        "show_tables": [],
+        "hide_excel_components": [],
+        "hide_pdf_components": [],
+        "hide_ppt_components": [],
+    }
+
+    pages: List[str] = []
+    tabs: List[str] = []
+
+    # Page access by username
+    if "User_Page_Access" in sheets:
+        df = sheets["User_Page_Access"].fillna("")
+        if "Username" in df.columns:
+            rows = df[df["Username"].astype(str).str.strip().str.lower() == username.lower()]
+            if not rows.empty:
+                row = rows.iloc[0]
+                for col in df.columns:
+                    if col == "Username":
+                        continue
+                    enabled = _excel_bool(row.get(col), False)
+                    display = _page_display_name(col)
+                    tab = _page_name_to_dashboard_tab(col)
+                    key = _page_name_to_key(col)
+                    if enabled:
+                        if display and display not in pages:
+                            pages.append(display)
+                        if tab and tab not in tabs:
+                            tabs.append(tab)
+                        if key:
+                            policy[key] = True
+                    else:
+                        if key:
+                            policy[key] = False
+
+    # If any dashboard tab is enabled, include Dashboard container page.
+    if tabs and "Dashboard" not in pages:
+        pages.insert(0, "Dashboard")
+
+    # Component/table access by username
+    show_tables: List[str] = []
+    hide_tables: List[str] = []
+    hide_excel_components: List[str] = []
+    hide_pdf_components: List[str] = []
+    hide_ppt_components: List[str] = []
+    any_excel = False
+    any_pdf = False
+    any_ppt = False
+
+    if "User_Component_Access" in sheets:
+        df = sheets["User_Component_Access"].fillna("")
+        if "Username" in df.columns:
+            rows = df[df["Username"].astype(str).str.strip().str.lower() == username.lower()]
+            for _, row in rows.iterrows():
+                component = _excel_clean(row.get("Component / Table"))
+                if not component:
+                    continue
+                show = _excel_bool(row.get("Show"), False)
+                ex_excel = _excel_bool(row.get("Export Excel"), False)
+                ex_pdf = _excel_bool(row.get("Export PDF"), False)
+                ex_ppt = _excel_bool(row.get("Export PPT"), False)
+
+                if show:
+                    show_tables.append(component)
+                    if ex_excel:
+                        any_excel = True
+                    else:
+                        hide_excel_components.append(component)
+                    if ex_pdf:
+                        any_pdf = True
+                    else:
+                        hide_pdf_components.append(component)
+                    if ex_ppt:
+                        any_ppt = True
+                    else:
+                        hide_ppt_components.append(component)
+                else:
+                    hide_tables.append(component)
+                    hide_excel_components.append(component)
+                    hide_pdf_components.append(component)
+                    hide_ppt_components.append(component)
+
+    policy["pages"] = pages
+    policy["dashboard_tabs"] = tabs
+    policy["show_tables"] = show_tables
+    policy["hide_tables"] = hide_tables
+    policy["hide_excel_components"] = list(dict.fromkeys(hide_excel_components))
+    policy["hide_pdf_components"] = list(dict.fromkeys(hide_pdf_components))
+    policy["hide_ppt_components"] = list(dict.fromkeys(hide_ppt_components))
+    policy["export_excel"] = any_excel
+    policy["export_pdf"] = any_pdf
+    policy["export_ppt"] = any_ppt or bool(policy.get("ppt_builder"))
+    policy["export"] = bool(policy.get("export_excel") or policy.get("export_pdf") or policy.get("export_ppt"))
+    return policy
 
 
 def get_excel_role_policy(role: str) -> Dict:
@@ -952,40 +1080,28 @@ def get_user_override_from_secrets(username: str) -> Dict:
     return {}
 
 def user_policy(username: str | None = None, role: str | None = None) -> Dict:
+    """V43: user-only permission policy.
+    Role is used for display only. No role-based page/component permissions are applied.
+    """
     username = username or str(st.session_state.get("username", "")).strip()
-    role = (role or current_role()).lower()
-    base = ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["viewer"])
-    policy = dict(base)
-    policy = _merge_policy(policy, get_excel_role_policy(role))
-    policy = _merge_policy(policy, get_roles_override_from_secrets(role))
     if username:
-        excel_override = get_excel_user_override(username)
-        pages = _as_list(policy.get("pages"))
-        tabs = _as_list(policy.get("dashboard_tabs"))
-        for p in _as_list(excel_override.pop("_pages_add", [])):
-            if p and p not in pages: pages.append(p)
-        for p in _as_list(excel_override.pop("_pages_remove", [])):
-            pages = [x for x in pages if x != p]
-        for t in _as_list(excel_override.pop("_tabs_add", [])):
-            if t and t not in tabs: tabs.append(t)
-        for t in _as_list(excel_override.pop("_tabs_remove", [])):
-            tabs = [x for x in tabs if x != t]
-        policy["pages"] = pages
-        policy["dashboard_tabs"] = tabs
-
-        old_hidden = set(_as_list(policy.get("hide_tables")))
-        shown = set(_as_list(excel_override.get("show_tables")))
-        hidden = set(_as_list(excel_override.get("hide_tables")))
-        old_hidden -= shown
-        old_hidden |= hidden
-        policy["hide_tables"] = list(old_hidden)
-        for list_key in ["hide_buttons", "hide_excel_components", "hide_pdf_components", "hide_ppt_components"]:
-            policy[list_key] = list(set(_as_list(policy.get(list_key))) | set(_as_list(excel_override.get(list_key))))
-        for k, v in excel_override.items():
-            if k not in ["show_tables", "hide_tables", "hide_buttons", "hide_excel_components", "hide_pdf_components", "hide_ppt_components"]:
-                policy[k] = v
+        policy = get_user_based_policy_from_excel(username)
+        # Optional emergency user-specific Secret override only.
         policy = _merge_policy(policy, get_user_override_from_secrets(username))
-    return policy
+        return policy
+
+    # Before login, keep the minimum safe policy.
+    return {
+        "dashboard": True,
+        "pages": ["Dashboard"],
+        "dashboard_tabs": ["overview"],
+        "export": False,
+        "export_excel": False,
+        "export_pdf": False,
+        "export_ppt": False,
+        "hide_buttons": ["Export", "Upload", "Delete", "Import"],
+        "hide_tables": [],
+    }
 
 
 def allowed_pages_for_current_user() -> List[str]:
@@ -1005,13 +1121,13 @@ def allowed_pages_for_current_user() -> List[str]:
     return out or ["Dashboard"]
 
 def current_role() -> str:
-    role = str(st.session_state.get("role", "viewer")).lower()
-    return role if role in ROLE_PERMISSIONS else "viewer"
+    # V43: Role/Department is display-only.
+    return str(st.session_state.get("role", "user")).lower() or "user"
 
 
 def role_policy(role: str | None = None) -> Dict:
-    role = (role or current_role()).lower()
-    return ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["viewer"])
+    # Legacy compatibility only. Permissions are user-based in V43.
+    return user_policy()
 
 
 def can(permission: str) -> bool:
@@ -3933,7 +4049,7 @@ def admin_page() -> None:
         return
 
     st.title("⚙️ V42.1 Excel Permission Engine")
-    st.caption("Manage users, pages, tables/components and export permissions through data/permissions.xlsx.")
+    st.caption("Manage all permissions directly per Username through data/permissions.xlsx. Role/Department is display-only.")
 
     st.subheader("Permission Workbook")
     c1, c2, c3 = st.columns(3)
@@ -3965,7 +4081,7 @@ def admin_page() -> None:
         policy = user_policy(username=username, role=role)
         users_table.append({
             "Username": username,
-            "Role": ROLE_DISPLAY_NAMES.get(role, role.title()),
+            "Department": role.title(),
             "Pages": ", ".join(_as_list(policy.get("pages"))),
             "Dashboard Tabs": ", ".join(_as_list(policy.get("dashboard_tabs"))),
             "Export Excel": "Yes" if policy.get("export_excel") else "No",
@@ -4058,7 +4174,7 @@ def render_session_bar() -> None:
         <div class="session-bar">
             <div class="session-main">
                 <span class="session-pill">👤 <strong>{username}</strong></span>
-                <span class="session-pill">⚙️ Role: <strong>{role_label}</strong></span>
+                <span class="session-pill">🏢 Department: <strong>{role_label}</strong></span>
                 <span class="session-pill">🕒 Last Login: <strong>{last_login}</strong></span>
                 <span class="session-pill session-active">🔐 Session Active</span>
             </div>
