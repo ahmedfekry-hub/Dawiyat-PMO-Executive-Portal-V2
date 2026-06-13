@@ -206,3 +206,30 @@ hide_tables = ["PMO Audit", "Missing MET Actual", "Raw Data"]
 ```
 
 After changing Secrets, save and reboot the app.
+
+
+
+## V42 Excel Permission Engine
+
+This version can read permissions from:
+
+```text
+data/permissions.xlsx
+```
+
+### Supported sheets
+
+- `Users`: Username, Password, Role, Active
+- `Role_Page_Access`: page visibility by role
+- `Role_Component_Access`: table/component visibility and export permissions by role
+- `User_Override`: optional user-specific exceptions
+- `Reference_Lists`, `How_To_Use`: helper sheets
+
+### How to update permissions
+
+1. Edit `data/permissions.xlsx`.
+2. Set cells to `Yes` or `No`.
+3. Upload the workbook to GitHub inside the `data` folder, or upload it from the Admin Board.
+4. Reboot the Streamlit app.
+
+Secrets are still supported and can override Excel permissions when needed.

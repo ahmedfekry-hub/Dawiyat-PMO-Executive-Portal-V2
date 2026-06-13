@@ -33,6 +33,7 @@ WO_PATH = DATA_DIR / "u_osp_work_order.csv"
 PENALTIES_PATH = DATA_DIR / "Penalties.csv"
 DOC_STATUS_CACHE_PATH = DATA_DIR / "Dawiyat_Document_Status.csv"
 DISTRICT_PATH = DATA_DIR / "District.csv"
+PERMISSIONS_XLSX_PATH = DATA_DIR / "permissions.xlsx"
 
 DATA_FILES = {
     "u_osp_work_order.csv": WO_PATH,
@@ -550,6 +551,261 @@ def _restore_login_from_query_params() -> bool:
     return False
 
 
+
+def _excel_bool(value, default: bool = False) -> bool:
+    text = str(value).strip().lower()
+    if text in ["yes", "y", "true", "1", "on"]:
+        return True
+    if text in ["no", "n", "false", "0", "off"]:
+        return False
+    return default
+
+
+def _excel_clean(value) -> str:
+    if value is None:
+        return ""
+    text = str(value).strip()
+    if text.lower() in ["nan", "none", "null"]:
+        return ""
+    return text
+
+
+def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
+    """Read Excel permission matrix from data/permissions.xlsx.
+    If the file is missing or invalid, the app continues with Secrets/fallback permissions.
+    """
+    if not PERMISSIONS_XLSX_PATH.exists():
+        return {}
+    try:
+        return pd.read_excel(PERMISSIONS_XLSX_PATH, sheet_name=None, dtype=str).copy()
+    except Exception as exc:
+        st.warning(f"Unable to read permissions.xlsx. Falling back to Secrets/default permissions. Details: {exc}")
+        return {}
+
+
+def _excel_permission_available() -> bool:
+    return PERMISSIONS_XLSX_PATH.exists()
+
+
+def get_excel_users() -> Dict[str, Dict[str, str]]:
+    sheets = _read_permissions_excel()
+    if "Users" not in sheets:
+        return {}
+    df = sheets["Users"].fillna("")
+    required = {"Username", "Password", "Role"}
+    if not required.issubset(set(df.columns)):
+        return {}
+
+    out = {}
+    for _, row in df.iterrows():
+        username = _excel_clean(row.get("Username"))
+        password = _excel_clean(row.get("Password"))
+        role = _excel_clean(row.get("Role")).lower() or "viewer"
+        active = _excel_clean(row.get("Active")).lower() or "yes"
+        if not username or not password or active in ["no", "false", "0", "inactive", "disabled"]:
+            continue
+        if role not in ROLE_PERMISSIONS:
+            role = "viewer"
+        out[username] = {"password": password, "role": role}
+    return out
+
+
+def _page_name_to_key(page_name: str) -> str:
+    text = _excel_clean(page_name).lower()
+    mapping = {
+        "executive overview": "dashboard",
+        "tables & exports": "dashboard",
+        "pmo audit": "dashboard",
+        "kpi performance": "dashboard",
+        "performance explanation": "dashboard",
+        "pmo report assistant": "dashboard",
+        "executive reports": "reports",
+        "executive ppt builder": "ppt_builder",
+        "document upload center": "documents",
+        "upload csv": "upload",
+        "smart alerts": "alerts",
+        "ai executive assistant": "assistant",
+        "admin board": "admin",
+    }
+    return mapping.get(text, "")
+
+
+def _page_name_to_dashboard_tab(page_name: str) -> str:
+    text = _excel_clean(page_name).lower()
+    mapping = {
+        "executive overview": "overview",
+        "tables & exports": "tables",
+        "pmo audit": "pmo",
+        "kpi performance": "performance",
+        "performance explanation": "perf-explanation",
+        "pmo report assistant": "decision",
+        "executive reports": "reports",
+    }
+    return mapping.get(text, "")
+
+
+def _page_display_name(page_name: str) -> str:
+    text = _excel_clean(page_name)
+    if text == "Executive PPT Builder":
+        return "📊 Executive PPT Builder"
+    if text == "Document Upload Center":
+        return "📤 Document Upload Center"
+    return text
+
+
+def get_excel_role_policy(role: str) -> Dict:
+    sheets = _read_permissions_excel()
+    role = str(role or "viewer").lower()
+    policy: Dict[str, Any] = {}
+
+    # Role_Page_Access controls pages and dashboard tabs.
+    if "Role_Page_Access" in sheets:
+        df = sheets["Role_Page_Access"].fillna("")
+        if "Role" in df.columns:
+            rrows = df[df["Role"].astype(str).str.lower().str.strip() == role]
+            if not rrows.empty:
+                row = rrows.iloc[0]
+                pages = []
+                tabs = []
+                for col in df.columns:
+                    if col == "Role":
+                        continue
+                    if _excel_bool(row.get(col), False):
+                        display = _page_display_name(col)
+                        if display:
+                            pages.append(display)
+                        tab = _page_name_to_dashboard_tab(col)
+                        if tab:
+                            tabs.append(tab)
+                        key = _page_name_to_key(col)
+                        if key:
+                            policy[key] = True
+                    else:
+                        key = _page_name_to_key(col)
+                        if key:
+                            policy[key] = False
+                if pages:
+                    if "Dashboard" not in pages and tabs:
+                        pages.insert(0, "Dashboard")
+                    policy["pages"] = pages
+                if tabs:
+                    policy["dashboard_tabs"] = tabs
+
+    # Role_Component_Access controls tables/components and export flags.
+    hide_tables = []
+    hide_excel_components = []
+    hide_pdf_components = []
+    hide_ppt_components = []
+    if "Role_Component_Access" in sheets:
+        df = sheets["Role_Component_Access"].fillna("")
+        if "Role" in df.columns:
+            rrows = df[df["Role"].astype(str).str.lower().str.strip() == role]
+            if not rrows.empty:
+                any_excel = False
+                any_pdf = False
+                any_ppt = False
+                for _, row in rrows.iterrows():
+                    component = _excel_clean(row.get("Component / Table"))
+                    if not component:
+                        continue
+                    show = _excel_bool(row.get("Show"), True)
+                    ex_excel = _excel_bool(row.get("Export Excel"), False)
+                    ex_pdf = _excel_bool(row.get("Export PDF"), False)
+                    ex_ppt = _excel_bool(row.get("Export PPT"), False)
+                    if not show:
+                        hide_tables.append(component)
+                    if show and ex_excel:
+                        any_excel = True
+                    elif show:
+                        hide_excel_components.append(component)
+                    if show and ex_pdf:
+                        any_pdf = True
+                    elif show:
+                        hide_pdf_components.append(component)
+                    if show and ex_ppt:
+                        any_ppt = True
+                    elif show:
+                        hide_ppt_components.append(component)
+                policy["hide_tables"] = hide_tables
+                policy["hide_excel_components"] = hide_excel_components
+                policy["hide_pdf_components"] = hide_pdf_components
+                policy["hide_ppt_components"] = hide_ppt_components
+                policy["export_excel"] = any_excel
+                policy["export_pdf"] = any_pdf
+                policy["export_ppt"] = any_ppt
+                policy["export"] = any_excel or any_pdf or any_ppt
+
+    return policy
+
+
+def get_excel_user_override(username: str) -> Dict:
+    sheets = _read_permissions_excel()
+    username = str(username or "").strip()
+    if not username or "User_Override" not in sheets:
+        return {}
+    df = sheets["User_Override"].fillna("")
+    if "Username" not in df.columns:
+        return {}
+    rows = df[df["Username"].astype(str).str.strip().str.lower() == username.lower()]
+    if rows.empty:
+        return {}
+
+    policy: Dict[str, Any] = {}
+    hidden_pages = set()
+    pages_yes = set()
+    hide_tables = set()
+    hide_buttons = set()
+    hide_excel_components = set()
+    hide_pdf_components = set()
+    hide_ppt_components = set()
+
+    for _, row in rows.iterrows():
+        page = _excel_clean(row.get("Page"))
+        comp = _excel_clean(row.get("Component / Table"))
+        show = row.get("Show")
+        ex_excel = row.get("Export Excel")
+        ex_pdf = row.get("Export PDF")
+        ex_ppt = row.get("Export PPT")
+        hbtn = _excel_clean(row.get("Hide Button"))
+
+        if hbtn:
+            hide_buttons.add(hbtn)
+
+        if comp:
+            if not _excel_bool(show, True):
+                hide_tables.add(comp)
+            if not _excel_bool(ex_excel, True):
+                hide_excel_components.add(comp)
+            if not _excel_bool(ex_pdf, True):
+                hide_pdf_components.add(comp)
+            if not _excel_bool(ex_ppt, True):
+                hide_ppt_components.add(comp)
+        elif page:
+            if _excel_bool(show, True):
+                pages_yes.add(_page_display_name(page))
+            else:
+                hidden_pages.add(_page_display_name(page))
+
+    if hide_tables:
+        policy["hide_tables"] = list(hide_tables)
+    if hide_buttons:
+        policy["hide_buttons"] = list(hide_buttons)
+    if hide_excel_components:
+        policy["hide_excel_components"] = list(hide_excel_components)
+    if hide_pdf_components:
+        policy["hide_pdf_components"] = list(hide_pdf_components)
+    if hide_ppt_components:
+        policy["hide_ppt_components"] = list(hide_ppt_components)
+
+    if pages_yes:
+        policy["pages"] = list(pages_yes)
+    if hidden_pages:
+        base_pages = allowed_pages_for_current_user() if st.session_state.get("username") != username else _as_list(user_policy().get("pages"))
+        policy["pages"] = [p for p in base_pages if p not in hidden_pages]
+
+    return policy
+
+
 def get_users() -> Dict[str, Dict[str, str]]:
     """
     Stable role-based user loader.
@@ -581,6 +837,7 @@ def get_users() -> Dict[str, Dict[str, str]]:
         return users
 
     if not raw_users:
+        users.update(get_excel_users())
         return users
 
     try:
@@ -607,6 +864,7 @@ def get_users() -> Dict[str, Dict[str, str]]:
         # Never block login completely because of a malformed Secrets users section.
         return users
 
+    users.update(get_excel_users())
     return users
 
 
@@ -681,8 +939,17 @@ def user_policy(username: str | None = None, role: str | None = None) -> Dict:
     role = (role or current_role()).lower()
     base = ROLE_PERMISSIONS.get(role, ROLE_PERMISSIONS["viewer"])
     policy = dict(base)
+
+    # V42 priority:
+    # 1) built-in role defaults
+    # 2) Excel role matrix from data/permissions.xlsx
+    # 3) Streamlit Secrets role overrides
+    # 4) Excel user-specific overrides
+    # 5) Streamlit Secrets user-specific overrides
+    policy = _merge_policy(policy, get_excel_role_policy(role))
     policy = _merge_policy(policy, get_roles_override_from_secrets(role))
     if username:
+        policy = _merge_policy(policy, get_excel_user_override(username))
         policy = _merge_policy(policy, get_user_override_from_secrets(username))
     return policy
 
@@ -895,6 +1162,9 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     role_label = ROLE_DISPLAY_NAMES.get(role, role.title())
     hide_buttons = json.dumps(_as_list(policy.get("hide_buttons")))
     hide_tables = json.dumps(_as_list(policy.get("hide_tables")))
+    hide_excel_components = json.dumps(_as_list(policy.get("hide_excel_components")))
+    hide_pdf_components = json.dumps(_as_list(policy.get("hide_pdf_components")))
+    hide_ppt_components = json.dumps(_as_list(policy.get("hide_ppt_components")))
 
     portal_patch = f"""
 <style>
@@ -922,7 +1192,10 @@ window.DAWIYAT_RBAC = {{
   hidePdf: {hide_pdf},
   hideAllExports: {hide_all_exports},
   hideButtons: {hide_buttons},
-  hideTables: {hide_tables}
+  hideTables: {hide_tables},
+  hideExcelComponents: {hide_excel_components},
+  hidePdfComponents: {hide_pdf_components},
+  hidePptComponents: {hide_ppt_components}
 }};
 (function applyDawiyatRBAC() {{
   function norm(t) {{ return (t || '').replace(/\s+/g,' ').trim().toLowerCase(); }}
@@ -946,15 +1219,36 @@ window.DAWIYAT_RBAC = {{
       }});
     }});
   }}
+  function blockTitle(el) {{
+    const h = el.querySelector && el.querySelector('h1,h2,h3,.panel-head,.report-title');
+    return h ? norm(h.textContent) : '';
+  }}
   function hideTablesByText() {{
     const cfg = window.DAWIYAT_RBAC || {{}};
     const needles = (cfg.hideTables || []).map(x => String(x || '').toLowerCase()).filter(Boolean);
     if (!needles.length) return;
     const blocks = Array.from(document.querySelectorAll('.panel, .kpi, .table-wrap, section, div'));
     blocks.forEach(el => {{
-      const h = el.querySelector && el.querySelector('h1,h2,h3,.panel-head,.report-title');
-      const title = h ? norm(h.textContent) : '';
+      const title = blockTitle(el);
       if (title && needles.some(n => title.includes(n))) el.style.display = 'none';
+    }});
+  }}
+  function hideComponentExportButtons() {{
+    const cfg = window.DAWIYAT_RBAC || {{}};
+    const blocks = Array.from(document.querySelectorAll('.panel, section, div'));
+    blocks.forEach(block => {{
+      const title = blockTitle(block);
+      if (!title) return;
+      const hideExcel = (cfg.hideExcelComponents || []).some(n => title.includes(String(n).toLowerCase()));
+      const hidePdf = (cfg.hidePdfComponents || []).some(n => title.includes(String(n).toLowerCase()));
+      const hidePpt = (cfg.hidePptComponents || []).some(n => title.includes(String(n).toLowerCase()));
+      if (!hideExcel && !hidePdf && !hidePpt) return;
+      Array.from(block.querySelectorAll('button, a, .btn')).forEach(el => {{
+        const txt = norm(el.textContent);
+        if (hideExcel && (txt.includes('excel') || txt.includes('csv'))) el.style.display = 'none';
+        if (hidePdf && txt.includes('pdf')) el.style.display = 'none';
+        if (hidePpt && (txt.includes('ppt') || txt.includes('presentation') || txt.includes('powerpoint'))) el.style.display = 'none';
+      }});
     }});
   }}
   function applyTabs() {{
@@ -984,6 +1278,7 @@ window.DAWIYAT_RBAC = {{
     }}
     hideExportButtons();
     hideTablesByText();
+    hideComponentExportButtons();
   }}
   document.addEventListener('DOMContentLoaded', applyTabs);
   setTimeout(applyTabs, 800);
@@ -3569,48 +3864,66 @@ def admin_page() -> None:
         st.error("You do not have permission to access Admin Board.")
         return
 
-    st.title("⚙️ Executive Admin Board")
-    if not can("admin"):
-        st.error("Admin permission required.")
-        return
+    st.title("⚙️ V42 Excel Permission Engine")
+    st.caption("Manage users, pages, tables/components and export permissions through data/permissions.xlsx.")
 
-    st.subheader("Users & Roles")
-    st.write("Current user:", st.session_state.get("username"))
-    st.write("Current role:", ROLE_DISPLAY_NAMES.get(current_role(), current_role().title()))
+    st.subheader("Permission Workbook")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("permissions.xlsx", "Found" if PERMISSIONS_XLSX_PATH.exists() else "Missing")
+    c2.metric("Source", "Excel" if PERMISSIONS_XLSX_PATH.exists() else "Secrets / Default")
+    c3.metric("Users", f"{len(get_users()):,}")
 
+    if PERMISSIONS_XLSX_PATH.exists():
+        with open(PERMISSIONS_XLSX_PATH, "rb") as f:
+            st.download_button(
+                "⬇️ Download Current permissions.xlsx",
+                data=f.read(),
+                file_name="permissions.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+
+    uploaded_perm = st.file_uploader("Upload / Replace permissions.xlsx", type=["xlsx"], key="permission_xlsx_upload")
+    if uploaded_perm is not None:
+        DATA_DIR.mkdir(exist_ok=True)
+        PERMISSIONS_XLSX_PATH.write_bytes(uploaded_perm.getbuffer())
+        st.success("permissions.xlsx uploaded successfully. Please reboot the app to apply the new permissions for all users.")
+        st.rerun()
+
+    st.subheader("Active Users & Effective Permissions")
     users_table = []
     for username, data in get_users().items():
         role = str(data.get("role", "viewer")).lower()
-        policy = role_policy(role)
+        policy = user_policy(username=username, role=role)
         users_table.append({
             "Username": username,
             "Role": ROLE_DISPLAY_NAMES.get(role, role.title()),
-            "Dashboard Tabs": ", ".join(policy.get("dashboard_tabs", [])),
-            "Upload CSV": "Yes" if policy.get("upload") else "No",
-            "Documents": "Yes" if policy.get("documents") else "No",
+            "Pages": ", ".join(_as_list(policy.get("pages"))),
+            "Dashboard Tabs": ", ".join(_as_list(policy.get("dashboard_tabs"))),
             "Export Excel": "Yes" if policy.get("export_excel") else "No",
             "Export PDF": "Yes" if policy.get("export_pdf") else "No",
-            "Admin Board": "Yes" if policy.get("admin") else "No",
+            "Export PPT": "Yes" if policy.get("export_ppt") else "No",
+            "Upload CSV": "Yes" if policy.get("upload") else "No",
+            "Documents": "Yes" if policy.get("documents") else "No",
+            "Hidden Tables": ", ".join(_as_list(policy.get("hide_tables"))),
+            "Hidden Buttons": ", ".join(_as_list(policy.get("hide_buttons"))),
         })
     st.dataframe(pd.DataFrame(users_table), use_container_width=True, hide_index=True)
 
-    st.subheader("Role Matrix")
-    role_rows = []
-    for role, policy in ROLE_PERMISSIONS.items():
-        role_rows.append({
-            "Role": ROLE_DISPLAY_NAMES.get(role, role.title()),
-            "Dashboard Pages": ", ".join(policy.get("dashboard_tabs", [])),
-            "Upload CSV": "Yes" if policy.get("upload") else "No",
-            "Export": "Excel/PDF" if policy.get("export_excel") and policy.get("export_pdf") else ("PDF only" if policy.get("export_pdf") else "No"),
-            "Smart Alerts": "Yes" if policy.get("alerts") else "No",
-            "Document Center": "Yes" if policy.get("documents") else "No",
-            "Admin": "Yes" if policy.get("admin") else "No",
-        })
-    st.dataframe(pd.DataFrame(role_rows), use_container_width=True, hide_index=True)
+    st.subheader("Excel Sheet Structure")
+    st.markdown("""
+The Excel permission workbook must contain these sheets:
+
+- **Users**: Username, Password, Role, Active
+- **Role_Page_Access**: Yes/No page permissions by Role
+- **Role_Component_Access**: Yes/No Show + Export Excel/PDF/PPT by Role and Component/Table
+- **User_Override**: optional exceptions for a specific Username
+- **Reference_Lists** and **How_To_Use**: helper sheets
+""")
 
     st.subheader("Data Files")
     rows = []
-    for name, path in DATA_FILES.items():
+    for name, path in {**DATA_FILES, "permissions.xlsx": PERMISSIONS_XLSX_PATH}.items():
         rows.append({
             "File": name,
             "Exists": path.exists(),
@@ -3619,44 +3932,7 @@ def admin_page() -> None:
         })
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    st.subheader("Backups")
-    backups = sorted(BACKUP_DIR.glob("*"), reverse=True)
-    if backups:
-        st.dataframe(pd.DataFrame([{
-            "Backup": b.name,
-            "Size KB": round(b.stat().st_size / 1024, 1),
-            "Modified": datetime.fromtimestamp(b.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S"),
-        } for b in backups]), use_container_width=True, hide_index=True)
-    else:
-        st.info("No backups yet.")
-
-    st.subheader("Google Drive Upload Configuration")
-    st.code("""
-[google_drive]
-root_folder_id = "PASTE_LINK_CODES_FOLDER_ID"
-
-[google_service_account]
-type = "service_account"
-project_id = "your-project-id"
-private_key_id = "..."
-private_key = "-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----\n"
-client_email = "your-service-account@your-project.iam.gserviceaccount.com"
-client_id = "..."
-token_uri = "https://oauth2.googleapis.com/token"
-    """.strip())
-
-    st.subheader("Email Configuration")
-    st.code(
-        """
-[email]
-smtp_host = "smtp.office365.com"
-smtp_port = 587
-smtp_user = "your-email@company.com"
-smtp_password = "your-password-or-app-password"
-sender = "your-email@company.com"
-        """.strip()
-    )
-
+    st.info("Normal permission changes should be made in permissions.xlsx. Streamlit Secrets remain useful for service accounts and emergency user overrides.")
 
 
 def render_session_bar() -> None:
