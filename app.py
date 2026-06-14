@@ -994,8 +994,30 @@ def user_policy(username: str | None = None, role: str | None = None) -> Dict:
     username = username or str(st.session_state.get("username", "")).strip()
     if username:
         policy = get_user_based_policy_from_excel(username)
+
+        # V3 hard rule requested by Ahmed:
+        # Admin Board is user-based and visible only for username ahmedfekry,
+        # regardless of any legacy Role/Department value or old workbook cache.
+        if _is_admin_board_owner(username):
+            policy["admin"] = True
+            pages = _as_list(policy.get("pages"))
+            if "Admin Board" not in pages:
+                pages.append("Admin Board")
+            policy["pages"] = pages
+        else:
+            policy["admin"] = False
+            policy["pages"] = [p for p in _as_list(policy.get("pages")) if p != "Admin Board"]
+
         # Optional emergency user-specific Secret override only.
         policy = _merge_policy(policy, get_user_override_from_secrets(username))
+
+        # Re-apply the hard gate after any emergency override.
+        if not _is_admin_board_owner(username):
+            policy["admin"] = False
+            policy["pages"] = [p for p in _as_list(policy.get("pages")) if p != "Admin Board"]
+        elif "Admin Board" not in _as_list(policy.get("pages")):
+            policy["pages"] = _as_list(policy.get("pages")) + ["Admin Board"]
+
         return policy
 
     # Before login, keep the minimum safe policy.
@@ -1040,6 +1062,12 @@ def role_policy(role: str | None = None) -> Dict:
 
 def can(permission: str) -> bool:
     return bool(user_policy().get(permission, False))
+
+
+def _is_admin_board_owner(username: str | None = None) -> bool:
+    """Hard security gate: Admin Board is visible only for ahmedfekry."""
+    username = username or str(st.session_state.get("username", "")).strip()
+    return str(username or "").strip().lower() == "ahmedfekry"
 
 
 
@@ -1509,6 +1537,21 @@ def render_dashboard() -> None:
         st.write(f"Work Orders: {len(raw['workorders']):,}")
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
+
+    # Admin Board quick access must be visible for ahmedfekry without opening the collapsed sidebar.
+    if can("admin") and _is_admin_board_owner():
+        st.markdown(
+            """
+            <div class="upload-center-hero" style="border-color:#fbbf24;background:#fff8e6;">
+                <div class="uc-title">⚙️ Admin Board</div>
+                <div class="uc-subtitle">User-Based Permissions Only: Active Users, Page Access, Component Access, Auto Refresh.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        if st.button("⚙️ Open Admin Board", use_container_width=True, type="primary"):
+            st.session_state["force_admin_board"] = True
+            st.rerun()
 
     # Clear guidance: file upload is a native Streamlit page, not inside the HTML iframe.
     if can("documents"):
@@ -4172,7 +4215,7 @@ def main() -> None:
     role = st.session_state.get("role", "user")
 
     with st.sidebar:
-        st.markdown("### Dawiyat PMO Portal V2")
+        st.markdown("### Dawiyat PMO Portal V3")
         st.caption(f"User: {st.session_state.get('username','')}")
 
         pages = allowed_pages_for_current_user()
@@ -4193,6 +4236,10 @@ def main() -> None:
         if st.session_state.get("force_ppt_builder") and "📊 Executive PPT Builder" in pages:
             st.session_state["main_nav"] = "📊 Executive PPT Builder"
             st.session_state["force_ppt_builder"] = False
+
+        if st.session_state.get("force_admin_board") and "Admin Board" in pages:
+            st.session_state["main_nav"] = "Admin Board"
+            st.session_state["force_admin_board"] = False
 
         if st.session_state.get("force_dashboard") and "Dashboard" in pages:
             st.session_state["main_nav"] = "Dashboard"
