@@ -543,7 +543,7 @@ def _restore_login_from_query_params() -> bool:
     if hmac.compare_digest(signature, expected):
         st.session_state["authenticated"] = True
         st.session_state["username"] = username
-        st.session_state["role"] = expected_role if expected_role in ROLE_PERMISSIONS else "viewer"
+        st.session_state["role"] = expected_role or "user"
         st.session_state["last_login"] = _format_login_time(issued_at)
         return True
 
@@ -820,6 +820,11 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                     hide_pdf_components.append(component)
                     hide_ppt_components.append(component)
 
+    # Canonical order and deduplication
+    canonical_pages = ["Dashboard", "AI Executive Assistant", "Smart Alerts", "Executive Reports", "📊 Executive PPT Builder", "Upload CSV", "📤 Document Upload Center", "Admin Board"]
+    pages = [p for p in canonical_pages if p in list(dict.fromkeys(pages))]
+    canonical_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
+    tabs = [t for t in canonical_tabs if t in list(dict.fromkeys(tabs))]
     policy["pages"] = pages
     policy["dashboard_tabs"] = tabs
     policy["show_tables"] = show_tables
@@ -1005,9 +1010,7 @@ def get_users() -> Dict[str, Dict[str, str]]:
                     role = _secret_get(data, "role", "viewer").strip().lower()
                 if not password:
                     continue
-                if role not in ROLE_PERMISSIONS:
-                    role = "viewer"
-                users[username] = {"password": password, "role": role}
+                users[username] = {"password": password, "role": role or "user"}
         except Exception:
             pass
     excel_users, inactive_excel_users = get_excel_user_records()
@@ -1204,8 +1207,7 @@ def login_page() -> bool:
             users = get_users()
             if username in users and password == users[username]["password"]:
                 role = users[username].get("role", "viewer").lower()
-                if role not in ROLE_PERMISSIONS:
-                    role = "viewer"
+                role = role or "user"
                 issued_at = str(int(time.time()))
                 st.session_state["authenticated"] = True
                 st.session_state["username"] = username
@@ -1314,7 +1316,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     hide_excel = "true" if not policy.get("export_excel", False) else "false"
     hide_pdf = "true" if not policy.get("export_pdf", False) else "false"
     hide_all_exports = "true" if not policy.get("export", False) else "false"
-    role_label = ROLE_DISPLAY_NAMES.get(role, role.title())
+    role_label = role.title()
     hide_buttons = json.dumps(_as_list(policy.get("hide_buttons")))
     hide_tables = json.dumps(_as_list(policy.get("hide_tables")))
     hide_excel_components = json.dumps(_as_list(policy.get("hide_excel_components")))
@@ -1322,7 +1324,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     hide_ppt_components = json.dumps(_as_list(policy.get("hide_ppt_components")))
     all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
     denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
-    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
+    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
 
     portal_patch = f"""
 <style>
@@ -1434,7 +1436,7 @@ window.DAWIYAT_RBAC = {{
     const cfg = window.DAWIYAT_RBAC || {{ allowedTabs: ['overview'] }};
     const allowed = new Set(cfg.allowedTabs || ['overview']);
     document.body.classList.add('role-' + (cfg.role || 'viewer'));
-    document.querySelectorAll('.tab[data-tab]').forEach(btn => {{
+    document.querySelectorAll('.tab[data-tab], .report-tab[data-tab], [data-tab]').forEach(btn => {{
       const ok = allowed.has(btn.dataset.tab);
       if (ok) {{ btn.style.removeProperty('display'); btn.style.removeProperty('visibility'); }}
       else {{ btn.style.setProperty('display','none','important'); btn.style.setProperty('visibility','hidden','important'); }}
@@ -4127,7 +4129,7 @@ def render_session_bar() -> None:
     """Visible authenticated session bar shown above every page."""
     username = str(st.session_state.get("username", "") or "User")
     role = str(st.session_state.get("role", "viewer") or "viewer").lower()
-    role_label = ROLE_DISPLAY_NAMES.get(role, role.title())
+    role_label = role.title()
     last_login = str(st.session_state.get("last_login", "") or _format_login_time())
 
     st.markdown(
@@ -4208,7 +4210,7 @@ def main() -> None:
 
         pages = allowed_pages_for_current_user()
         if not pages:
-            pages = ["Dashboard"]
+            pages = ["No Access"]
 
         # IMPORTANT: Streamlit reruns the script after every selectbox/file_uploader/button action.
         # Keep the selected page in session_state so choosing a Link Code inside
@@ -4230,7 +4232,7 @@ def main() -> None:
             st.session_state["force_dashboard"] = False
 
         if st.session_state.get("main_nav") not in pages:
-            st.session_state["main_nav"] = "Dashboard"
+            st.session_state["main_nav"] = pages[0] if pages else "No Access"
 
         page = st.radio(
             "Navigation",
@@ -4241,6 +4243,9 @@ def main() -> None:
 
     render_session_bar()
 
+    if page == "No Access":
+        st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
+        return
     if page == "Dashboard":
         render_dashboard()
     elif page == "AI Executive Assistant":

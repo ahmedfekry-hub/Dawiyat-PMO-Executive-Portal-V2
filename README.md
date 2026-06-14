@@ -255,3 +255,12 @@ The app reads permissions directly from:
 Legacy sheets such as `Role_Page_Access`, `Role_Component_Access`, and `User_Override` are no longer required for day-to-day permission control.
 
 After changing `data/permissions.xlsx`, reboot the Streamlit app.
+
+
+## V43.2 User-Based Permission Final Fix
+
+Fixes:
+- Department/Display Role is no longer forced to Viewer when it is not a legacy role key.
+- Dashboard tab hiding now also targets `report-tab`, so Executive Reports will disappear when not allowed.
+- No automatic fallback to Dashboard when a username has no assigned pages.
+- Latest `data/permissions.xlsx` is included in the package.
