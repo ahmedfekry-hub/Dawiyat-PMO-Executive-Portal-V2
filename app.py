@@ -4045,6 +4045,13 @@ def admin_page() -> None:
         st.error("You do not have permission to access Admin Board.")
         return
 
+    back_col, spacer_col = st.columns([1.5, 6])
+    with back_col:
+        if st.button("← Back to Dashboard", use_container_width=True, key="admin_back_to_dashboard"):
+            st.session_state["force_dashboard"] = True
+            st.session_state["main_nav"] = "Dashboard"
+            st.rerun()
+
     st.title("⚙️ Admin Board")
     st.caption("User-Based Permissions Only: users, page access, component access, exports, and permission auto-refresh are controlled from data/permissions.xlsx.")
 
@@ -4083,7 +4090,6 @@ def admin_page() -> None:
 
     sheets = _read_permissions_excel()
 
-    st.subheader("Active Users")
     users_table = []
     for username, data in get_users().items():
         users_table.append({
@@ -4092,18 +4098,47 @@ def admin_page() -> None:
             "department": str(data.get("department", data.get("role", "user"))).title(),
             "full_name": str(data.get("full_name", data.get("department", data.get("role", "user")))) or username,
         })
-    st.dataframe(pd.DataFrame(users_table), use_container_width=True, hide_index=True)
+    users_df = pd.DataFrame(users_table)
+
+    user_options = ["All Users"] + sorted(users_df["username"].dropna().astype(str).unique().tolist()) if not users_df.empty else ["All Users"]
+    selected_admin_user = st.selectbox(
+        "Filter Admin Board by User",
+        user_options,
+        index=0,
+        key="admin_board_user_filter",
+        help="Filters Active Users, Page Access, and Component Access tables for the selected username.",
+    )
+
+    def _filter_admin_user_df(df: pd.DataFrame) -> pd.DataFrame:
+        if selected_admin_user == "All Users" or df.empty:
+            return df
+        username_col = None
+        for candidate in ["username", "Username", "USER", "User"]:
+            if candidate in df.columns:
+                username_col = candidate
+                break
+        if username_col is None:
+            for col in df.columns:
+                if str(col).strip().lower() == "username":
+                    username_col = col
+                    break
+        if username_col is None:
+            return df
+        return df[df[username_col].astype(str).str.strip().str.lower() == selected_admin_user.strip().lower()]
+
+    st.subheader("Active Users")
+    st.dataframe(_filter_admin_user_df(users_df), use_container_width=True, hide_index=True)
 
     st.subheader("Page Access")
     if "User_Page_Access" in sheets and not sheets["User_Page_Access"].empty:
-        page_df = sheets["User_Page_Access"].fillna("")
+        page_df = _filter_admin_user_df(sheets["User_Page_Access"].fillna(""))
         st.dataframe(page_df, use_container_width=True, hide_index=True)
     else:
         st.warning("User_Page_Access sheet is missing from permissions.xlsx.")
 
     st.subheader("Component Access")
     if "User_Component_Access" in sheets and not sheets["User_Component_Access"].empty:
-        comp_df = sheets["User_Component_Access"].fillna("")
+        comp_df = _filter_admin_user_df(sheets["User_Component_Access"].fillna(""))
         st.dataframe(comp_df, use_container_width=True, hide_index=True)
     else:
         st.warning("User_Component_Access sheet is missing from permissions.xlsx.")

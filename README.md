@@ -305,3 +305,8 @@ This build applies the requested permission model:
 
 ### Important
 Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other users must remain `No`.
+
+## V3 Admin Board UI Fix 2
+- Added visible **← Back to Dashboard** button at the top of Admin Board.
+- Added **Filter Admin Board by User** dropdown.
+- The user filter applies to Active Users, Page Access, and Component Access tables.
