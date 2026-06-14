@@ -979,12 +979,14 @@ def get_roles_override_from_secrets(role: str) -> Dict:
     return {}
 
 def get_user_override_from_secrets(username: str) -> Dict:
-    try:
-        raw_users = st.secrets.get("users", {})
-        if raw_users and username in raw_users:
-            return _secret_to_plain_dict(raw_users[username])
-    except Exception:
-        pass
+    """Disabled by design.
+
+    V3.4 uses permissions.xlsx as the ONLY authority for page, tab, component,
+    and export permissions. Streamlit Secrets may still contain old role/page
+    values from V41/V42, but those values must not override Excel.
+    This fixes the issue where Active=Yes/No changed correctly while page and
+    component permission changes from GitHub did not appear on the dashboard.
+    """
     return {}
 
 def user_policy(username: str | None = None, role: str | None = None) -> Dict:
@@ -1295,7 +1297,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
 
     portal_patch = f"""
 <style>
-{{deny_tab_css}}
+{deny_tab_css}
 .file-label, #apply-imports {{ display: none !important; }}
 .header-actions::after {{
     content: "Data linked directly from Version 2 Executive Portal";
@@ -4069,7 +4071,7 @@ def admin_page() -> None:
             st.session_state["permissions_manual_reload_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.rerun()
     with reload_col2:
-        st.info("V43.3 reads permissions.xlsx from disk on every rerun. After GitHub upload, wait for Streamlit redeploy/reboot, then Logout/Login for the cleanest result.")
+        st.info("V3.4 reads permissions.xlsx from disk on every rerun and ignores old page/component overrides in Streamlit Secrets. After GitHub upload, wait for Streamlit redeploy/reboot, then Logout/Login for the cleanest result.")
 
     if PERMISSIONS_XLSX_PATH.exists():
         with open(PERMISSIONS_XLSX_PATH, "rb") as f:

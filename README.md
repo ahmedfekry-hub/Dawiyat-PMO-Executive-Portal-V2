@@ -310,3 +310,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Added visible **← Back to Dashboard** button at the top of Admin Board.
 - Added **Filter Admin Board by User** dropdown.
 - The user filter applies to Active Users, Page Access, and Component Access tables.
+
+
+## V3.4 Permission Fix
+- permissions.xlsx is now the only authority for page access, dashboard tabs, components, and export buttons.
+- Old page/component values inside Streamlit Secrets are ignored, so GitHub updates to data/permissions.xlsx take effect after Streamlit redeploy/reboot.
+- Active=Yes/No remains controlled from the Users sheet.
+- Dashboard tab CSS injection fixed so hidden tabs disappear immediately.
