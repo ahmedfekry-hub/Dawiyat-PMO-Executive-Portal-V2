@@ -604,7 +604,11 @@ def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
     try:
         raw_sheets = pd.read_excel(PERMISSIONS_XLSX_PATH, sheet_name=None, dtype=str, header=None).copy()
         specs = {
-            "Users": ["Username", "Password", "Role"],
+            "Users": ["Username", "Password"],
+            "User_Page_Access": ["Username", "Executive Overview"],
+            "User_Component_Access": ["Username", "Page", "Component / Table", "Show"],
+            # Legacy sheets are still normalized only for backward compatibility/readability,
+            # but V43 does not use Role-based sheets for permission decisions.
             "Role_Page_Access": ["Role", "Executive Overview"],
             "Role_Component_Access": ["Role", "Page", "Component / Table", "Show"],
             "User_Override": ["Username", "Page", "Component / Table", "Show"],
@@ -1118,7 +1122,7 @@ def allowed_pages_for_current_user() -> List[str]:
     if policy.get("upload"): out.append("Upload CSV")
     if policy.get("documents"): out.append("📤 Document Upload Center")
     if policy.get("admin"): out.append("Admin Board")
-    return out or ["Dashboard"]
+    return out
 
 def current_role() -> str:
     # V43: Role/Department is display-only.
@@ -1136,8 +1140,8 @@ def can(permission: str) -> bool:
 
 def allowed_dashboard_tabs(role: str | None = None) -> List[str]:
     policy = user_policy(role=role) if role else user_policy()
-    tabs = _as_list(policy.get("dashboard_tabs", ["overview"]))
-    return tabs or ["overview"]
+    tabs = _as_list(policy.get("dashboard_tabs"))
+    return tabs
 
 
 def login_page() -> bool:
@@ -4049,7 +4053,7 @@ def admin_page() -> None:
         return
 
     st.title("⚙️ V42.1 Excel Permission Engine")
-    st.caption("Manage all permissions directly per Username through data/permissions.xlsx. Role/Department is display-only.")
+    st.caption("Manage all permissions directly per Username through data/permissions.xlsx. Role/Department is display-only. V43.1 fixes header-row reading for User_Page_Access and User_Component_Access.")
 
     st.subheader("Permission Workbook")
     c1, c2, c3 = st.columns(3)
