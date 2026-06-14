@@ -284,3 +284,24 @@ Recommended operating process:
 2. Upload/commit to GitHub.
 3. Wait for Streamlit Cloud to redeploy, or click Reboot App.
 4. Users should Logout/Login after page-level permission changes.
+
+
+## V44 Admin Board + User-Based Permissions Only
+
+This build applies the requested permission model:
+
+- Added **Admin Board** page visible only to username `ahmedfekry`.
+- Admin Board includes three live sections from `data/permissions.xlsx`:
+  - **Active Users**
+  - **Page Access**
+  - **Component Access**
+- Removed role-based permission logic from the effective permission engine. Department/Role is display only.
+- Effective access is now controlled only by:
+  - `Users`
+  - `User_Page_Access`
+  - `User_Component_Access`
+- Added permission auto-refresh behavior: the app reads `permissions.xlsx` on rerun and tracks file signature/modified time.
+- Improved loading performance by keeping heavy pages/data isolated by navigation and caching the dashboard HTML by modified time.
+
+### Important
+Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other users must remain `No`.
