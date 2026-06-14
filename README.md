@@ -264,3 +264,23 @@ Fixes:
 - Dashboard tab hiding now also targets `report-tab`, so Executive Reports will disappear when not allowed.
 - No automatic fallback to Dashboard when a username has no assigned pages.
 - Latest `data/permissions.xlsx` is included in the package.
+
+
+## V43.3 Permission Auto-Refresh Engine
+
+This edition fixes stale permission behavior after `data/permissions.xlsx` changes.
+
+Key points:
+- Permissions are username-based only.
+- `Role` / `Department` is display-only.
+- The app reads `permissions.xlsx` from disk on every rerun and tracks file signature.
+- If a user is disabled or removed while logged in, the app forces logout on the next rerun.
+- Admin Board includes `Reload Permissions`, current file signature, and last modified timestamp.
+- `User_Component_Access` has been expanded to include all known dashboard tables/sections from `dashboard.html`.
+- Default-deny logic is applied to components: anything listed in the workbook but not explicitly `Show = Yes` for that username is hidden.
+
+Recommended operating process:
+1. Edit `data/permissions.xlsx`.
+2. Upload/commit to GitHub.
+3. Wait for Streamlit Cloud to redeploy, or click Reboot App.
+4. Users should Logout/Login after page-level permission changes.

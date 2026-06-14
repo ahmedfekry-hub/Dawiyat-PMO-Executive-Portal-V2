@@ -595,8 +595,40 @@ def _normalize_permission_sheet(raw_df: pd.DataFrame, required_cols: List[str]) 
     return out
 
 
+
+def _permissions_mtime() -> float:
+    """Return mtime for permissions.xlsx; used to detect GitHub/Admin uploads."""
+    try:
+        return PERMISSIONS_XLSX_PATH.stat().st_mtime if PERMISSIONS_XLSX_PATH.exists() else 0.0
+    except Exception:
+        return 0.0
+
+
+def _permissions_signature() -> str:
+    """Stable signature for the currently mounted permission workbook."""
+    try:
+        if not PERMISSIONS_XLSX_PATH.exists():
+            return "missing"
+        stat = PERMISSIONS_XLSX_PATH.stat()
+        return f"{int(stat.st_mtime)}:{stat.st_size}"
+    except Exception:
+        return str(time.time())
+
+
+def _permissions_last_modified_text() -> str:
+    try:
+        if not PERMISSIONS_XLSX_PATH.exists():
+            return "Missing"
+        return datetime.fromtimestamp(PERMISSIONS_XLSX_PATH.stat().st_mtime).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception:
+        return "Unknown"
+
+
 def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
     """Read Excel permission matrix from data/permissions.xlsx.
+
+    V43.3: intentionally reads from disk every rerun and uses file mtime/signature
+    to avoid stale permission behavior after GitHub updates or Admin uploads.
     Robust against title rows / merged headers in the workbook template.
     """
     if not PERMISSIONS_XLSX_PATH.exists():
@@ -607,8 +639,7 @@ def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
             "Users": ["Username", "Password"],
             "User_Page_Access": ["Username", "Executive Overview"],
             "User_Component_Access": ["Username", "Page", "Component / Table", "Show"],
-            # Legacy sheets are still normalized only for backward compatibility/readability,
-            # but V43 does not use Role-based sheets for permission decisions.
+            # Legacy sheets are normalized only for readability/backward compatibility.
             "Role_Page_Access": ["Role", "Executive Overview"],
             "Role_Component_Access": ["Role", "Page", "Component / Table", "Show"],
             "User_Override": ["Username", "Page", "Component / Table", "Show"],
@@ -616,6 +647,8 @@ def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
         sheets: Dict[str, pd.DataFrame] = {}
         for name, df in raw_sheets.items():
             sheets[name] = _normalize_permission_sheet(df, specs.get(name, [])) if name in specs else df.fillna("")
+        st.session_state["permissions_last_signature"] = _permissions_signature()
+        st.session_state["permissions_last_loaded"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return sheets
     except Exception as exc:
         st.warning(f"Unable to read permissions.xlsx. Falling back to Secrets/default permissions. Details: {exc}")
@@ -790,6 +823,12 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     if "User_Component_Access" in sheets:
         df = sheets["User_Component_Access"].fillna("")
         if "Username" in df.columns:
+            # V43.3 security rule: default deny.
+            # Any component listed in the workbook but not explicitly Show=Yes for this username is hidden.
+            all_components = [
+                _excel_clean(x) for x in df.get("Component / Table", pd.Series(dtype=str)).tolist()
+                if _excel_clean(x)
+            ]
             rows = df[df["Username"].astype(str).str.strip().str.lower() == username.lower()]
             for _, row in rows.iterrows():
                 component = _excel_clean(row.get("Component / Table"))
@@ -815,6 +854,14 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                     else:
                         hide_ppt_components.append(component)
                 else:
+                    hide_tables.append(component)
+                    hide_excel_components.append(component)
+                    hide_pdf_components.append(component)
+                    hide_ppt_components.append(component)
+
+            # Hide every workbook-known component that is not explicitly allowed.
+            for component in all_components:
+                if component and component not in show_tables and component not in hide_tables:
                     hide_tables.append(component)
                     hide_excel_components.append(component)
                     hide_pdf_components.append(component)
@@ -1141,6 +1188,44 @@ def can(permission: str) -> bool:
     return bool(user_policy().get(permission, False))
 
 
+
+def validate_current_authenticated_user() -> bool:
+    """Ensure current session still exists in permissions.xlsx after file updates.
+
+    If Active becomes No or the user is removed, force logout immediately.
+    If Department/Password changed, update the session and signed URL.
+    """
+    if not st.session_state.get("authenticated"):
+        return False
+    username = str(st.session_state.get("username", "")).strip()
+    if not username:
+        _clear_login_query_params()
+        st.session_state.clear()
+        return False
+
+    current_sig = _permissions_signature()
+    if st.session_state.get("permission_runtime_signature") != current_sig:
+        st.session_state["permission_runtime_signature"] = current_sig
+        st.session_state["permission_runtime_checked_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    users = get_users()
+    if username not in users:
+        _clear_login_query_params()
+        st.session_state.clear()
+        st.error("Your account access has been changed or disabled. Please contact the PMO System Administrator.")
+        st.rerun()
+        return False
+
+    new_role = str(users[username].get("role", "user")).lower() or "user"
+    if st.session_state.get("role") != new_role:
+        st.session_state["role"] = new_role
+        try:
+            _persist_login(username, new_role, str(users[username].get("password", "")))
+        except Exception:
+            pass
+    return True
+
+
 def allowed_dashboard_tabs(role: str | None = None) -> List[str]:
     policy = user_policy(role=role) if role else user_policy()
     tabs = _as_list(policy.get("dashboard_tabs"))
@@ -1174,7 +1259,7 @@ def login_page() -> bool:
                     PDF Reports, CSV Governance, and Executive Decision Support.
                 </div>
                 <div class="portal-feature-row">
-                    <div class="portal-feature">🔐 Role-Based Access</div>
+                    <div class="portal-feature">🔐 User-Based Access</div>
                     <div class="portal-feature">📊 Live PMO Dashboard</div>
                     <div class="portal-feature">🤖 Arabic AI Assistant</div>
                 </div>
@@ -4060,8 +4145,18 @@ def admin_page() -> None:
     st.subheader("Permission Workbook")
     c1, c2, c3 = st.columns(3)
     c1.metric("permissions.xlsx", "Found" if PERMISSIONS_XLSX_PATH.exists() else "Missing")
-    c2.metric("Source", "Excel" if PERMISSIONS_XLSX_PATH.exists() else "Secrets / Default")
+    c2.metric("Last Modified", _permissions_last_modified_text())
     c3.metric("Users", f"{len(get_users()):,}")
+
+    st.caption(f"Permission file signature: {_permissions_signature()} | Last loaded this session: {st.session_state.get('permissions_last_loaded', 'Not loaded yet')}")
+    reload_col1, reload_col2 = st.columns([1, 4])
+    with reload_col1:
+        if st.button("🔄 Reload Permissions", use_container_width=True):
+            st.session_state["permission_runtime_signature"] = ""
+            st.session_state["permissions_manual_reload_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.rerun()
+    with reload_col2:
+        st.info("V43.3 reads permissions.xlsx from disk on every rerun. After GitHub upload, wait for Streamlit redeploy/reboot, then Logout/Login for the cleanest result.")
 
     if PERMISSIONS_XLSX_PATH.exists():
         with open(PERMISSIONS_XLSX_PATH, "rb") as f:
@@ -4077,7 +4172,7 @@ def admin_page() -> None:
     if uploaded_perm is not None:
         DATA_DIR.mkdir(exist_ok=True)
         PERMISSIONS_XLSX_PATH.write_bytes(uploaded_perm.getbuffer())
-        st.success("permissions.xlsx uploaded successfully. Please reboot the app to apply the new permissions for all users.")
+        st.success("permissions.xlsx uploaded successfully. Permissions will reload on rerun. Existing users should Logout/Login if page access changed.")
         st.rerun()
 
     st.subheader("Active Users & Effective Permissions")
@@ -4201,8 +4296,9 @@ def render_session_bar() -> None:
 def main() -> None:
     if not login_page():
         return
+    validate_current_authenticated_user()
 
-    role = st.session_state.get("role", "viewer")
+    role = st.session_state.get("role", "user")
 
     with st.sidebar:
         st.markdown("### Dawiyat PMO Portal V2")
