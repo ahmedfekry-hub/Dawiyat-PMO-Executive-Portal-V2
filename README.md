@@ -323,3 +323,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Fixed PMO Audit location filters: Updated Region, City, WO Districts.
 - Added unified filter comparison for District.csv mapping and WO raw fields.
 - Added cascading reset: changing Region clears City/District; changing City clears District.
+
+
+## V3.6 Location Filters Final Fix
+- Removed non-existing PMO labels: Updated Region and WO Districts.
+- All location filters now use only data/District.csv: Region, City, District.
+- Region in u_osp_work_order.csv is intentionally ignored.
+- Matching is done by Link Code / Work Order from District.csv.
