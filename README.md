@@ -317,3 +317,11 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Old page/component values inside Streamlit Secrets are ignored, so GitHub updates to data/permissions.xlsx take effect after Streamlit redeploy/reboot.
 - Active=Yes/No remains controlled from the Users sheet.
 - Dashboard tab CSS injection fixed so hidden tabs disappear immediately.
+
+
+## V3.5 Dashboard / PMO Audit Filter Linkage Fix
+- Global Dashboard Region / City / District filters now cascade correctly using `data/District.csv`.
+- PMO Audit `Updated Region`, `Updated City`, and `WO Districts` filters are linked with the main dashboard filters.
+- Changing Region clears City and District automatically.
+- Changing City clears District automatically.
+- The `Region` column in `u_osp_work_order.csv` remains ignored for location filtering; District.csv is the source of truth.
