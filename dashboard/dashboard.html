@@ -1858,7 +1858,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
         <button class="btn" id="reset-filters">Reset Filters</button>
         <button class="btn theme-toggle-btn" id="theme-toggle" type="button">Dark UI</button>
       </div>
-      <div class="tiny">Region/City/District are taken from <b>District.csv</b>. Region in <b>u_osp_work_order</b> is ignored.</div>
+      <div class="tiny">Region/City/District and PMO Updated Region/Updated City/WO Districts are taken from <b>District.csv</b>. Region in <b>u_osp_work_order</b> is ignored.</div>
     
     </div>
   </div>
@@ -3391,8 +3391,39 @@ function getFilteredPenalties(workorders) {
   return rows;
 }
 function clearGlobalDependentFilters(key) {
-  if (key === 'region') { state.filters.city = 'All'; state.filters.district = 'All'; }
-  if (key === 'city') { state.filters.district = 'All'; }
+  // Cascading dependency rule for Dashboard filters:
+  // Region controls City + District, and City controls District.
+  // Values are cleared immediately whenever the parent filter changes, not only when invalid.
+  if (!state.filters) return;
+  if (key === 'region') {
+    state.filters.city = 'All';
+    state.filters.district = 'All';
+    if (state.pmo && state.pmo.filters) {
+      state.pmo.filters.city = 'All';
+      state.pmo.filters.district = 'All';
+    }
+  }
+  if (key === 'city') {
+    state.filters.district = 'All';
+    if (state.pmo && state.pmo.filters) state.pmo.filters.district = 'All';
+  }
+}
+function clearPmoDependentFilters(key) {
+  // Cascading dependency rule for PMO Audit filters:
+  // Updated Region controls Updated City + WO Districts, and Updated City controls WO Districts.
+  if (!state.pmo || !state.pmo.filters) return;
+  if (key === 'region') {
+    state.pmo.filters.city = 'All';
+    state.pmo.filters.district = 'All';
+    if (state.filters) {
+      state.filters.city = 'All';
+      state.filters.district = 'All';
+    }
+  }
+  if (key === 'city') {
+    state.pmo.filters.district = 'All';
+    if (state.filters) state.filters.district = 'All';
+  }
 }
 function renderFilters() {
   const host = document.getElementById('filters');
@@ -3438,15 +3469,11 @@ function renderFilters() {
     } else {
       select.value = options.includes(state.filters[key]) ? state.filters[key] : 'All';
       select.addEventListener('change', e => {
+        const previousValue = state.filters[key];
         state.filters[key] = e.target.value;
         if (key === 'sorReferenceNumber') state.sorReferenceFilter = e.target.value || 'All';
-        if (key === 'region' && state.filters.city !== 'All') {
-          const cities = unique(state.data.workorders.filter(r => state.filters.region==='All' || r.region===state.filters.region).map(r => r.city));
-          if (!cities.includes(state.filters.city)) state.filters.city = 'All';
-        }
-        if (key === 'city' && state.filters.district !== 'All') {
-          const districts = unique(state.data.workorders.filter(r => (state.filters.region==='All' || r.region===state.filters.region) && (state.filters.city==='All' || r.city===state.filters.city)).map(r => r.district));
-          if (!districts.includes(state.filters.district)) state.filters.district = 'All';
+        if ((key === 'region' || key === 'city') && previousValue !== state.filters[key]) {
+          clearGlobalDependentFilters(key);
         }
         pmoSyncGlobalToFilters();
         renderAll();
@@ -5293,7 +5320,7 @@ function pmoAuditRowsBase(){
   return pmoAuditRowsBuild(base)
 }
 function pmoAuditRowsAll(){return pmoAuditRowsBuild(state.data?.workorders||[])}
-const PMO_FILTERS=[['region','Updated Region'],['city','City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['invoice50','1st 50 Invoice Status'],['sorReferenceNumber','SOR Reference Number'],['updatedScope','Updated Scope'],['scopeTarget','Scope Target']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
+const PMO_FILTERS=[['region','Updated Region'],['city','Updated City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['invoice50','1st 50 Invoice Status'],['sorReferenceNumber','SOR Reference Number'],['updatedScope','Updated Scope'],['scopeTarget','Scope Target']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
 if(!state.pmo.sorExposureMode)state.pmo.sorExposureMode='gt80';
 if(state.pmo.sorCriticalGlobalActive===undefined)state.pmo.sorCriticalGlobalActive=false;
 function pmoIssueType(r){if(r.pmoStatus==='PM REVIEW'||r.pmoCompletedBelow100)return 'PM Review';if(r.pmoStatus==='MISSING MET'||(r.pmoReasons||[]).some(x=>String(x).toLowerCase().includes('no internal met')||String(x).toLowerCase().includes('updated > 7')))return 'Missing MET Actual';return 'Sheet Synced'}
@@ -5392,12 +5419,15 @@ function renderPmoFilters(){
     sel.value=opts.includes(state.pmo.filters[key])?state.pmo.filters[key]:'All';
     if(sel.value==='All' && state.pmo.filters[key] !== 'All') state.pmo.filters[key]='All';
     sel.addEventListener('change',e=>{
+      const previousValue=state.pmo.filters[key];
       state.pmo.filters[key]=e.target.value;
+      if((key==='region'||key==='city') && previousValue!==state.pmo.filters[key]) clearPmoDependentFilters(key);
       pmoSyncFiltersToGlobal();
       renderAll();
     });
     clear.addEventListener('click',()=>{
       state.pmo.filters[key]='All';
+      clearPmoDependentFilters(key);
       pmoSyncFiltersToGlobal();
       renderAll();
     });
