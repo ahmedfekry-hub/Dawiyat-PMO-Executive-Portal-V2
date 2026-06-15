@@ -1823,7 +1823,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
 <!-- OPERATIONAL_PMO_GOVERNANCE_ENGINE_V3: dynamic work type, closure aging, bottleneck, commercial readiness and governance actions are now calculated from filtered data. -->
 <!-- BILLING_EXPOSURE_LOGIC_V2: Billing Exposure = SOR Created cost; fallback to 100% completed WOs only when no SOR Created exists in current filtered scope. -->
 <!-- GLOBAL_FILTER_LINKAGE_DIRECT_V2: Main filters and PMO Audit filters are synchronized directly through state without wrapper render recursion. -->
-<!-- LOCATION_FILTER_FIX_V3_5: Region/City/District and PMO Updated Region/City/WO Districts use unified comparable values and cascade correctly. -->
+<!-- LOCATION_FILTER_FIX_V3_6: Region/City/District are sourced only from District.csv by Link Code / Work Order. WO Region in u_osp_work_order is ignored. -->
 <!-- SOR_CREATED_BILLING_LOGIC_UPDATE: Executive PMO Assistant billing exposure now counts only SOR Created WOs/Link Codes that are not billed/closed. -->
 <!-- PERFORMANCE_EXPLANATION_GOVERNANCE_ENGINE_ADDED: Interactive KPI governance Q&A linked to current global filters. -->
 <!-- PAGE_ORDER_UPDATE_2026_05_12_FINAL: Visible tab order set to Executive Overview, KPI Performance, Tables & Exports, Executive PMO Report Assistant, PMO Audit, Performance Explanation. Executive Overview is restored as default first page. -->
@@ -3292,19 +3292,13 @@ function buildData(raw) {
 
 function locationComparableValue(row, key) {
   if (!row) return '';
-  const raw = row.raw || row || {};
-  if (key === 'region') {
-    // Prefer District.csv mapped region, but support Updated Region / Region directly from WO file.
-    const mapped = String(row.region || '').trim();
-    const rawRegion = String(getRawField(raw, ['Updated Region','Region','WO Region','Work Order Region']) || '').trim();
-    return mapped || canonicalRegion(rawRegion) || rawRegion;
-  }
-  if (key === 'city') {
-    return String(row.city || getRawField(raw, ['City','WO City','Updated City','Work Order City']) || '').trim();
-  }
-  if (key === 'district') {
-    return String(row.district || getRawField(raw, ['WO Districts','WO District','District','District ','Updated District','Work Order District']) || '').trim();
-  }
+  // V3.6 FINAL LOCATION SOURCE RULE:
+  // Region / City / District must come from District.csv only, matched by Link Code / Work Order.
+  // Do NOT use Updated Region, WO Districts, or Region from u_osp_work_order because these
+  // columns are not part of the approved location master and can create wrong filter values.
+  if (key === 'region') return String(row.region || '').trim();
+  if (key === 'city') return String(row.city || '').trim();
+  if (key === 'district') return String(row.district || '').trim();
   return '';
 }
 
@@ -4499,7 +4493,7 @@ function exportTableToExcel(tableId, filename) {
 <!-- OPERATIONAL_PMO_GOVERNANCE_ENGINE_V3: dynamic work type, closure aging, bottleneck, commercial readiness and governance actions are now calculated from filtered data. -->
 <!-- BILLING_EXPOSURE_LOGIC_V2: Billing Exposure = SOR Created cost; fallback to 100% completed WOs only when no SOR Created exists in current filtered scope. -->
 <!-- GLOBAL_FILTER_LINKAGE_DIRECT_V2: Main filters and PMO Audit filters are synchronized directly through state without wrapper render recursion. -->
-<!-- LOCATION_FILTER_FIX_V3_5: Region/City/District and PMO Updated Region/City/WO Districts use unified comparable values and cascade correctly. -->
+<!-- LOCATION_FILTER_FIX_V3_6: Region/City/District are sourced only from District.csv by Link Code / Work Order. WO Region in u_osp_work_order is ignored. -->
 <!-- BILLING_EXPOSURE_SYNC_FIX: Assistant Billing Exposure now uses Link-Code-level SOR Created logic and the same cost basis as SOR Details. -->
 </head><body><table>${table.innerHTML}</table>
 
@@ -5318,14 +5312,14 @@ function pmoAuditRowsBase(){
   return pmoAuditRowsBuild(base)
 }
 function pmoAuditRowsAll(){return pmoAuditRowsBuild(state.data?.workorders||[])}
-const PMO_FILTERS=[['region','Updated Region'],['city','City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['invoice50','1st 50 Invoice Status'],['sorReferenceNumber','SOR Reference Number'],['updatedScope','Updated Scope'],['scopeTarget','Scope Target']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
+const PMO_FILTERS=[['region','Region'],['city','City'],['district','District'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['invoice50','1st 50 Invoice Status'],['sorReferenceNumber','SOR Reference Number'],['updatedScope','Updated Scope'],['scopeTarget','Scope Target']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
 if(!state.pmo.sorExposureMode)state.pmo.sorExposureMode='gt80';
 if(state.pmo.sorCriticalGlobalActive===undefined)state.pmo.sorCriticalGlobalActive=false;
 function pmoIssueType(r){if(r.pmoStatus==='PM REVIEW'||r.pmoCompletedBelow100)return 'PM Review';if(r.pmoStatus==='MISSING MET'||(r.pmoReasons||[]).some(x=>String(x).toLowerCase().includes('no internal met')||String(x).toLowerCase().includes('updated > 7')))return 'Missing MET Actual';return 'Sheet Synced'}
 function pmoFieldValue(r,key){
   if(key==='region')return locationComparableValue(r,'region');
-  if(key==='city')return locationComparableValue(r,'city') || getRawField(r.raw,['City','WO City','Updated City'])||'';
-  if(key==='district')return locationComparableValue(r,'district') || getRawField(r.raw,['WO Districts','WO District','District','District ','Updated District'])||'';
+  if(key==='city')return locationComparableValue(r,'city') || '';
+  if(key==='district')return locationComparableValue(r,'district') || '';
   if(key==='project'){const projectValue=String(r.project||getRawField(r.raw,['Project'])||'').trim();return projectValue||'N/A';}
   if(key==='workOrderStatus')return r.raw?.['Work Order Status']||r.displayStatus||'';
   if(key==='sorStatus')return pmoSORStatus(r);
