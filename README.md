@@ -368,3 +368,11 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Document scan list and Link Code selector now follow uploaded Link Code / Work Order selections.
 - Added direct Search Link Code and Search Work Order inside Document Upload Center.
 - Added manual Work Orders paste box for quick filtering without an Excel template.
+
+
+## V4.2 Document Center Scan Filter Simplification
+- Removed the separate green Smart Bulk Filter panel from Document Upload Center.
+- Integrated upload/search directly into the existing Scan Link Codes section.
+- One search field now supports both Link Code and Work Order.
+- Added optional manual Work Order paste box inside the same Scan area.
+- Scan Link Codes list is filtered automatically based on Link Code or Work Order matches.

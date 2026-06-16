@@ -2492,8 +2492,9 @@ def document_upload_page() -> None:
         st.warning("No Link Codes found.")
         return
 
-    filtered_links, doc_filter_wos = document_smart_bulk_filter_panel(wo, links)
-    scan_links = filtered_links or links
+    # Document Center filtering is now integrated into the normal Scan Link Codes area.
+    # The separate green Smart Bulk Filter panel has been removed to keep the page simple.
+    scan_links = links
 
     try:
         service = get_drive_service()
@@ -2506,11 +2507,90 @@ def document_upload_page() -> None:
 
     st.markdown("### Executive Documents Dashboard")
     with st.container(border=True):
-        scan_col1, scan_col2, scan_col3 = st.columns([1.2, .6, .6])
+        scan_col1, scan_col2, scan_col3 = st.columns([1.25, .65, .45])
+
+        link_col = first_existing_col(wo, ["Link Code", "LinkCode", "LINK_CODE", "Site Code"])
+        wo_col = first_existing_col(wo, ["Work Order", "WO", "WO ID", "Workorder", "Work Order ID", "Work Order Number"])
+
         with scan_col1:
-            scan_scope = st.multiselect("Scan Link Codes", scan_links, default=scan_links[:min(10, len(scan_links))], help="Smart Bulk Filter limits this list. Scanning all Link Codes may take time because each scan checks Google Drive folders.")
+            doc_filter_file = st.file_uploader(
+                "Upload Excel / CSV filter list (Link Code or Work Order)",
+                type=["xlsx", "xls", "csv"],
+                key="doc_scan_filter_file",
+                help="Optional: upload any file containing a Link Code column or Work Order column. No fixed template is required.",
+            )
+            if doc_filter_file is not None:
+                parsed = parse_bulk_site_filter(doc_filter_file)
+                st.session_state["doc_scan_uploaded_links"] = parsed.get("linkCodes", [])
+                st.session_state["doc_scan_uploaded_wos"] = parsed.get("workOrders", [])
+
+            doc_scan_search = st.text_input(
+                "Search / Filter Scan by Link Code or Work Order",
+                value=st.session_state.get("doc_scan_search", ""),
+                key="doc_scan_search",
+                placeholder="Example: RIYA-66 or 2502OSPFI0003125",
+                help="One search field covers both Link Code and Work Order. If a Work Order is found, its Link Code will be included in Scan Link Codes.",
+            )
+            doc_manual_wos = st.text_area(
+                "Add Work Orders manually (optional)",
+                value=st.session_state.get("doc_scan_manual_wos", ""),
+                key="doc_scan_manual_wos",
+                placeholder="Paste WO IDs separated by commas or new lines",
+                height=70,
+            )
+
+            matched_links = set()
+            active_doc_scan_filter = False
+
+            uploaded_links = [str(x or "").strip().upper() for x in st.session_state.get("doc_scan_uploaded_links", []) if str(x or "").strip()]
+            uploaded_wos = [str(x or "").strip().upper() for x in st.session_state.get("doc_scan_uploaded_wos", []) if str(x or "").strip()]
+            manual_wos = _split_manual_filter_values(doc_manual_wos)
+            all_link_lookup = {str(x).strip().upper(): x for x in links}
+
+            if uploaded_links:
+                active_doc_scan_filter = True
+                for x in uploaded_links:
+                    if x in all_link_lookup:
+                        matched_links.add(all_link_lookup[x])
+            if uploaded_wos:
+                active_doc_scan_filter = True
+                matched_links.update(_document_links_from_workorders(wo, uploaded_wos))
+            if manual_wos:
+                active_doc_scan_filter = True
+                matched_links.update(_document_links_from_workorders(wo, manual_wos))
+            if str(doc_scan_search or "").strip():
+                active_doc_scan_filter = True
+                q = str(doc_scan_search).strip().upper()
+                matched_links.update([x for x in links if q in str(x).upper()])
+                if link_col and wo_col:
+                    temp = wo[[link_col, wo_col]].copy().fillna("")
+                    mask = temp[wo_col].astype(str).str.upper().str.contains(re.escape(q), na=False)
+                    matched_links.update(temp.loc[mask, link_col].astype(str).str.strip().replace("", pd.NA).dropna().unique().tolist())
+
+            if active_doc_scan_filter:
+                scan_links = sorted([x for x in matched_links if x in set(links)])
+                st.caption(f"Filtered Scan Link Codes: {len(scan_links):,} | Uploaded Links: {len(uploaded_links):,} | Uploaded WOs: {len(uploaded_wos):,} | Manual WOs: {len(manual_wos):,}")
+                if not scan_links:
+                    st.warning("No matching Link Codes were found for the current Link Code / Work Order search.")
+            else:
+                scan_links = links
+                st.caption(f"All Link Codes available: {len(scan_links):,}")
+
+            scan_scope = st.multiselect(
+                "Scan Link Codes",
+                scan_links,
+                default=scan_links[:min(10, len(scan_links))],
+                help="Search can be by Link Code or Work Order. The final scan is performed by Link Code folders in Google Drive.",
+            )
+
         with scan_col2:
             max_scan = st.number_input("Max Scan", min_value=1, max_value=500, value=min(50, max(1, len(scan_links))), step=10)
+            if st.button("Clear Scan Filter", use_container_width=True, key="clear_doc_scan_filter"):
+                st.session_state["doc_scan_uploaded_links"] = []
+                st.session_state["doc_scan_uploaded_wos"] = []
+                st.session_state["doc_scan_search"] = ""
+                st.session_state["doc_scan_manual_wos"] = ""
+                st.rerun()
         with scan_col3:
             st.metric("Drive", "Connected" if drive_connected else "Not Connected")
         if drive_connected and st.button("Refresh Document Status", use_container_width=True, type="secondary"):
