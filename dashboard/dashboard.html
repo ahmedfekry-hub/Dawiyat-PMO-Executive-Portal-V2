@@ -58,9 +58,12 @@
   .clear-filter { border:0; background:#eef4fb; color:#5d708a; border-radius:999px; padding:4px 9px; font-size:10px; font-weight:900; letter-spacing:.06em; cursor:pointer; }
   .clear-filter:hover { background:#ffe8ed; color:#ff3b63; }
   .clear-filter:disabled { opacity:.35; cursor:not-allowed; background:#eef2f7; color:#94a3b8; }
-  .filter select {
+  .filter select, .filter input {
     width:100%; border:none; outline:none; background:transparent; color:var(--text); font-size:15px; padding:6px 0;
   }
+  .filter input { border-bottom:1px solid #edf2f7; }
+  .bulk-filter-card { border-color:#99f6e4; background:#f0fdfa; }
+  .bulk-filter-card .bulk-count { font-weight:900; color:#0f766e; }
   .panel {
     background:#fff; border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); padding:16px; margin-bottom:16px;
   }
@@ -1807,185 +1810,6 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   .orange-report-title{font-size:24px;}
 }
 
-
-
-/* V4.0 Board PDF Export — landscape slide-safe print mode */
-@media print {
-  @page { size: A4 landscape; margin: 6mm; }
-  html, body {
-    width: 297mm !important;
-    min-height: 210mm !important;
-    background:#fff !important;
-    -webkit-print-color-adjust: exact !important;
-    print-color-adjust: exact !important;
-  }
-  body.pdf-export-mode {
-    padding: 0 !important;
-    overflow: visible !important;
-  }
-  body.pdf-export-mode .tabs,
-  body.pdf-export-mode .filters,
-  body.pdf-export-mode .btn,
-  body.pdf-export-mode .file-label,
-  body.pdf-export-mode .tiny,
-  body.pdf-export-mode .print-note,
-  body.pdf-export-mode .clear-filter,
-  body.pdf-export-mode .pmo-actions,
-  body.pdf-export-mode .action-row,
-  body.pdf-export-mode select,
-  body.pdf-export-mode input,
-  body.pdf-export-mode button:not(.tab) {
-    display:none !important;
-  }
-  body.pdf-export-mode .app {
-    max-width: none !important;
-    width: 100% !important;
-    margin: 0 !important;
-  }
-  body.pdf-export-mode .hidden { display:none !important; }
-  body.pdf-export-mode .report-section-card,
-  body.pdf-export-mode .panel,
-  body.pdf-export-mode .orange-report-slide,
-  body.pdf-export-mode .pmo-compact-panel,
-  body.pdf-export-mode .assist-card {
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
-    overflow: visible !important;
-  }
-  body.pdf-export-mode .report-section-card {
-    page-break-before: always !important;
-    break-before: page !important;
-    page-break-after: always !important;
-    break-after: page !important;
-    min-height: 185mm !important;
-    padding: 8mm !important;
-    margin: 0 !important;
-    border-radius: 16px !important;
-    box-shadow: none !important;
-  }
-  body.pdf-export-mode .reports-hero,
-  body.pdf-export-mode .brand-strip,
-  body.pdf-export-mode .header {
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
-  }
-  body.pdf-export-mode #tab-reports .reports-hero {
-    page-break-after: always !important;
-    break-after: page !important;
-    min-height: 185mm !important;
-    padding: 12mm !important;
-  }
-  body.pdf-export-mode .orange-report-slide {
-    page-break-before: always !important;
-    break-before: page !important;
-    page-break-after: always !important;
-    break-after: page !important;
-    width: 100% !important;
-    min-height: 185mm !important;
-    max-height: 185mm !important;
-    overflow: hidden !important;
-    padding: 8mm !important;
-    margin: 0 !important;
-    border-radius: 14px !important;
-    transform-origin: top left !important;
-  }
-  body.pdf-export-mode .orange-report-brand {
-    margin-bottom: 6mm !important;
-    min-height: 15mm !important;
-  }
-  body.pdf-export-mode .orange-report-title {
-    font-size: 18pt !important;
-    line-height: 1.1 !important;
-  }
-  body.pdf-export-mode .orange-report-layout {
-    grid-template-columns: 1.05fr .95fr !important;
-    gap: 6mm !important;
-    align-items: stretch !important;
-  }
-  body.pdf-export-mode .orange-wide-table,
-  body.pdf-export-mode .orange-panel,
-  body.pdf-export-mode .orange-small-chart {
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
-    overflow: hidden !important;
-  }
-  body.pdf-export-mode table {
-    width: 100% !important;
-    table-layout: fixed !important;
-    border-collapse: collapse !important;
-    break-inside: avoid-page !important;
-    page-break-inside: avoid !important;
-  }
-  body.pdf-export-mode thead { display: table-header-group !important; }
-  body.pdf-export-mode tr,
-  body.pdf-export-mode th,
-  body.pdf-export-mode td {
-    break-inside: avoid !important;
-    page-break-inside: avoid !important;
-  }
-  body.pdf-export-mode th,
-  body.pdf-export-mode td {
-    font-size: 7.5pt !important;
-    line-height: 1.18 !important;
-    padding: 4px 5px !important;
-    white-space: normal !important;
-    word-break: normal !important;
-    overflow-wrap: anywhere !important;
-  }
-  body.pdf-export-mode .orange-report-slide th,
-  body.pdf-export-mode .orange-report-slide td {
-    font-size: 8.3pt !important;
-    padding: 5px 6px !important;
-  }
-  body.pdf-export-mode .table-wrap,
-  body.pdf-export-mode .pmo-table-wrap,
-  body.pdf-export-mode .assist-table-wrap,
-  body.pdf-export-mode .pmo-cards,
-  body.pdf-export-mode .top-scroll-list {
-    max-height: none !important;
-    height: auto !important;
-    overflow: visible !important;
-    border-radius: 10px !important;
-  }
-  body.pdf-export-mode .table-wrap::-webkit-scrollbar,
-  body.pdf-export-mode .pmo-table-wrap::-webkit-scrollbar,
-  body.pdf-export-mode .pmo-cards::-webkit-scrollbar,
-  body.pdf-export-mode .top-scroll-list::-webkit-scrollbar { display:none !important; }
-  body.pdf-export-mode .kpi-grid,
-  body.pdf-export-mode .report-kpi-copy {
-    grid-template-columns: repeat(4, 1fr) !important;
-    gap: 5mm !important;
-  }
-  body.pdf-export-mode .kpi,
-  body.pdf-export-mode .report-kpi-copy .kpi {
-    min-height: 36mm !important;
-    padding: 4mm !important;
-    break-inside: avoid !important;
-  }
-  body.pdf-export-mode .kpi .value { font-size: 15pt !important; }
-  body.pdf-export-mode .kpi .label { font-size: 7pt !important; }
-  body.pdf-export-mode .kpi .meta { font-size: 7pt !important; }
-  body.pdf-export-mode .two-col,
-  body.pdf-export-mode .grid-2,
-  body.pdf-export-mode .three-col,
-  body.pdf-export-mode .perf-end-grid,
-  body.pdf-export-mode .weighted-visual-grid,
-  body.pdf-export-mode .matrix-layout,
-  body.pdf-export-mode .pmo-cost-grid {
-    grid-template-columns: 1fr 1fr !important;
-    gap: 5mm !important;
-  }
-  body.pdf-export-mode .prepared-footer {
-    right: 7mm !important;
-    bottom: 5mm !important;
-  }
-  body.pdf-export-mode .prepared-footer-card {
-    width: 44mm !important;
-    min-width: 44mm !important;
-    opacity: .95 !important;
-  }
-}
-
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -2476,6 +2300,8 @@ const FILTERS = [
   ['linkCode', 'Link Code']
 ];
 
+const BULK_FILTER_PAYLOAD = (typeof INITIAL_BULK_FILTER !== 'undefined') ? INITIAL_BULK_FILTER : {linkCodes:[], workOrders:[]};
+
 const state = {
   tab: 'overview',
   files: {},
@@ -2486,7 +2312,13 @@ const state = {
   showDetailedAnalysis: false,
   weightedFactorFilter: 'All',
   riskDriverFilter: 'All Critical Drivers',
-  sorReferenceFilter: 'All'
+  sorReferenceFilter: 'All',
+  searchLinkCode: '',
+  searchWorkOrder: '',
+  bulkFilter: {
+    linkCodes: (BULK_FILTER_PAYLOAD.linkCodes || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean),
+    workOrders: (BULK_FILTER_PAYLOAD.workOrders || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean)
+  }
 };
 
 function escapeHtml(v) {
@@ -3545,6 +3377,30 @@ function changeSorReferenceFilter(val) {
   renderAll();
 }
 
+function applySmartSearchAndBulkFilters(rows) {
+  let out = rows.slice();
+  const linkSearch = String(state.searchLinkCode || '').trim().toUpperCase();
+  const woSearch = String(state.searchWorkOrder || '').trim().toUpperCase();
+  const bulkLinks = new Set(((state.bulkFilter && state.bulkFilter.linkCodes) || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean));
+  const bulkWos = new Set(((state.bulkFilter && state.bulkFilter.workOrders) || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean));
+  if (bulkLinks.size || bulkWos.size) {
+    out = out.filter(r => {
+      const link = String(r.linkCode || '').trim().toUpperCase();
+      const wo = String(r.workOrder || '').trim().toUpperCase();
+      return (bulkLinks.size && bulkLinks.has(link)) || (bulkWos.size && bulkWos.has(wo));
+    });
+  }
+  if (linkSearch) out = out.filter(r => String(r.linkCode || '').toUpperCase().includes(linkSearch));
+  if (woSearch) out = out.filter(r => String(r.workOrder || '').toUpperCase().includes(woSearch));
+  return out;
+}
+
+function clearSmartSearchAndBulkFilters() {
+  state.searchLinkCode = '';
+  state.searchWorkOrder = '';
+  state.bulkFilter = {linkCodes: [], workOrders: []};
+}
+
 function getFilteredWorkorders() {
   let rows = state.data.workorders.slice();
   FILTERS.forEach(([key]) => {
@@ -3556,6 +3412,7 @@ function getFilteredWorkorders() {
       rows = rows.filter(r => String(filterComparableValue(r, key) || '') === String(val));
     }
   });
+  rows = applySmartSearchAndBulkFilters(rows);
   rows = applySorCriticalObservationFilter(rows);
   rows = applySorReferenceFilter(rows);
   return rows;
@@ -3607,6 +3464,19 @@ function clearPmoDependentFilters(key) {
 function renderFilters() {
   const host = document.getElementById('filters');
   host.innerHTML = '';
+
+  const bulkCount = ((state.bulkFilter?.linkCodes || []).length + (state.bulkFilter?.workOrders || []).length);
+  const searchCards = document.createElement('div');
+  searchCards.className = 'filter bulk-filter-card';
+  searchCards.innerHTML = `<div class="filter-head"><label>Smart Bulk Filter</label><button class="clear-filter" type="button" ${bulkCount || state.searchLinkCode || state.searchWorkOrder ? '' : 'disabled'}>CLEAR</button></div>
+    <div class="small">Uploaded selection: <span class="bulk-count">${bulkCount}</span> item(s)</div>
+    <input id="search-link-code" type="text" placeholder="🔍 Search Link Code e.g. RIYA-66" value="${escapeHtml(state.searchLinkCode || '')}">
+    <input id="search-work-order" type="text" placeholder="🔍 Search Work Order e.g. 2502OSPFI0003125" value="${escapeHtml(state.searchWorkOrder || '')}">`;
+  host.appendChild(searchCards);
+  searchCards.querySelector('.clear-filter').addEventListener('click', () => { clearSmartSearchAndBulkFilters(); renderAll(); });
+  searchCards.querySelector('#search-link-code').addEventListener('input', e => { state.searchLinkCode = e.target.value; renderAll(); });
+  searchCards.querySelector('#search-work-order').addEventListener('input', e => { state.searchWorkOrder = e.target.value; renderAll(); });
+
   FILTERS.forEach(([key, label]) => {
     let basis = state.data.workorders.slice();
     FILTERS.forEach(([k2]) => {
@@ -6643,6 +6513,7 @@ document.querySelectorAll('[data-perf-trend]').forEach(btn => btn.addEventListen
 document.getElementById('reset-filters').addEventListener('click', () => {
   state.filters = Object.fromEntries(FILTERS.map(f => [f[0], 'All']));
   state.sorReferenceFilter = 'All';
+  clearSmartSearchAndBulkFilters();
   if (state.pmo) {
     state.pmo.filters = Object.fromEntries(PMO_FILTERS.map(f => [f[0], 'All']));
     state.pmo.sorCriticalGlobalActive=false;
@@ -6653,19 +6524,7 @@ document.getElementById('reset-filters').addEventListener('click', () => {
   if(sorRefSelect) sorRefSelect.value='All';
   renderAll();
 });
-
-document.getElementById('export-pdf').addEventListener('click', () => {
-  document.body.classList.add('pdf-export-mode');
-  const scrollables = Array.from(document.querySelectorAll('.table-wrap,.pmo-table-wrap,.assist-table-wrap,.pmo-cards,.top-scroll-list'));
-  scrollables.forEach(el => { el.dataset.prevScrollTop = el.scrollTop || 0; el.scrollTop = 0; });
-  setTimeout(() => window.print(), 250);
-});
-window.addEventListener('afterprint', () => {
-  const scrollables = Array.from(document.querySelectorAll('.table-wrap,.pmo-table-wrap,.assist-table-wrap,.pmo-cards,.top-scroll-list'));
-  scrollables.forEach(el => { if (el.dataset.prevScrollTop) el.scrollTop = Number(el.dataset.prevScrollTop || 0); });
-  document.body.classList.remove('pdf-export-mode');
-});
-
+document.getElementById('export-pdf').addEventListener('click', () => window.print());
 
 ['wo','pen','dist'].forEach(kind => {
   const input = document.getElementById('file-' + kind);
