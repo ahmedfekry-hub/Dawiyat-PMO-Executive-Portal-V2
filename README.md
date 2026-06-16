@@ -358,3 +358,11 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Added token-style search/add filter for **Work Order**.
 - Values can be pasted in bulk separated by comma, semicolon, tab, or new line.
 - **Reset Filters** clears Link Code tokens, Work Order tokens, and any uploaded site list filter across the dashboard and PMO Audit.
+
+## V4.1 Smart Bulk Upload UI Fixed
+- Added a visible Streamlit-native **Smart Bulk Filter** panel above the dashboard.
+- Upload supports `.xlsx`, `.xls`, and `.csv` files containing any column similar to Link Code and/or Work Order.
+- Added searchable chip-style `Scan Link Codes` multi-select.
+- Added searchable chip-style `Scan Work Orders` multi-select.
+- Added manual Work Order paste box for large lists.
+- The active selection is injected into the dashboard iframe and applies to Dashboard + PMO Audit scope.

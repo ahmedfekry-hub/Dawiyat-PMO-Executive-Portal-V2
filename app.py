@@ -1341,6 +1341,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     hide_excel_components = json.dumps(_as_list(policy.get("hide_excel_components")))
     hide_pdf_components = json.dumps(_as_list(policy.get("hide_pdf_components")))
     hide_ppt_components = json.dumps(_as_list(policy.get("hide_ppt_components")))
+    smart_bulk_filter = json.dumps(_current_smart_bulk_filter_payload(), ensure_ascii=False)
     all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
     denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
     deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
@@ -1364,6 +1365,7 @@ body.hide-excel button,
 body.hide-excel .btn {{}}
 </style>
 <script>
+window.DAWIYAT_SMART_BULK_FILTER = {smart_bulk_filter};
 window.DAWIYAT_RBAC = {{
   role: {json.dumps(role)},
   permissionMode: "user-based-only",
@@ -1378,6 +1380,25 @@ window.DAWIYAT_RBAC = {{
   hidePdfComponents: {hide_pdf_components},
   hidePptComponents: {hide_ppt_components}
 }};
+(function applySmartBulkFilterFromStreamlit() {{
+  function apply() {{
+    try {{
+      const f = window.DAWIYAT_SMART_BULK_FILTER || {{}};
+      if (typeof state === 'undefined' || typeof renderAll !== 'function') return;
+      state.uploadedSiteFilter = f.active ? f : {{active:false, fileName:'', linkCodes:[], workOrders:[], linkColumn:'', woColumn:''}};
+      if (f.active) {{
+        if (Array.isArray(f.linkCodes) && f.linkCodes.length) state.filters.linkCode = f.linkCodes;
+        if (Array.isArray(f.workOrders) && f.workOrders.length) state.filters.workOrder = f.workOrders;
+        if (state.pmo && state.pmo.filters) {{
+          if (Array.isArray(f.linkCodes) && f.linkCodes.length) state.pmo.filters.linkCode = f.linkCodes;
+          if (Array.isArray(f.workOrders) && f.workOrders.length) state.pmo.filters.workOrder = f.workOrders;
+        }}
+      }}
+      renderAll();
+    }} catch(e) {{ console.warn('Smart bulk filter apply failed', e); }}
+  }}
+  window.addEventListener('load', () => setTimeout(apply, 250));
+}})();
 (function applyDawiyatRBAC() {{
   let rbacApplying = false;
   function norm(t) {{ return (t || '').replace(/\s+/g,' ').trim().toLowerCase(); }}
@@ -1570,6 +1591,180 @@ def portfolio_metrics() -> Dict[str, float]:
     }
 
 
+
+# ---------------- Smart Bulk Site Filter ----------------
+LINK_CODE_HEADER_ALIASES = [
+    "link code", "linkcode", "link_code", "link", "site code", "site id", "site", "area code",
+]
+WORK_ORDER_HEADER_ALIASES = [
+    "work order", "workorder", "work_order", "wo", "wo id", "wo_id", "work order id", "order id",
+]
+
+
+def _norm_header_name(value: Any) -> str:
+    return re.sub(r"[^a-z0-9]", "", str(value or "").strip().lower())
+
+
+def _find_smart_filter_column(df: pd.DataFrame, aliases: List[str]) -> str:
+    alias_keys = {_norm_header_name(x) for x in aliases}
+    for col in df.columns:
+        key = _norm_header_name(col)
+        if key in alias_keys:
+            return str(col)
+    # soft contains matching, useful for files like "Dawiyat Link Code" or "WO Number"
+    for col in df.columns:
+        key = _norm_header_name(col)
+        if any(a and (a in key or key in a) for a in alias_keys):
+            return str(col)
+    return ""
+
+
+def _clean_smart_filter_values(values: Any) -> List[str]:
+    out: List[str] = []
+    seen = set()
+    for value in list(values or []):
+        if pd.isna(value):
+            continue
+        # Allow pasted cells containing several IDs separated by commas/new lines.
+        parts = re.split(r"[\n,;\t]+", str(value))
+        for part in parts:
+            text = str(part or "").strip()
+            if not text or text.lower() in {"nan", "none", "null"}:
+                continue
+            key = re.sub(r"\s+", "", text).upper()
+            if key not in seen:
+                seen.add(key)
+                out.append(text)
+    return out
+
+
+def _parse_smart_bulk_upload(uploaded_file) -> Dict[str, Any]:
+    if uploaded_file is None:
+        return {"link_codes": [], "work_orders": [], "link_column": "", "wo_column": "", "file_name": ""}
+    name = getattr(uploaded_file, "name", "uploaded_file")
+    try:
+        if str(name).lower().endswith(".csv"):
+            df = pd.read_csv(uploaded_file, dtype=str, encoding_errors="ignore")
+        else:
+            df = pd.read_excel(uploaded_file, dtype=str)
+    except Exception as exc:
+        st.error(f"Could not read uploaded Smart Bulk Filter file: {exc}")
+        return {"link_codes": [], "work_orders": [], "link_column": "", "wo_column": "", "file_name": name}
+
+    df.columns = [str(c).strip() for c in df.columns]
+    link_col = _find_smart_filter_column(df, LINK_CODE_HEADER_ALIASES)
+    wo_col = _find_smart_filter_column(df, WORK_ORDER_HEADER_ALIASES)
+    link_codes = _clean_smart_filter_values(df[link_col].dropna().tolist()) if link_col else []
+    work_orders = _clean_smart_filter_values(df[wo_col].dropna().tolist()) if wo_col else []
+    if not link_codes and not work_orders:
+        st.warning("No Link Code or Work Order column was detected. The file can use names such as Link Code, LinkCode, Site Code, WO, WO ID, or Work Order.")
+    return {
+        "link_codes": link_codes,
+        "work_orders": work_orders,
+        "link_column": link_col,
+        "wo_column": wo_col,
+        "file_name": name,
+    }
+
+
+def _current_smart_bulk_filter_payload() -> Dict[str, Any]:
+    link_codes = _clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", []))
+    work_orders = _clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", []))
+    uploaded = st.session_state.get("smart_bulk_uploaded", {}) or {}
+    return {
+        "active": bool(link_codes or work_orders),
+        "fileName": uploaded.get("file_name", "Manual / Search Selection") if uploaded else "Manual / Search Selection",
+        "linkCodes": link_codes,
+        "workOrders": work_orders,
+        "linkColumn": uploaded.get("link_column", ""),
+        "woColumn": uploaded.get("wo_column", ""),
+    }
+
+
+def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
+    """Streamlit-native Smart Bulk Filter panel above the dashboard iframe.
+    It supports Excel/CSV upload, searchable multi-select chips for Link Code and Work Order,
+    and manual paste for large WO lists. Reset Filters in dashboard clears the iframe state;
+    the Clear button here clears the Streamlit selection before rendering the dashboard.
+    """
+    workorders = raw.get("workorders", []) or []
+    link_options = sorted({str(r.get("linkCode", "")).strip() for r in workorders if str(r.get("linkCode", "")).strip()}, key=lambda x: x.upper())
+    wo_options = sorted({str(r.get("workOrder", "")).strip() for r in workorders if str(r.get("workOrder", "")).strip()}, key=lambda x: x.upper())
+    # Keep uploaded/manual values in the option list so Streamlit multiselect accepts them even if they are not found in current data.
+    link_options = sorted(set(link_options) | set(_clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", []))), key=lambda x: x.upper())
+    wo_options = sorted(set(wo_options) | set(_clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", []))), key=lambda x: x.upper())
+
+    with st.container(border=True):
+        st.markdown("### 🎯 Smart Bulk Filter")
+        st.caption("Upload any Excel/CSV containing Link Code and/or Work Order, or search directly. The selection is applied to the full dashboard and PMO Audit.")
+
+        uploaded = st.file_uploader(
+            "Upload Excel / CSV containing Link Code and/or Work Order",
+            type=["xlsx", "xls", "csv"],
+            key="smart_bulk_upload_file",
+        )
+        if uploaded is not None:
+            parsed = _parse_smart_bulk_upload(uploaded)
+            st.session_state["smart_bulk_uploaded"] = parsed
+            if parsed.get("link_codes"):
+                st.session_state["smart_bulk_link_codes"] = parsed["link_codes"]
+            if parsed.get("work_orders"):
+                st.session_state["smart_bulk_work_orders"] = parsed["work_orders"]
+            if parsed.get("link_codes") or parsed.get("work_orders"):
+                st.success(
+                    f"Loaded from {parsed.get('file_name','file')}: "
+                    f"{len(parsed.get('link_codes', []))} Link Codes, "
+                    f"{len(parsed.get('work_orders', []))} Work Orders."
+                )
+
+        col1, col2, col3, col4 = st.columns([1.15, 1.15, 1.15, .8])
+        with col1:
+            selected_links = st.multiselect(
+                "Scan Link Codes",
+                options=link_options,
+                default=[x for x in st.session_state.get("smart_bulk_link_codes", []) if x in set(link_options)] or st.session_state.get("smart_bulk_link_codes", []),
+                key="smart_bulk_link_codes_multiselect",
+                placeholder="Search / select Link Codes",
+            )
+        with col2:
+            selected_wos = st.multiselect(
+                "Scan Work Orders",
+                options=wo_options,
+                default=[x for x in st.session_state.get("smart_bulk_work_orders", []) if x in set(wo_options)] or st.session_state.get("smart_bulk_work_orders", []),
+                key="smart_bulk_work_orders_multiselect",
+                placeholder="Search / select Work Orders",
+            )
+        with col3:
+            manual_wo = st.text_area(
+                "Add Work Orders",
+                value=st.session_state.get("smart_bulk_manual_wo_text", ""),
+                key="smart_bulk_manual_wo_text",
+                placeholder="Paste WO IDs separated by new lines or commas",
+                height=80,
+            )
+        with col4:
+            st.write("")
+            st.write("")
+            if st.button("🧹 Clear Smart Filter", use_container_width=True, key="smart_bulk_clear"):
+                for k in [
+                    "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders",
+                    "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
+                ]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+
+        manual_wos = _clean_smart_filter_values([manual_wo])
+        final_links = _clean_smart_filter_values(selected_links or st.session_state.get("smart_bulk_link_codes", []))
+        final_wos = _clean_smart_filter_values((selected_wos or st.session_state.get("smart_bulk_work_orders", [])) + manual_wos)
+        st.session_state["smart_bulk_link_codes"] = final_links
+        st.session_state["smart_bulk_work_orders"] = final_wos
+
+        c1, c2, c3, c4 = st.columns(4)
+        c1.metric("Uploaded Link Codes", len((st.session_state.get("smart_bulk_uploaded", {}) or {}).get("link_codes", [])))
+        c2.metric("Uploaded Work Orders", len((st.session_state.get("smart_bulk_uploaded", {}) or {}).get("work_orders", [])))
+        c3.metric("Manual/Search WO", len(manual_wos))
+        c4.metric("Active Filter IDs", len(final_links) + len(final_wos))
+
 @st.cache_data(show_spinner=False)
 def read_dashboard_html_cached(path_str: str, mtime: float) -> str:
     path = Path(path_str)
@@ -1589,6 +1784,8 @@ def render_dashboard() -> None:
         st.write(f"Work Orders: {len(raw['workorders']):,}")
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
+
+    render_smart_bulk_filter_panel(raw)
 
     # Admin Board quick access must be visible for ahmedfekry without opening the collapsed sidebar.
     if can("admin") and _is_admin_board_owner():
