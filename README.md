@@ -344,3 +344,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Executive PPT Builder page/button now depends only on User_Page_Access = Yes.
 - Export PPT permission inside User_Component_Access no longer opens or grants the PPT Builder page.
 - Added server-side guard: users without ppt_builder page permission cannot open it even via session/navigation.
+
+
+## V3.9 Admin Back + Document Dates Fix
+- Fixed Admin Board Back to Dashboard Streamlit session-state error.
+- Removed repeated manual-upload info message from every document stage card.
+- Added Uploaded / Created Date and Modified Date for all document stages 01 Design through 07 Commercial in Document Upload Center status scanning and export.

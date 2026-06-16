@@ -2074,7 +2074,7 @@ def list_drive_files(service, folder_id: str) -> List[Dict[str, str]]:
     result = service.files().list(
         q=query,
         spaces="drive",
-        fields="files(id,name,webViewLink,modifiedTime,size,mimeType)",
+        fields="files(id,name,webViewLink,createdTime,modifiedTime,size,mimeType)",
         pageSize=100,
         supportsAllDrives=True,
         includeItemsFromAllDrives=True,
@@ -2096,6 +2096,7 @@ def document_status_for_link(service, link_folder_id: str) -> Dict[str, Dict[str
             "count": len(files),
             "latest_file": files[0].get("name", "") if files else "",
             "latest_url": files[0].get("webViewLink", "") if files else "",
+            "latest_created": files[0].get("createdTime", "") if files else "",
             "latest_modified": files[0].get("modifiedTime", "") if files else "",
             "state": "Uploaded" if files else "Missing",
         }
@@ -2167,17 +2168,20 @@ def build_document_status_rows(service, wo: pd.DataFrame, link_codes: List[str],
                 "Missing Types": len(DOCUMENT_TYPES) - uploaded_count,
                 "Overall Status": "Uploaded" if uploaded_count == len(DOCUMENT_TYPES) else ("Partial" if uploaded_count > 0 else "Missing"),
                 "Latest File": "",
+                "Latest Created": "",
                 "Latest Modified": "",
             }
             latest_candidates = []
             for doc_type in DOCUMENT_TYPES:
                 info = status.get(doc_type, {})
                 row[doc_type] = status_badge_text(str(info.get("state", "Missing")), int(info.get("count", 0) or 0))
+                row[f"{document_folder_name(doc_type)} Uploaded / Created Date"] = str(info.get("latest_created", ""))
+                row[f"{document_folder_name(doc_type)} Modified Date"] = str(info.get("latest_modified", ""))
                 if info.get("latest_modified"):
-                    latest_candidates.append((str(info.get("latest_modified", "")), str(info.get("latest_file", ""))))
+                    latest_candidates.append((str(info.get("latest_modified", "")), str(info.get("latest_created", "")), str(info.get("latest_file", ""))))
             if latest_candidates:
                 latest_candidates.sort(reverse=True)
-                row["Latest Modified"], row["Latest File"] = latest_candidates[0]
+                row["Latest Modified"], row["Latest Created"], row["Latest File"] = latest_candidates[0]
             rows.append(row)
         except Exception as exc:
             row = {
@@ -2187,11 +2191,14 @@ def build_document_status_rows(service, wo: pd.DataFrame, link_codes: List[str],
                 "Missing Types": len(DOCUMENT_TYPES),
                 "Overall Status": "Error",
                 "Latest File": "",
+                "Latest Created": "",
                 "Latest Modified": "",
                 "Error": str(exc),
             }
             for doc_type in DOCUMENT_TYPES:
                 row[doc_type] = "❌ Missing"
+                row[f"{document_folder_name(doc_type)} Uploaded / Created Date"] = ""
+                row[f"{document_folder_name(doc_type)} Modified Date"] = ""
             rows.append(row)
     return pd.DataFrame(rows), folder_urls
 
@@ -2230,6 +2237,7 @@ def upload_widget_for_document_type(service, link_code: str, link_folder_id: str
             st.caption(status_badge_text(str(info.get("state", "Missing")), int(info.get("count", 0) or 0)))
             if info.get("latest_file"):
                 st.caption(f"Latest: {info.get('latest_file')}")
+                st.caption(f"Uploaded / Created: {info.get('latest_created', '')}")
                 st.caption(f"Modified: {info.get('latest_modified', '')}")
         with right:
             if info.get("folder_url"):
@@ -2239,7 +2247,6 @@ def upload_widget_for_document_type(service, link_code: str, link_folder_id: str
             if info.get("latest_url"):
                 st.link_button("Open Latest File", str(info.get("latest_url")), use_container_width=True)
 
-        st.info("Upload files manually inside Google Drive, then click Refresh Document Status. Direct Streamlit upload is disabled to avoid Service Account storage quota errors.")
 
 
 def document_upload_page() -> None:
@@ -2251,6 +2258,7 @@ def document_upload_page() -> None:
     with top_left:
         st.title("📂 Document Upload Center")
         st.caption("Manual Google Drive upload workflow for every Link Code. Open the Link Code folder, upload files directly into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial, then refresh status.")
+        st.info("Manual upload mode: upload files in Google Drive, then click Refresh Document Status. Created/Uploaded Date and Modified Date are scanned from Google Drive for all 7 stages.")
     with top_right:
         st.write("")
         st.write("")
@@ -2307,7 +2315,10 @@ def document_upload_page() -> None:
         status_df = st.session_state.get("document_status_df", pd.DataFrame())
         document_kpi_cards(status_df)
         if not status_df.empty:
-            show_cols = ["Link Code", "Overall Status", "Uploaded Types", "Missing Types"] + DOCUMENT_TYPES + ["Latest File", "Latest Modified", "Folder Link"]
+            date_cols = []
+            for _doc_type in DOCUMENT_TYPES:
+                date_cols.extend([f"{document_folder_name(_doc_type)} Uploaded / Created Date", f"{document_folder_name(_doc_type)} Modified Date"])
+            show_cols = ["Link Code", "Overall Status", "Uploaded Types", "Missing Types"] + DOCUMENT_TYPES + date_cols + ["Latest File", "Latest Created", "Latest Modified", "Folder Link"]
             available_cols = [c for c in show_cols if c in status_df.columns]
             st.dataframe(status_df[available_cols], use_container_width=True, hide_index=True)
             st.download_button(
@@ -4100,8 +4111,10 @@ def admin_page() -> None:
     back_col, spacer_col = st.columns([1.5, 6])
     with back_col:
         if st.button("← Back to Dashboard", use_container_width=True, key="admin_back_to_dashboard"):
+            # Do not assign st.session_state["main_nav"] here because the sidebar radio
+            # with key="main_nav" has already been created in this rerun.
+            # The flag below is applied safely before the radio is created on the next rerun.
             st.session_state["force_dashboard"] = True
-            st.session_state["main_nav"] = "Dashboard"
             st.rerun()
 
     st.title("⚙️ Admin Board")
