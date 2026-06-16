@@ -1310,8 +1310,89 @@ def make_safe_js_initial_raw(raw_data: Dict[str, List[dict]]) -> str:
     )
 
 
+def _norm_bulk_col_name(name: Any) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(name or "").strip().lower())
+
+
+def _looks_like_link_code(value: Any) -> bool:
+    v = str(value or "").strip().upper()
+    return bool(re.search(r"^[A-Z]{2,4}-[A-Z0-9]{2,8}-[A-Z0-9]{2,8}-\d{1,4}$", v))
+
+
+def _looks_like_work_order(value: Any) -> bool:
+    v = str(value or "").strip().upper()
+    return bool(re.search(r"\b\d{4,6}OSP[A-Z]{2,5}\d{4,8}\b", v))
+
+
+def parse_bulk_site_filter(uploaded_file) -> Dict[str, List[str]]:
+    """Read any Excel/CSV and extract Link Codes / Work Orders without forcing a template."""
+    if uploaded_file is None:
+        return {"linkCodes": [], "workOrders": []}
+    name = str(getattr(uploaded_file, "name", "")).lower()
+    try:
+        if name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file, dtype=str, encoding_errors="ignore")
+        else:
+            df = pd.read_excel(uploaded_file, dtype=str)
+    except Exception:
+        uploaded_file.seek(0)
+        if name.endswith(".csv"):
+            df = pd.read_csv(uploaded_file, dtype=str, encoding="latin1")
+        else:
+            df = pd.read_excel(uploaded_file, dtype=str, header=None)
+
+    df = df.fillna("")
+    link_keywords = {"linkcode", "link", "sitecode", "siteid", "cluster", "clustername", "area", "areacode"}
+    wo_keywords = {"wo", "woid", "workorder", "workordernumber", "workorderno", "workorderid", "number"}
+    link_cols, wo_cols = [], []
+    for col in df.columns:
+        n = _norm_bulk_col_name(col)
+        if any(k in n for k in link_keywords):
+            link_cols.append(col)
+        if any(k in n for k in wo_keywords):
+            wo_cols.append(col)
+
+    link_values, wo_values = [], []
+    for col in link_cols:
+        link_values.extend(df[col].astype(str).tolist())
+    for col in wo_cols:
+        wo_values.extend(df[col].astype(str).tolist())
+
+    # Fallback: scan all cells if headers are not standard. This handles files from different departments.
+    if not link_values or not wo_values:
+        for v in df.astype(str).values.ravel().tolist():
+            if _looks_like_link_code(v):
+                link_values.append(v)
+            if _looks_like_work_order(v):
+                wo_values.append(v)
+
+    def clean_unique(vals: List[Any], kind: str) -> List[str]:
+        out, seen = [], set()
+        for val in vals:
+            v = str(val or "").strip().upper()
+            if not v or v in {"NAN", "NONE", "NULL", "-"}:
+                continue
+            if kind == "link" and not (_looks_like_link_code(v) or "-" in v):
+                continue
+            if kind == "wo" and not (_looks_like_work_order(v) or v.startswith("250") or "OSP" in v):
+                continue
+            if v not in seen:
+                seen.add(v); out.append(v)
+        return out
+
+    return {"linkCodes": clean_unique(link_values, "link"), "workOrders": clean_unique(wo_values, "wo")}
+
+
+def make_safe_js_bulk_filter() -> str:
+    payload = {
+        "linkCodes": st.session_state.get("bulk_link_codes", []),
+        "workOrders": st.session_state.get("bulk_workorders", []),
+    }
+    return "const INITIAL_BULK_FILTER = " + json.dumps(payload, ensure_ascii=False, separators=(",", ":")) + ";\n"
+
+
 def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> str:
-    replacement = make_safe_js_initial_raw(raw_data)
+    replacement = make_safe_js_initial_raw(raw_data) + make_safe_js_bulk_filter()
 
     patterns = [
         r"const\s+INITIAL_RAW\s*=\s*.*?;\s*(?=const\s+FILTERS\s*=)",
@@ -1584,6 +1665,30 @@ def render_dashboard() -> None:
         return
 
     raw = build_initial_raw()
+
+    with st.expander("🎯 Smart Bulk Filter — Upload Sites List", expanded=False):
+        st.caption("Optional filter for a large selected list of sites. Upload Excel/CSV from any source; the system will detect Link Code and/or Work Order columns automatically, or scan the file if headers are not standard.")
+        bulk_file = st.file_uploader(
+            "Upload Excel / CSV containing Link Code and/or Work Order",
+            type=["xlsx", "xls", "csv"],
+            key="smart_bulk_filter_file",
+        )
+        c1, c2, c3 = st.columns([1, 1, 1])
+        if bulk_file is not None:
+            parsed = parse_bulk_site_filter(bulk_file)
+            st.session_state["bulk_link_codes"] = parsed.get("linkCodes", [])
+            st.session_state["bulk_workorders"] = parsed.get("workOrders", [])
+        with c1:
+            st.metric("Loaded Link Codes", len(st.session_state.get("bulk_link_codes", [])))
+        with c2:
+            st.metric("Loaded Work Orders", len(st.session_state.get("bulk_workorders", [])))
+        with c3:
+            if st.button("🧹 Clear Uploaded Site Filter", use_container_width=True):
+                st.session_state["bulk_link_codes"] = []
+                st.session_state["bulk_workorders"] = []
+                st.rerun()
+        if st.session_state.get("bulk_link_codes") or st.session_state.get("bulk_workorders"):
+            st.success("Bulk filter is active. It is applied inside all dashboard tabs and PMO Audit. Reset Filters inside the dashboard clears it for the current view; this button clears it from the Streamlit session.")
 
     with st.sidebar.expander("Data check", expanded=False):
         st.write(f"Work Orders: {len(raw['workorders']):,}")

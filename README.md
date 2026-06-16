@@ -1,19 +1,3 @@
-# Dawiyat PMO Executive Portal V4.0 - Board PDF Export Fixed
-
-This build keeps V3.9 features and adds a board-ready PDF export enhancement:
-
-- Browser PDF export is forced to **A4 Landscape**.
-- Dashboard export enters a dedicated `pdf-export-mode` before printing.
-- Tables and report cards are protected from page splitting using print CSS.
-- Scrollable tables are expanded during export to avoid clipped rows/scrollbar screenshots.
-- Executive report sections and orange report slides are printed as clean page blocks.
-- Buttons, filters, upload controls, and UI-only elements are hidden in the PDF.
-
-Use **Export PDF Report** from the dashboard, then choose **Save as PDF**.
-
-
----
-
 # Dawiyat PMO Executive Portal V2.5 - Google Drive Upload Center
 
 This version includes a professional Streamlit Document Upload Center integrated with Google Drive.
@@ -366,3 +350,14 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Fixed Admin Board Back to Dashboard Streamlit session-state error.
 - Removed repeated manual-upload info message from every document stage card.
 - Added Uploaded / Created Date and Modified Date for all document stages 01 Design through 07 Commercial in Document Upload Center status scanning and export.
+
+## V4.0 Smart Bulk Filter + Work Order Search
+- Added **Smart Bulk Filter — Upload Sites List** above the dashboard.
+- Supports XLSX / XLS / CSV without forcing a fixed template.
+- Automatically detects common Link Code / Work Order column names, and scans file cells when headers are not standard.
+- Added dashboard search fields:
+  - Search Link Code
+  - Search Work Order
+- Bulk uploaded Link Codes / Work Orders are applied across all dashboard tabs and PMO Audit.
+- Reset Filters inside the dashboard clears the active search and uploaded bulk filter for the current view.
+- Streamlit **Clear Uploaded Site Filter** removes the uploaded selection from the session.
