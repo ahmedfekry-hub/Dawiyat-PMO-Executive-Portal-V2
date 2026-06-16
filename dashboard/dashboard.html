@@ -58,12 +58,9 @@
   .clear-filter { border:0; background:#eef4fb; color:#5d708a; border-radius:999px; padding:4px 9px; font-size:10px; font-weight:900; letter-spacing:.06em; cursor:pointer; }
   .clear-filter:hover { background:#ffe8ed; color:#ff3b63; }
   .clear-filter:disabled { opacity:.35; cursor:not-allowed; background:#eef2f7; color:#94a3b8; }
-  .filter select, .filter input {
+  .filter select {
     width:100%; border:none; outline:none; background:transparent; color:var(--text); font-size:15px; padding:6px 0;
   }
-  .filter input { border-bottom:1px solid #edf2f7; }
-  .bulk-filter-card { border-color:#99f6e4; background:#f0fdfa; }
-  .bulk-filter-card .bulk-count { font-weight:900; color:#0f766e; }
   .panel {
     background:#fff; border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); padding:16px; margin-bottom:16px;
   }
@@ -145,6 +142,15 @@
   .notes { border:1px dashed #cdd9e7; border-radius:14px; padding:12px; background:#fff; color:var(--text); line-height:1.55; }
   .small-table th, .small-table td { font-size:12px; padding:8px; }
   .filter select[multiple] { min-height: 150px; }
+  .token-box { display:flex; flex-wrap:wrap; gap:6px; min-height:46px; max-height:145px; overflow:auto; background:#f2f5fa; border-radius:12px; padding:7px; border:1px solid #e3ebf5; }
+  .token-chip { display:inline-flex; align-items:center; gap:7px; background:#ff4b4b; color:#fff; border-radius:8px; padding:7px 9px; font-size:12px; font-weight:800; line-height:1; max-width:100%; }
+  .token-chip button { border:0; background:transparent; color:#fff; cursor:pointer; font-weight:900; padding:0; font-size:14px; }
+  .token-input { flex:1 1 180px; min-width:140px; border:0; outline:0; background:transparent; padding:5px 4px; color:#17253c; font-size:13px; }
+  .token-help { margin-top:7px; font-size:11px; color:#64748b; line-height:1.35; }
+  .bulk-filter-card { background:#fff; border:1px solid var(--line); border-radius:18px; box-shadow:var(--shadow); padding:12px 14px; margin-bottom:12px; display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+  .bulk-filter-card .bulk-title { font-weight:900; color:#1e3a5f; }
+  .bulk-status { font-size:12px; color:#64748b; }
+  .bulk-active { color:#157347; font-weight:900; }
   .perf-end-grid { display:grid; grid-template-columns: 1.05fr .95fr; gap:16px; margin-top:16px; }
   .viz-box { border:1px solid var(--line); border-radius:18px; background:#fff; padding:16px; min-height:320px; }
   .viz-head { font-size:15px; color:var(--muted); margin-bottom:10px; }
@@ -2297,10 +2303,9 @@ const FILTERS = [
   ['invoice50', '1st 50 Invoice Status'],
   ['sorReferenceNumber', 'SOR Reference Number'],
   ['scopeTarget', 'Scope Target'],
-  ['linkCode', 'Link Code']
+  ['linkCode', 'Link Code'],
+  ['workOrder', 'Work Order']
 ];
-
-const BULK_FILTER_PAYLOAD = (typeof INITIAL_BULK_FILTER !== 'undefined') ? INITIAL_BULK_FILTER : {linkCodes:[], workOrders:[]};
 
 const state = {
   tab: 'overview',
@@ -2313,12 +2318,7 @@ const state = {
   weightedFactorFilter: 'All',
   riskDriverFilter: 'All Critical Drivers',
   sorReferenceFilter: 'All',
-  searchLinkCode: '',
-  searchWorkOrder: '',
-  bulkFilter: {
-    linkCodes: (BULK_FILTER_PAYLOAD.linkCodes || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean),
-    workOrders: (BULK_FILTER_PAYLOAD.workOrders || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean)
-  }
+  uploadedSiteFilter: {active:false, fileName:'', linkCodes:[], workOrders:[], linkColumn:'', woColumn:''}
 };
 
 function escapeHtml(v) {
@@ -3377,42 +3377,42 @@ function changeSorReferenceFilter(val) {
   renderAll();
 }
 
-function applySmartSearchAndBulkFilters(rows) {
-  let out = rows.slice();
-  const linkSearch = String(state.searchLinkCode || '').trim().toUpperCase();
-  const woSearch = String(state.searchWorkOrder || '').trim().toUpperCase();
-  const bulkLinks = new Set(((state.bulkFilter && state.bulkFilter.linkCodes) || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean));
-  const bulkWos = new Set(((state.bulkFilter && state.bulkFilter.workOrders) || []).map(x => String(x || '').trim().toUpperCase()).filter(Boolean));
-  if (bulkLinks.size || bulkWos.size) {
-    out = out.filter(r => {
-      const link = String(r.linkCode || '').trim().toUpperCase();
-      const wo = String(r.workOrder || '').trim().toUpperCase();
-      return (bulkLinks.size && bulkLinks.has(link)) || (bulkWos.size && bulkWos.has(wo));
-    });
+function normSiteId(v) { return String(v ?? '').trim().toUpperCase(); }
+function arrayFilterMatch(row, key, vals) {
+  const set = new Set((vals || []).map(normSiteId).filter(Boolean));
+  if (!set.size) return true;
+  return set.has(normSiteId(filterComparableValue(row, key)));
+}
+function applyUploadedSiteFilter(rows) {
+  const f = state.uploadedSiteFilter || {};
+  const linkSet = new Set((f.linkCodes || []).map(normSiteId).filter(Boolean));
+  const woSet = new Set((f.workOrders || []).map(normSiteId).filter(Boolean));
+  if (!f.active || (!linkSet.size && !woSet.size)) return rows || [];
+  return (rows || []).filter(r => {
+    const linkOk = linkSet.size && linkSet.has(normSiteId(r.linkCode));
+    const woOk = woSet.size && woSet.has(normSiteId(r.workOrder));
+    return linkOk || woOk;
+  });
+}
+function updateBulkFilterStatus() {
+  const el = document.getElementById('bulk-filter-status');
+  if (!el) return;
+  const f = state.uploadedSiteFilter || {};
+  if (!f.active) {
+    el.innerHTML = 'Upload Excel/CSV with any column similar to <b>Link Code</b> or <b>Work Order</b>. Reset Filters clears this list.';
+    return;
   }
-  if (linkSearch) out = out.filter(r => String(r.linkCode || '').toUpperCase().includes(linkSearch));
-  if (woSearch) out = out.filter(r => String(r.workOrder || '').toUpperCase().includes(woSearch));
-  return out;
+  el.innerHTML = `<span class="bulk-active">Active:</span> ${escapeHtml(f.fileName || 'Uploaded file')} · Link Codes: <b>${fmtInt((f.linkCodes||[]).length)}</b> · Work Orders: <b>${fmtInt((f.workOrders||[]).length)}</b>`;
 }
-
-function clearSmartSearchAndBulkFilters() {
-  state.searchLinkCode = '';
-  state.searchWorkOrder = '';
-  state.bulkFilter = {linkCodes: [], workOrders: []};
-}
-
 function getFilteredWorkorders() {
   let rows = state.data.workorders.slice();
   FILTERS.forEach(([key]) => {
     const val = state.filters[key];
     if (!val || val === 'All') return;
-    if (key === 'linkCode' && Array.isArray(val)) {
-      rows = rows.filter(r => val.includes(String(r[key] || '')));
-    } else {
-      rows = rows.filter(r => String(filterComparableValue(r, key) || '') === String(val));
-    }
+    if (Array.isArray(val)) rows = rows.filter(r => arrayFilterMatch(r, key, val));
+    else rows = rows.filter(r => String(filterComparableValue(r, key) || '') === String(val));
   });
-  rows = applySmartSearchAndBulkFilters(rows);
+  rows = applyUploadedSiteFilter(rows);
   rows = applySorCriticalObservationFilter(rows);
   rows = applySorReferenceFilter(rows);
   return rows;
@@ -3461,73 +3461,93 @@ function clearPmoDependentFilters(key) {
     if (state.filters) state.filters.district = 'All';
   }
 }
+function renderTokenMultiFilter(div, key, label, options) {
+  const current = Array.isArray(state.filters[key]) ? state.filters[key] : [];
+  const isActive = current.length > 0;
+  const listId = `list-${key}`;
+  const header = `<div class="filter-head"><label>${escapeHtml(label)} (search & add)</label><button class="clear-filter" type="button" title="Clear ${escapeHtml(label)} filter" ${isActive ? '' : 'disabled'}>CLEAR</button></div>`;
+  div.innerHTML = `${header}
+    <div class="token-box" id="token-box-${key}">
+      ${current.map(v => `<span class="token-chip" title="${escapeHtml(v)}">${escapeHtml(v)} <button type="button" data-remove="${escapeHtml(v)}">×</button></span>`).join('')}
+      <input class="token-input" id="filter-${key}" list="${listId}" placeholder="Search / paste / press Enter" autocomplete="off" />
+      <datalist id="${listId}">${options.slice(0,5000).map(o => `<option value="${escapeHtml(o)}"></option>`).join('')}</datalist>
+    </div>
+    <div class="token-help">Paste multiple values separated by comma, space, semicolon, or new line.</div>`;
+  const clearBtn = div.querySelector('.clear-filter');
+  const input = div.querySelector(`#filter-${key}`);
+  const addValues = (raw) => {
+    const values = String(raw || '').split(/[\n,;\t]+/).map(x => x.trim()).filter(Boolean);
+    if (!values.length) return;
+    const map = new Map(current.map(x => [normSiteId(x), x]));
+    values.forEach(v => { const n = normSiteId(v); if(n) map.set(n, v); });
+    state.filters[key] = [...map.values()];
+    pmoSyncGlobalToFilters();
+    renderAll();
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === 'Tab' || e.key === ',') {
+      e.preventDefault();
+      addValues(input.value);
+    }
+  });
+  input.addEventListener('change', () => { addValues(input.value); });
+  div.querySelectorAll('[data-remove]').forEach(btn => btn.addEventListener('click', () => {
+    const removeNorm = normSiteId(btn.getAttribute('data-remove'));
+    const next = current.filter(v => normSiteId(v) !== removeNorm);
+    state.filters[key] = next.length ? next : 'All';
+    pmoSyncGlobalToFilters();
+    renderAll();
+  }));
+  clearBtn.addEventListener('click', () => {
+    state.filters[key] = 'All';
+    pmoSyncGlobalToFilters();
+    renderAll();
+  });
+}
 function renderFilters() {
   const host = document.getElementById('filters');
   host.innerHTML = '';
-
-  const bulkCount = ((state.bulkFilter?.linkCodes || []).length + (state.bulkFilter?.workOrders || []).length);
-  const searchCards = document.createElement('div');
-  searchCards.className = 'filter bulk-filter-card';
-  searchCards.innerHTML = `<div class="filter-head"><label>Smart Bulk Filter</label><button class="clear-filter" type="button" ${bulkCount || state.searchLinkCode || state.searchWorkOrder ? '' : 'disabled'}>CLEAR</button></div>
-    <div class="small">Uploaded selection: <span class="bulk-count">${bulkCount}</span> item(s)</div>
-    <input id="search-link-code" type="text" placeholder="🔍 Search Link Code e.g. RIYA-66" value="${escapeHtml(state.searchLinkCode || '')}">
-    <input id="search-work-order" type="text" placeholder="🔍 Search Work Order e.g. 2502OSPFI0003125" value="${escapeHtml(state.searchWorkOrder || '')}">`;
-  host.appendChild(searchCards);
-  searchCards.querySelector('.clear-filter').addEventListener('click', () => { clearSmartSearchAndBulkFilters(); renderAll(); });
-  searchCards.querySelector('#search-link-code').addEventListener('input', e => { state.searchLinkCode = e.target.value; renderAll(); });
-  searchCards.querySelector('#search-work-order').addEventListener('input', e => { state.searchWorkOrder = e.target.value; renderAll(); });
-
   FILTERS.forEach(([key, label]) => {
     let basis = state.data.workorders.slice();
     FILTERS.forEach(([k2]) => {
       const val = state.filters[k2];
       if (k2 === key || !val || val === 'All') return;
-      if (k2 === 'linkCode' && Array.isArray(val)) basis = basis.filter(r => val.includes(String(r[k2] || '')));
+      if (Array.isArray(val)) basis = basis.filter(r => arrayFilterMatch(r, k2, val));
       else basis = basis.filter(r => String(filterComparableValue(r, k2) || '') === String(val));
     });
-    const options = unique(basis.map(r => filterComparableValue(r, key)).filter(v => String(v ?? '').trim() !== '')).sort((a,b)=>String(a).localeCompare(String(b)));
+    const options = unique(basis.map(r => filterComparableValue(r, key)).filter(v => String(v ?? '').trim() !== '')).sort((a,b)=>String(a).localeCompare(String(b), undefined, {numeric:true, sensitivity:'base'}));
     const div = document.createElement('div');
     div.className = 'filter';
-    const isActive = key === 'linkCode' ? Array.isArray(state.filters[key]) && state.filters[key].length > 0 : state.filters[key] && state.filters[key] !== 'All';
-    const header = `<div class="filter-head"><label>${escapeHtml(label)}${key === 'linkCode' ? ' (multi-select)' : ''}</label><button class="clear-filter" type="button" title="Clear ${escapeHtml(label)} filter" ${isActive ? '' : 'disabled'}>CLEAR</button></div>`;
-    if (key === 'linkCode') {
-      div.innerHTML = `${header}<select id="filter-${key}" multiple>${options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
-    } else {
-      div.innerHTML = `${header}<select id="filter-${key}"><option value="All">All</option>${options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
+    if (key === 'linkCode' || key === 'workOrder') {
+      renderTokenMultiFilter(div, key, label, options);
+      host.appendChild(div);
+      return;
     }
+    const isActive = state.filters[key] && state.filters[key] !== 'All';
+    const header = `<div class="filter-head"><label>${escapeHtml(label)}</label><button class="clear-filter" type="button" title="Clear ${escapeHtml(label)} filter" ${isActive ? '' : 'disabled'}>CLEAR</button></div>`;
+    div.innerHTML = `${header}<select id="filter-${key}"><option value="All">All</option>${options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
     host.appendChild(div);
     const select = div.querySelector('select');
     const clearBtn = div.querySelector('.clear-filter');
     clearBtn.addEventListener('click', () => {
       state.filters[key] = 'All';
       if (key === 'sorReferenceNumber') state.sorReferenceFilter = 'All';
-  if(state.filters) state.filters.sorReferenceNumber = 'All';
+      if(state.filters) state.filters.sorReferenceNumber = 'All';
       clearGlobalDependentFilters(key);
       pmoSyncGlobalToFilters();
       renderAll();
     });
-    if (key === 'linkCode') {
-      const current = Array.isArray(state.filters[key]) ? state.filters[key] : [];
-      [...select.options].forEach(opt => opt.selected = current.includes(opt.value));
-      select.addEventListener('change', e => {
-        const vals = [...e.target.selectedOptions].map(o => o.value);
-        state.filters[key] = vals.length ? vals : 'All';
-        pmoSyncGlobalToFilters();
-        renderAll();
-      });
-    } else {
-      select.value = options.includes(state.filters[key]) ? state.filters[key] : 'All';
-      select.addEventListener('change', e => {
-        const previousValue = state.filters[key];
-        state.filters[key] = e.target.value;
-        if (key === 'sorReferenceNumber') state.sorReferenceFilter = e.target.value || 'All';
-        if ((key === 'region' || key === 'city') && previousValue !== state.filters[key]) {
-          clearGlobalDependentFilters(key);
-        }
-        pmoSyncGlobalToFilters();
-        renderAll();
-      });
-    }
+    select.value = options.includes(state.filters[key]) ? state.filters[key] : 'All';
+    select.addEventListener('change', e => {
+      const previousValue = state.filters[key];
+      state.filters[key] = e.target.value;
+      if (key === 'sorReferenceNumber') state.sorReferenceFilter = e.target.value || 'All';
+      if ((key === 'region' || key === 'city') && previousValue !== state.filters[key]) {
+        clearGlobalDependentFilters(key);
+      }
+      pmoSyncGlobalToFilters();
+      renderAll();
+    });
   });
 }
 function colorForStatus(status) {
@@ -6445,6 +6465,7 @@ function renderExecutiveReports(){
 }
 
 function renderAll() {
+  updateBulkFilterStatus();
   renderFilters();
   let rows = getFilteredWorkorders();
   rows = applyFilteredKpiContext(rows);
@@ -6510,10 +6531,59 @@ document.addEventListener('click', (e) => {
   if (e.target && e.target.id === 'pmo-export-master-excel') { e.preventDefault(); pmoExportMasterExcel(); }
 });
 document.querySelectorAll('[data-perf-trend]').forEach(btn => btn.addEventListener('click', () => { state.perfTrendMode = btn.dataset.perfTrend; renderPerformanceTrend(getFilteredWorkorders()); }));
+
+function splitSiteValues(v) {
+  return String(v ?? '').split(/[\n,;\t]+/).map(x => x.trim()).filter(Boolean);
+}
+function normalizedColumnName(c) { return String(c || '').toLowerCase().replace(/[^a-z0-9]/g,''); }
+function findSmartColumn(columns, type) {
+  const cols = columns || [];
+  const scored = cols.map(c => {
+    const n = normalizedColumnName(c);
+    let score = 0;
+    if (type === 'link') {
+      if (['linkcode','linkcodes','linkid','sitecode','siteid','clustercode','clustername'].includes(n)) score = 100;
+      else if (n.includes('link') && n.includes('code')) score = 90;
+      else if (n.includes('site') && n.includes('code')) score = 70;
+      else if (n.includes('cluster') && (n.includes('name') || n.includes('code'))) score = 70;
+    } else {
+      if (['workorder','workordernumber','workorderid','wo','woid','wonumber','isownumber','isow'].includes(n)) score = 100;
+      else if (n.includes('work') && n.includes('order')) score = 90;
+      else if (n === 'wo' || n.includes('woid') || n.includes('wonumber')) score = 80;
+      else if (n.includes('isow')) score = 70;
+    }
+    return {c, score};
+  }).filter(x => x.score).sort((a,b)=>b.score-a.score);
+  return scored.length ? scored[0].c : '';
+}
+function valuesFromColumn(rows, col) {
+  if (!col) return [];
+  const out = [];
+  (rows || []).forEach(r => splitSiteValues(r[col]).forEach(v => out.push(v)));
+  return unique(out.map(x => String(x || '').trim()).filter(Boolean));
+}
+async function handleSiteFilterUpload(file) {
+  if (!file) return;
+  const rows = await readAnyTableFile(file);
+  if (!rows || !rows.length) { alert('Uploaded file is empty.'); return; }
+  const columns = Object.keys(rows[0] || {});
+  const linkCol = findSmartColumn(columns, 'link');
+  const woCol = findSmartColumn(columns, 'wo');
+  const linkCodes = valuesFromColumn(rows, linkCol);
+  const workOrders = valuesFromColumn(rows, woCol);
+  if (!linkCodes.length && !workOrders.length) {
+    alert('No Link Code or Work Order column was detected. Please make sure the file contains at least one suitable column.');
+    return;
+  }
+  state.uploadedSiteFilter = {active:true, fileName:file.name, linkCodes, workOrders, linkColumn:linkCol, woColumn:woCol};
+  updateBulkFilterStatus();
+  renderAll();
+}
+
 document.getElementById('reset-filters').addEventListener('click', () => {
   state.filters = Object.fromEntries(FILTERS.map(f => [f[0], 'All']));
   state.sorReferenceFilter = 'All';
-  clearSmartSearchAndBulkFilters();
+  state.uploadedSiteFilter = {active:false, fileName:'', linkCodes:[], workOrders:[], linkColumn:'', woColumn:''};
   if (state.pmo) {
     state.pmo.filters = Object.fromEntries(PMO_FILTERS.map(f => [f[0], 'All']));
     state.pmo.sorCriticalGlobalActive=false;
@@ -6522,6 +6592,12 @@ document.getElementById('reset-filters').addEventListener('click', () => {
   pmoSyncGlobalToFilters();
   const sorRefSelect=document.getElementById('pmo-sor-reference-select');
   if(sorRefSelect) sorRefSelect.value='All';
+  renderAll();
+});
+document.getElementById('site-filter-file')?.addEventListener('change', e => handleSiteFilterUpload(e.target.files && e.target.files[0]));
+document.getElementById('clear-site-filter')?.addEventListener('click', () => {
+  state.uploadedSiteFilter = {active:false, fileName:'', linkCodes:[], workOrders:[], linkColumn:'', woColumn:''};
+  updateBulkFilterStatus();
   renderAll();
 });
 document.getElementById('export-pdf').addEventListener('click', () => window.print());
