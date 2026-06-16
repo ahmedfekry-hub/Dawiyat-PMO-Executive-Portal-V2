@@ -351,28 +351,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Removed repeated manual-upload info message from every document stage card.
 - Added Uploaded / Created Date and Modified Date for all document stages 01 Design through 07 Commercial in Document Upload Center status scanning and export.
 
-## V4.0 Smart Bulk Filter + Work Order Search
-- Added **Smart Bulk Filter — Upload Sites List** above the dashboard.
-- Supports XLSX / XLS / CSV without forcing a fixed template.
-- Automatically detects common Link Code / Work Order column names, and scans file cells when headers are not standard.
-- Added dashboard search fields:
-  - Search Link Code
-  - Search Work Order
-- Bulk uploaded Link Codes / Work Orders are applied across all dashboard tabs and PMO Audit.
-- Reset Filters inside the dashboard clears the active search and uploaded bulk filter for the current view.
-- Streamlit **Clear Uploaded Site Filter** removes the uploaded selection from the session.
-
-
-## V4.1 Document Upload Center Smart Bulk Filter
-- Added the same Smart Bulk Filter to Document Upload Center.
-- Document scan list and Link Code selector now follow uploaded Link Code / Work Order selections.
-- Added direct Search Link Code and Search Work Order inside Document Upload Center.
-- Added manual Work Orders paste box for quick filtering without an Excel template.
-
-
-## V4.2 Document Center Scan Filter Simplification
-- Removed the separate green Smart Bulk Filter panel from Document Upload Center.
-- Integrated upload/search directly into the existing Scan Link Codes section.
-- One search field now supports both Link Code and Work Order.
-- Added optional manual Work Order paste box inside the same Scan area.
-- Scan Link Codes list is filtered automatically based on Link Code or Work Order matches.
+## V4.0 Smart Bulk Site Filter + Search Tokens
+- Added **Smart Bulk Filter** inside the HTML dashboard.
+- Upload Excel/CSV with any column similar to **Link Code** or **Work Order**; the dashboard detects the columns automatically.
+- Added token-style search/add filter for **Link Code** similar to Scan Link Codes.
+- Added token-style search/add filter for **Work Order**.
+- Values can be pasted in bulk separated by comma, semicolon, tab, or new line.
+- **Reset Filters** clears Link Code tokens, Work Order tokens, and any uploaded site list filter across the dashboard and PMO Audit.
