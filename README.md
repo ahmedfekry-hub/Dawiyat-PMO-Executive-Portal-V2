@@ -361,3 +361,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Bulk uploaded Link Codes / Work Orders are applied across all dashboard tabs and PMO Audit.
 - Reset Filters inside the dashboard clears the active search and uploaded bulk filter for the current view.
 - Streamlit **Clear Uploaded Site Filter** removes the uploaded selection from the session.
+
+
+## V4.1 Document Upload Center Smart Bulk Filter
+- Added the same Smart Bulk Filter to Document Upload Center.
+- Document scan list and Link Code selector now follow uploaded Link Code / Work Order selections.
+- Added direct Search Link Code and Search Work Order inside Document Upload Center.
+- Added manual Work Orders paste box for quick filtering without an Excel template.
