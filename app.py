@@ -927,7 +927,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     policy["hide_ppt_components"] = list(dict.fromkeys(hide_ppt_components))
     policy["export_excel"] = any_excel
     policy["export_pdf"] = any_pdf
-    policy["export_ppt"] = any_ppt or bool(policy.get("ppt_builder"))
+    policy["export_ppt"] = any_ppt  # Export permission only; does NOT grant PPT Builder page access
     policy["export"] = bool(policy.get("export_excel") or policy.get("export_pdf") or policy.get("export_ppt"))
     return policy
 
@@ -1096,7 +1096,7 @@ def allowed_pages_for_current_user() -> List[str]:
     if policy.get("assistant"): out.append("AI Executive Assistant")
     if policy.get("alerts"): out.append("Smart Alerts")
     if policy.get("reports"): out.append("Executive Reports")
-    if policy.get("ppt_builder") or policy.get("export_ppt"): out.append("📊 Executive PPT Builder")
+    if policy.get("ppt_builder"): out.append("📊 Executive PPT Builder")
     if policy.get("upload"): out.append("Upload CSV")
     if policy.get("documents"): out.append("📤 Document Upload Center")
     if policy.get("admin"): out.append("Admin Board")
@@ -1624,7 +1624,7 @@ def render_dashboard() -> None:
             st.session_state["force_document_upload_center"] = True
             st.rerun()
 
-    if can("export_ppt") or can("ppt_builder"):
+    if can("ppt_builder"):
         st.markdown(
             """
             <div class="upload-center-hero">

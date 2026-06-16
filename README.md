@@ -338,3 +338,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Admin Board can still edit and save permissions directly to `data/permissions.xlsx`.
 - Other users will receive permission changes only after browser refresh, Streamlit rerun, or Logout/Login.
 - This prevents active dashboard pages from resetting while users are working.
+
+
+## V3.8 PPT Builder Page Gate Fix
+- Executive PPT Builder page/button now depends only on User_Page_Access = Yes.
+- Export PPT permission inside User_Component_Access no longer opens or grants the PPT Builder page.
+- Added server-side guard: users without ppt_builder page permission cannot open it even via session/navigation.
