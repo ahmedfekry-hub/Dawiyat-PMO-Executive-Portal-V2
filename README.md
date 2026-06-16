@@ -332,3 +332,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Save buttons write changes back to `data/permissions.xlsx` on the running app.
 - Active user sessions auto-refresh every 12 seconds outside Admin Board, so users receive permission changes quickly without manual logout/login.
 - GitHub `permissions.xlsx` remains supported as the baseline file after redeploy, while Admin Board edits apply immediately to the current running deployment.
+
+## V3.7 Manual Permission Refresh Fix
+- Removed the timed 12-second permission auto-refresh to keep user pages stable.
+- Admin Board can still edit and save permissions directly to `data/permissions.xlsx`.
+- Other users will receive permission changes only after browser refresh, Streamlit rerun, or Logout/Login.
+- This prevents active dashboard pages from resetting while users are working.

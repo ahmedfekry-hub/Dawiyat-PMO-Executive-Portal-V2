@@ -654,7 +654,7 @@ def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
 
 def _write_permissions_excel_sheets(sheets: Dict[str, pd.DataFrame]) -> None:
     """Persist permission sheets to data/permissions.xlsx so Admin Board edits become live immediately.
-    The app reads this workbook on every rerun; other active sessions pick changes up through auto-refresh.
+    The app reads this workbook on each normal rerun; users pick up changes after browser refresh or Logout/Login.
     """
     DATA_DIR.mkdir(exist_ok=True)
     clean_sheets: Dict[str, pd.DataFrame] = {}
@@ -693,24 +693,13 @@ def _update_permission_sheet_from_editor(sheet_name: str, edited_df: pd.DataFram
 
 
 def render_permission_auto_refresh(interval_seconds: int = 12) -> None:
-    """Auto-refresh active sessions so permission edits appear for other users quickly."""
-    if not st.session_state.get("authenticated"):
-        return
-    # Avoid interrupting Admin while editing tables. Save buttons already rerun Admin immediately.
-    if st.session_state.get("main_nav") == "Admin Board":
-        return
-    interval_ms = max(5, int(interval_seconds)) * 1000
-    components.html(
-        f"""
-        <script>
-        setTimeout(function() {{
-            try {{ window.parent.location.reload(); }} catch(e) {{ window.location.reload(); }}
-        }}, {interval_ms});
-        </script>
-        """,
-        height=0,
-        width=0,
-    )
+    """Disabled by design.
+
+    Permissions are reloaded only on a normal Streamlit rerun, browser refresh,
+    Logout/Login, or the manual Reload Permissions button. This avoids forcing
+    page reloads while users are working.
+    """
+    return
 
 def _excel_permission_available() -> bool:
     return PERMISSIONS_XLSX_PATH.exists()
@@ -4116,7 +4105,7 @@ def admin_page() -> None:
             st.rerun()
 
     st.title("⚙️ Admin Board")
-    st.caption("User-Based Permissions Only: users, page access, component access, exports, and permission auto-refresh are controlled from data/permissions.xlsx.")
+    st.caption("User-Based Permissions Only: users, page access, component access, exports, and permissions are controlled from data/permissions.xlsx.")
 
     st.subheader("Permission Workbook")
     c1, c2, c3 = st.columns(3)
@@ -4132,7 +4121,7 @@ def admin_page() -> None:
             st.session_state["permissions_manual_reload_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             st.rerun()
     with reload_col2:
-        st.info("V3.4 reads permissions.xlsx from disk on every rerun and ignores old page/component overrides in Streamlit Secrets. After GitHub upload, wait for Streamlit redeploy/reboot, then Logout/Login for the cleanest result.")
+        st.info("Permissions are read from data/permissions.xlsx on each normal Streamlit rerun. No timed auto-refresh is used. Users see changes after browser refresh or Logout/Login.")
 
     if PERMISSIONS_XLSX_PATH.exists():
         with open(PERMISSIONS_XLSX_PATH, "rb") as f:
@@ -4148,7 +4137,7 @@ def admin_page() -> None:
     if uploaded_perm is not None:
         DATA_DIR.mkdir(exist_ok=True)
         PERMISSIONS_XLSX_PATH.write_bytes(uploaded_perm.getbuffer())
-        st.success("permissions.xlsx uploaded successfully. Permissions will reload on rerun. Existing users should Logout/Login if page access changed.")
+        st.success("permissions.xlsx uploaded successfully. Permissions will reload on rerun. Existing users should refresh browser or Logout/Login if page access changed.")
         st.rerun()
 
     sheets = _read_permissions_excel()
@@ -4190,7 +4179,7 @@ def admin_page() -> None:
         return df[df[username_col].astype(str).str.strip().str.lower() == selected_admin_user.strip().lower()]
 
     st.subheader("Active Users")
-    st.caption("Edit users directly here, then press Save. Active=No disables login immediately after the user session refreshes.")
+    st.caption("Edit users directly here, then press Save. Active=No disables login after the user refreshes the browser or logs in again.")
     users_editor_df = _filter_admin_user_df(sheets.get("Users", users_df).fillna("")) if "Users" in sheets else _filter_admin_user_df(users_df)
     edited_users_df = st.data_editor(
         users_editor_df,
@@ -4201,7 +4190,7 @@ def admin_page() -> None:
     )
     if st.button("💾 Save Active Users", use_container_width=True, key="save_admin_users"):
         _update_permission_sheet_from_editor("Users", edited_users_df, selected_admin_user)
-        st.success("Users saved. Other sessions will pick up the change on auto-refresh.")
+        st.success("Users saved. Other sessions will pick up the change after browser refresh or Logout/Login.")
         st.rerun()
 
     st.subheader("Page Access")
@@ -4216,7 +4205,7 @@ def admin_page() -> None:
         )
         if st.button("💾 Save Page Access", use_container_width=True, key="save_admin_page_access"):
             _update_permission_sheet_from_editor("User_Page_Access", edited_page_df, selected_admin_user)
-            st.success("Page Access saved. Other users will see the update after auto-refresh.")
+            st.success("Page Access saved. Other users will see the update after browser refresh or Logout/Login.")
             st.rerun()
     else:
         st.warning("User_Page_Access sheet is missing from permissions.xlsx.")
@@ -4233,7 +4222,7 @@ def admin_page() -> None:
         )
         if st.button("💾 Save Component Access", use_container_width=True, key="save_admin_component_access"):
             _update_permission_sheet_from_editor("User_Component_Access", edited_comp_df, selected_admin_user)
-            st.success("Component Access saved. Other users will see the update after auto-refresh.")
+            st.success("Component Access saved. Other users will see the update after browser refresh or Logout/Login.")
             st.rerun()
     else:
         st.warning("User_Component_Access sheet is missing from permissions.xlsx.")
@@ -4261,7 +4250,7 @@ Role_Page_Access, Role_Component_Access, and User_Override are ignored. The syst
         })
     st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
 
-    st.info("Normal permission changes should be made in permissions.xlsx. Streamlit Secrets remain useful for service accounts and emergency user overrides.")
+    st.info("Permission changes can be edited here or in permissions.xlsx. Users see changes after browser refresh or Logout/Login; no forced timed refresh is used.")
 
 
 def render_session_bar() -> None:
@@ -4342,7 +4331,7 @@ def main() -> None:
         return
     validate_current_authenticated_user()
 
-    render_permission_auto_refresh(interval_seconds=12)
+    # No timed auto-refresh: permissions update only on browser refresh, rerun, or Logout/Login.
 
     role = st.session_state.get("role", "user")
 
