@@ -651,6 +651,67 @@ def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
         return {}
 
 
+
+def _write_permissions_excel_sheets(sheets: Dict[str, pd.DataFrame]) -> None:
+    """Persist permission sheets to data/permissions.xlsx so Admin Board edits become live immediately.
+    The app reads this workbook on every rerun; other active sessions pick changes up through auto-refresh.
+    """
+    DATA_DIR.mkdir(exist_ok=True)
+    clean_sheets: Dict[str, pd.DataFrame] = {}
+    for name, df in (sheets or {}).items():
+        if isinstance(df, pd.DataFrame):
+            out = df.copy().fillna("")
+            out.columns = [str(c).strip() for c in out.columns]
+            clean_sheets[str(name)] = out
+    if not clean_sheets:
+        clean_sheets = {
+            "Users": pd.DataFrame(columns=["Username", "Password", "Department / Display Role", "Active", "Full Name / Department"]),
+            "User_Page_Access": pd.DataFrame(columns=["Username"]),
+            "User_Component_Access": pd.DataFrame(columns=["Username", "Page", "Component / Table", "Show", "Export Excel", "Export PDF", "Export PPT", "Notes"]),
+        }
+    with pd.ExcelWriter(PERMISSIONS_XLSX_PATH, engine="openpyxl") as writer:
+        for name, df in clean_sheets.items():
+            safe_name = str(name)[:31] or "Sheet1"
+            df.to_excel(writer, sheet_name=safe_name, index=False)
+    st.session_state["permission_runtime_signature"] = _permissions_signature()
+    st.session_state["permissions_last_loaded"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+def _update_permission_sheet_from_editor(sheet_name: str, edited_df: pd.DataFrame, selected_user: str = "All Users") -> None:
+    sheets = _read_permissions_excel()
+    edited = edited_df.copy().fillna("")
+    if selected_user and selected_user != "All Users" and sheet_name in sheets and "Username" in edited.columns:
+        original = sheets[sheet_name].copy().fillna("")
+        if "Username" in original.columns:
+            keep = original[original["Username"].astype(str).str.strip().str.lower() != selected_user.strip().lower()]
+            sheets[sheet_name] = pd.concat([keep, edited], ignore_index=True)
+        else:
+            sheets[sheet_name] = edited
+    else:
+        sheets[sheet_name] = edited
+    _write_permissions_excel_sheets(sheets)
+
+
+def render_permission_auto_refresh(interval_seconds: int = 12) -> None:
+    """Auto-refresh active sessions so permission edits appear for other users quickly."""
+    if not st.session_state.get("authenticated"):
+        return
+    # Avoid interrupting Admin while editing tables. Save buttons already rerun Admin immediately.
+    if st.session_state.get("main_nav") == "Admin Board":
+        return
+    interval_ms = max(5, int(interval_seconds)) * 1000
+    components.html(
+        f"""
+        <script>
+        setTimeout(function() {{
+            try {{ window.parent.location.reload(); }} catch(e) {{ window.location.reload(); }}
+        }}, {interval_ms});
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
+
 def _excel_permission_available() -> bool:
     return PERMISSIONS_XLSX_PATH.exists()
 
@@ -4129,19 +4190,51 @@ def admin_page() -> None:
         return df[df[username_col].astype(str).str.strip().str.lower() == selected_admin_user.strip().lower()]
 
     st.subheader("Active Users")
-    st.dataframe(_filter_admin_user_df(users_df), use_container_width=True, hide_index=True)
+    st.caption("Edit users directly here, then press Save. Active=No disables login immediately after the user session refreshes.")
+    users_editor_df = _filter_admin_user_df(sheets.get("Users", users_df).fillna("")) if "Users" in sheets else _filter_admin_user_df(users_df)
+    edited_users_df = st.data_editor(
+        users_editor_df,
+        use_container_width=True,
+        hide_index=True,
+        num_rows="dynamic",
+        key="admin_users_editor",
+    )
+    if st.button("💾 Save Active Users", use_container_width=True, key="save_admin_users"):
+        _update_permission_sheet_from_editor("Users", edited_users_df, selected_admin_user)
+        st.success("Users saved. Other sessions will pick up the change on auto-refresh.")
+        st.rerun()
 
     st.subheader("Page Access")
     if "User_Page_Access" in sheets and not sheets["User_Page_Access"].empty:
         page_df = _filter_admin_user_df(sheets["User_Page_Access"].fillna(""))
-        st.dataframe(page_df, use_container_width=True, hide_index=True)
+        edited_page_df = st.data_editor(
+            page_df,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            key="admin_page_access_editor",
+        )
+        if st.button("💾 Save Page Access", use_container_width=True, key="save_admin_page_access"):
+            _update_permission_sheet_from_editor("User_Page_Access", edited_page_df, selected_admin_user)
+            st.success("Page Access saved. Other users will see the update after auto-refresh.")
+            st.rerun()
     else:
         st.warning("User_Page_Access sheet is missing from permissions.xlsx.")
 
     st.subheader("Component Access")
     if "User_Component_Access" in sheets and not sheets["User_Component_Access"].empty:
         comp_df = _filter_admin_user_df(sheets["User_Component_Access"].fillna(""))
-        st.dataframe(comp_df, use_container_width=True, hide_index=True)
+        edited_comp_df = st.data_editor(
+            comp_df,
+            use_container_width=True,
+            hide_index=True,
+            num_rows="dynamic",
+            key="admin_component_access_editor",
+        )
+        if st.button("💾 Save Component Access", use_container_width=True, key="save_admin_component_access"):
+            _update_permission_sheet_from_editor("User_Component_Access", edited_comp_df, selected_admin_user)
+            st.success("Component Access saved. Other users will see the update after auto-refresh.")
+            st.rerun()
     else:
         st.warning("User_Component_Access sheet is missing from permissions.xlsx.")
 
@@ -4248,6 +4341,8 @@ def main() -> None:
     if not login_page():
         return
     validate_current_authenticated_user()
+
+    render_permission_auto_refresh(interval_seconds=12)
 
     role = st.session_state.get("role", "user")
 

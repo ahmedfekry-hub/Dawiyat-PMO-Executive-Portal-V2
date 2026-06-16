@@ -325,3 +325,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Changing Region clears City and District automatically.
 - Changing City clears District automatically.
 - The `Region` column in `u_osp_work_order.csv` remains ignored for location filtering; District.csv is the source of truth.
+
+## V3.6 Live Admin Permission Editor
+- Admin Board now supports direct inline editing using Streamlit `st.data_editor`.
+- Ahmed can update Users, Page Access, and Component Access directly from Admin Board without uploading `permissions.xlsx` manually.
+- Save buttons write changes back to `data/permissions.xlsx` on the running app.
+- Active user sessions auto-refresh every 12 seconds outside Admin Board, so users receive permission changes quickly without manual logout/login.
+- GitHub `permissions.xlsx` remains supported as the baseline file after redeploy, while Admin Board edits apply immediately to the current running deployment.
