@@ -1,3 +1,19 @@
+# Dawiyat PMO Executive Portal V4.0 - Board PDF Export Fixed
+
+This build keeps V3.9 features and adds a board-ready PDF export enhancement:
+
+- Browser PDF export is forced to **A4 Landscape**.
+- Dashboard export enters a dedicated `pdf-export-mode` before printing.
+- Tables and report cards are protected from page splitting using print CSS.
+- Scrollable tables are expanded during export to avoid clipped rows/scrollbar screenshots.
+- Executive report sections and orange report slides are printed as clean page blocks.
+- Buttons, filters, upload controls, and UI-only elements are hidden in the PDF.
+
+Use **Export PDF Report** from the dashboard, then choose **Save as PDF**.
+
+
+---
+
 # Dawiyat PMO Executive Portal V2.5 - Google Drive Upload Center
 
 This version includes a professional Streamlit Document Upload Center integrated with Google Drive.
