@@ -1638,6 +1638,16 @@ def _clean_smart_filter_values(values: Any) -> List[str]:
     return out
 
 
+
+
+def _smart_bulk_options_from_workorders(workorders: List[dict]) -> Tuple[List[str], List[str]]:
+    link_options = sorted({str(r.get("linkCode", "")).strip() for r in workorders if str(r.get("linkCode", "")).strip()}, key=lambda x: x.upper())
+    wo_options = sorted({str(r.get("workOrder", "")).strip() for r in workorders if str(r.get("workOrder", "")).strip()}, key=lambda x: x.upper())
+    # Keep uploaded/manual/search values in the option list so Streamlit multiselect never receives a default not in options.
+    link_options = sorted(set(link_options) | set(_clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", []))), key=lambda x: x.upper())
+    wo_options = sorted(set(wo_options) | set(_clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", []))), key=lambda x: x.upper())
+    return link_options, wo_options
+
 def _parse_smart_bulk_upload(uploaded_file) -> Dict[str, Any]:
     if uploaded_file is None:
         return {"link_codes": [], "work_orders": [], "link_column": "", "wo_column": "", "file_name": ""}
@@ -1688,11 +1698,29 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
     the Clear button here clears the Streamlit selection before rendering the dashboard.
     """
     workorders = raw.get("workorders", []) or []
-    link_options = sorted({str(r.get("linkCode", "")).strip() for r in workorders if str(r.get("linkCode", "")).strip()}, key=lambda x: x.upper())
-    wo_options = sorted({str(r.get("workOrder", "")).strip() for r in workorders if str(r.get("workOrder", "")).strip()}, key=lambda x: x.upper())
-    # Keep uploaded/manual values in the option list so Streamlit multiselect accepts them even if they are not found in current data.
-    link_options = sorted(set(link_options) | set(_clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", []))), key=lambda x: x.upper())
-    wo_options = sorted(set(wo_options) | set(_clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", []))), key=lambda x: x.upper())
+
+    is_active = bool(st.session_state.get("smart_bulk_link_codes") or st.session_state.get("smart_bulk_work_orders"))
+    show_filter = st.session_state.get("show_smart_bulk_filter", False)
+
+    top_cols = st.columns([1.2, 3, 1])
+    with top_cols[0]:
+        if st.button(("🙈 Hide Smart Bulk Filter" if show_filter else "🎯 Show Smart Bulk Filter"), use_container_width=True, key="toggle_smart_bulk_filter"):
+            st.session_state["show_smart_bulk_filter"] = not show_filter
+            st.rerun()
+    with top_cols[1]:
+        if is_active:
+            st.success(f"Smart Bulk Filter active: {len(st.session_state.get('smart_bulk_link_codes', []))} Link Codes, {len(st.session_state.get('smart_bulk_work_orders', []))} Work Orders.")
+    with top_cols[2]:
+        if is_active and st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear"):
+            for k in [
+                "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders",
+                "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
+            ]:
+                st.session_state.pop(k, None)
+            st.rerun()
+
+    if not st.session_state.get("show_smart_bulk_filter", False):
+        return
 
     with st.container(border=True):
         st.markdown("### 🎯 Smart Bulk Filter")
@@ -1717,12 +1745,17 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
                     f"{len(parsed.get('work_orders', []))} Work Orders."
                 )
 
+        # IMPORTANT: recompute after upload parsing so newly uploaded values become valid options
+        # before st.multiselect is created. This prevents StreamlitAPIException when the
+        # uploaded Excel contains IDs not already present in the dashboard dataset.
+        link_options, wo_options = _smart_bulk_options_from_workorders(workorders)
+
         col1, col2, col3, col4 = st.columns([1.15, 1.15, 1.15, .8])
         with col1:
             selected_links = st.multiselect(
                 "Scan Link Codes",
                 options=link_options,
-                default=[x for x in st.session_state.get("smart_bulk_link_codes", []) if x in set(link_options)] or st.session_state.get("smart_bulk_link_codes", []),
+                default=[x for x in st.session_state.get("smart_bulk_link_codes", []) if x in set(link_options)],
                 key="smart_bulk_link_codes_multiselect",
                 placeholder="Search / select Link Codes",
             )
@@ -1730,7 +1763,7 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
             selected_wos = st.multiselect(
                 "Scan Work Orders",
                 options=wo_options,
-                default=[x for x in st.session_state.get("smart_bulk_work_orders", []) if x in set(wo_options)] or st.session_state.get("smart_bulk_work_orders", []),
+                default=[x for x in st.session_state.get("smart_bulk_work_orders", []) if x in set(wo_options)],
                 key="smart_bulk_work_orders_multiselect",
                 placeholder="Search / select Work Orders",
             )

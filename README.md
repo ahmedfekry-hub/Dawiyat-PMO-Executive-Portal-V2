@@ -366,3 +366,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Added searchable chip-style `Scan Work Orders` multi-select.
 - Added manual Work Order paste box for large lists.
 - The active selection is injected into the dashboard iframe and applies to Dashboard + PMO Audit scope.
+
+## V4.2 Smart Bulk Filter Hidden Panel + Upload Error Fix
+- Smart Bulk Filter is now hidden by default and appears only after clicking **Show Smart Bulk Filter**.
+- Added a small active-status summary and quick Clear button when a bulk filter is active.
+- Fixed Streamlit multiselect error after uploading Excel/CSV with Link Codes or Work Orders that are not already in current dashboard options.
+- Uploaded Excel/CSV values are now inserted into the Scan Link Codes / Scan Work Orders options before widgets render.
