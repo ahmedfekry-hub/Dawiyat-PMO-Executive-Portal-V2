@@ -403,3 +403,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Root cause fixed: CSS in Executive Reports was disabling pointer events for all report-page buttons.
 - The CSS is now scoped only to copied snapshot buttons, so the WO Billing & Handover Status Report Export Excel button is clickable.
 - Export function now uses the visible filtered table and has a fallback to build an export table from filtered rows.
+
+## V4.8 Hidden Action Pages UI
+- Hidden sidebar navigation for Document Upload Center, Executive PPT Builder, and Admin Board.
+- These pages now open only from compact Dashboard Quick Actions buttons, according to user permissions.
+- Back to Dashboard clears the hidden-page route safely without Streamlit session-state errors.
+- Smart Bulk Filter remains hidden by default and opens only through its Show button.

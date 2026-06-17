@@ -158,6 +158,11 @@ st.set_page_config(
 )
 
 
+# Streamlit pages that must stay hidden from sidebar navigation.
+# They are opened only through controlled action buttons on the Dashboard.
+HIDDEN_ACTION_PAGES = {"📤 Document Upload Center", "📊 Executive PPT Builder", "Admin Board"}
+
+
 PORTAL_CSS = """
 <style>
 .block-container {
@@ -410,6 +415,20 @@ div[data-testid="stButton"] button {
     background:#fff;
     line-height:1.8;
 }
+
+.quick-actions-panel {
+    border:1px solid #d9e3ef;
+    border-radius:18px;
+    padding:14px 16px;
+    background:#ffffff;
+    margin:10px 0 14px;
+    box-shadow:0 8px 22px rgba(15,23,42,.05);
+}
+.quick-actions-title { font-weight:900; color:#10223a; font-size:18px; margin-bottom:4px; }
+.quick-actions-subtitle { color:#64748b; font-size:12px; margin-bottom:10px; }
+body.dark-ui .quick-actions-panel { background:#111f34 !important; border-color:#2b3d5a !important; }
+body.dark-ui .quick-actions-title { color:#eaf2ff !important; }
+body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -1822,53 +1841,31 @@ def render_dashboard() -> None:
 
     render_smart_bulk_filter_panel(raw)
 
-    # Admin Board quick access must be visible for ahmedfekry without opening the collapsed sidebar.
-    if can("admin") and _is_admin_board_owner():
-        st.markdown(
-            """
-            <div class="upload-center-hero" style="border-color:#fbbf24;background:#fff8e6;">
-                <div class="uc-title">⚙️ Admin Board</div>
-                <div class="uc-subtitle">User-Based Permissions Only: Active Users, Page Access, Component Access, Auto Refresh.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if st.button("⚙️ Open Admin Board", use_container_width=True, type="primary"):
-            st.session_state["force_admin_board"] = True
-            st.rerun()
-
-    # Clear guidance: file upload is a native Streamlit page, not inside the HTML iframe.
+    # Hidden action pages: shown only as compact buttons on Dashboard, not as large cards or sidebar pages.
+    quick_actions = []
     if can("documents"):
-        st.markdown(
-            """
-            <div class="upload-center-hero">
-                <div class="uc-title">📤 Document Upload Center</div>
-                <div class="uc-subtitle">افتح صفحة رفع الملفات لإدارة مستندات Google Drive حسب كل Link Code، ثم ارجع للداشبورد بدون تسجيل دخول جديد.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        if st.button("📤 Open Document Upload Center", use_container_width=True, type="secondary"):
-            # Do not set st.session_state["main_nav"] here because the sidebar radio
-            # with the same key has already been created in this run. Setting it here
-            # raises StreamlitAPIException. Use a separate flag and let main() switch
-            # the navigation before the radio is instantiated on the next rerun.
-            st.session_state["force_document_upload_center"] = True
-            st.rerun()
-
+        quick_actions.append(("📤 Open Document Upload Center", "📤 Document Upload Center", "secondary"))
     if can("ppt_builder"):
+        quick_actions.append(("📊 Open Executive PPT Builder", "📊 Executive PPT Builder", "secondary"))
+    if can("admin") and _is_admin_board_owner():
+        quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
+
+    if quick_actions:
         st.markdown(
             """
-            <div class="upload-center-hero">
-                <div class="uc-title">📊 Executive PPT Builder</div>
-                <div class="uc-subtitle">صفحة مستقلة لتجهيز PowerPoint حسب التقارير المختارة بدون تحميل ثقيل داخل الداشبورد.</div>
+            <div class="quick-actions-panel">
+                <div class="quick-actions-title">Quick Actions</div>
+                <div class="quick-actions-subtitle">Document Center, PPT Builder, and Admin Board are hidden from navigation and open only from here according to user permissions.</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        if st.button("📊 Open Executive PPT Builder", use_container_width=True, type="secondary"):
-            st.session_state["force_ppt_builder"] = True
-            st.rerun()
+        action_cols = st.columns(len(quick_actions))
+        for col, (label, target_page, btn_type) in zip(action_cols, quick_actions):
+            with col:
+                if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
+                    st.session_state["active_hidden_page"] = target_page
+                    st.rerun()
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
@@ -2495,6 +2492,7 @@ def document_upload_page() -> None:
         st.write("")
         st.write("")
         if st.button("⬅ Back to Dashboard", use_container_width=True):
+            st.session_state.pop("active_hidden_page", None)
             st.session_state["force_dashboard"] = True
             st.rerun()
 
@@ -4175,6 +4173,7 @@ def executive_ppt_builder_page() -> None:
     st.caption("V40 Board Snapshot Edition — every selected Executive Report is exported as one full-slide image, avoiding split tables and scrollbars.")
 
     if st.button("← Back to Dashboard", use_container_width=True, type="secondary"):
+        st.session_state.pop("active_hidden_page", None)
         st.session_state["force_dashboard"] = True
         st.rerun()
 
@@ -4346,6 +4345,7 @@ def admin_page() -> None:
             # Do not assign st.session_state["main_nav"] here because the sidebar radio
             # with key="main_nav" has already been created in this rerun.
             # The flag below is applied safely before the radio is created on the next rerun.
+            st.session_state.pop("active_hidden_page", None)
             st.session_state["force_dashboard"] = True
             st.rerun()
 
@@ -4584,30 +4584,28 @@ def main() -> None:
         st.markdown("### Dawiyat PMO Portal V3")
         st.caption(f"User: {st.session_state.get('username','')}")
 
-        pages = allowed_pages_for_current_user()
+        all_allowed_pages = allowed_pages_for_current_user()
+        hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
+        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
         if not pages:
             pages = ["No Access"]
 
-        # IMPORTANT: Streamlit reruns the script after every selectbox/file_uploader/button action.
-        # Keep the selected page in session_state so choosing a Link Code inside
-        # Document Upload Center never sends the user back to Dashboard.
-        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
-            st.session_state["main_nav"] = "Dashboard"
-            st.session_state["force_dashboard"] = False
+        # Hidden action pages are intentionally excluded from the sidebar. They remain
+        # accessible only through Dashboard action buttons and only when the user has permission.
+        active_hidden = st.session_state.get("active_hidden_page")
+        if active_hidden and active_hidden not in hidden_allowed_pages:
+            st.session_state.pop("active_hidden_page", None)
 
-        if st.session_state.get("force_document_upload_center") and "📤 Document Upload Center" in pages:
-            st.session_state["main_nav"] = "📤 Document Upload Center"
-            st.session_state["force_document_upload_center"] = False
-
-        if st.session_state.get("force_ppt_builder") and "📊 Executive PPT Builder" in pages:
-            st.session_state["main_nav"] = "📊 Executive PPT Builder"
-            st.session_state["force_ppt_builder"] = False
-
-        if st.session_state.get("force_admin_board") and "Admin Board" in pages:
-            st.session_state["main_nav"] = "Admin Board"
-            st.session_state["force_admin_board"] = False
+        # Support old force flags by converting them to hidden-page routing.
+        if st.session_state.pop("force_document_upload_center", False) and "📤 Document Upload Center" in hidden_allowed_pages:
+            st.session_state["active_hidden_page"] = "📤 Document Upload Center"
+        if st.session_state.pop("force_ppt_builder", False) and "📊 Executive PPT Builder" in hidden_allowed_pages:
+            st.session_state["active_hidden_page"] = "📊 Executive PPT Builder"
+        if st.session_state.pop("force_admin_board", False) and "Admin Board" in hidden_allowed_pages:
+            st.session_state["active_hidden_page"] = "Admin Board"
 
         if st.session_state.get("force_dashboard") and "Dashboard" in pages:
+            st.session_state.pop("active_hidden_page", None)
             st.session_state["main_nav"] = "Dashboard"
             st.session_state["force_dashboard"] = False
 
@@ -4623,6 +4621,17 @@ def main() -> None:
 
     render_session_bar()
 
+    active_hidden_page = st.session_state.get("active_hidden_page")
+    if active_hidden_page == "📤 Document Upload Center":
+        document_upload_page()
+        return
+    if active_hidden_page == "📊 Executive PPT Builder":
+        executive_ppt_builder_page()
+        return
+    if active_hidden_page == "Admin Board":
+        admin_page()
+        return
+
     if page == "No Access":
         st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
         return
@@ -4634,14 +4643,8 @@ def main() -> None:
         smart_alerts_page()
     elif page == "Executive Reports":
         reports_page()
-    elif page == "📊 Executive PPT Builder":
-        executive_ppt_builder_page()
     elif page == "Upload CSV":
         upload_data_page()
-    elif page == "📤 Document Upload Center":
-        document_upload_page()
-    elif page == "Admin Board":
-        admin_page()
 
 
 if __name__ == "__main__":
