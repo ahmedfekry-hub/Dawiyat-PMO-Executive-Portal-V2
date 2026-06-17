@@ -409,3 +409,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - These pages now open only from compact Dashboard Quick Actions buttons, according to user permissions.
 - Back to Dashboard clears the hidden-page route safely without Streamlit session-state errors.
 - Smart Bulk Filter remains hidden by default and opens only through its Show button.
+
+
+## V4.9 Export PDF Permission Gate Fix
+- Fixed Dashboard HTML global Export PDF Report button visibility.
+- The button is now hidden server-side with CSS when User_Component_Access has Export PDF = No for the user.
+- This is not a permissions.xlsx issue; it was a static HTML dashboard button that needed a hard permission gate before iframe rendering.

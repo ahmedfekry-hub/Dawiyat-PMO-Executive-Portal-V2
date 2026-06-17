@@ -1364,10 +1364,16 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
     denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
     deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
+    export_button_css = ""
+    if hide_pdf == "true" or hide_all_exports == "true":
+        export_button_css += "#export-pdf, button#export-pdf, .btn#export-pdf { display:none !important; visibility:hidden !important; pointer-events:none !important; }\n"
+    if hide_excel == "true" or hide_all_exports == "true":
+        export_button_css += "#export-excel, button#export-excel, [id*=\"export-excel\"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }\n"
 
     portal_patch = f"""
 <style>
 {deny_tab_css}
+{export_button_css}
 .file-label, #apply-imports {{ display: none !important; }}
 .header-actions::after {{
     content: "Data linked directly from Version 2 Executive Portal";
@@ -1437,6 +1443,14 @@ window.DAWIYAT_RBAC = {{
   }}
   function hideExportButtons() {{
     const cfg = window.DAWIYAT_RBAC || {{}};
+    if (cfg.hidePdf || cfg.hideAllExports) {{
+      const pdfBtn = document.getElementById('export-pdf');
+      if (pdfBtn) {{
+        pdfBtn.style.setProperty('display','none','important');
+        pdfBtn.style.setProperty('visibility','hidden','important');
+        pdfBtn.style.setProperty('pointer-events','none','important');
+      }}
+    }}
     const buttons = Array.from(document.querySelectorAll('button, a, .btn'));
     buttons.forEach(el => {{
       if (el.dataset && el.dataset.forceExport) return;
