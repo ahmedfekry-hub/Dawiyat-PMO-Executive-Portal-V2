@@ -840,6 +840,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
         "show_tables": [],
         "hide_excel_components": [],
         "hide_pdf_components": [],
+        "allowed_pdf_components": [],
         "hide_ppt_components": [],
     }
 
@@ -880,6 +881,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     hide_tables: List[str] = []
     hide_excel_components: List[str] = []
     hide_pdf_components: List[str] = []
+    allowed_pdf_components: List[str] = []
     hide_ppt_components: List[str] = []
     any_excel = False
     any_pdf = False
@@ -912,8 +914,12 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                 ex_pdf = _excel_bool(row.get("Export PDF"), False)
                 ex_ppt = _excel_bool(row.get("Export PPT"), False)
 
+                # Global PDF Report is a permission for the TOP dashboard PDF button only.
+                # It must NOT be counted as a normal table/component and must NOT grant
+                # permission to export all tables.
                 if component.strip().lower() in global_pdf_names:
                     global_pdf_report = bool(show and ex_pdf)
+                    continue
 
                 if show:
                     show_tables.append(component)
@@ -923,6 +929,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                         hide_excel_components.append(component)
                     if ex_pdf:
                         any_pdf = True
+                        allowed_pdf_components.append(component)
                     else:
                         hide_pdf_components.append(component)
                     if ex_ppt:
@@ -954,6 +961,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     policy["hide_tables"] = hide_tables
     policy["hide_excel_components"] = list(dict.fromkeys(hide_excel_components))
     policy["hide_pdf_components"] = list(dict.fromkeys(hide_pdf_components))
+    policy["allowed_pdf_components"] = list(dict.fromkeys(allowed_pdf_components))
     policy["hide_ppt_components"] = list(dict.fromkeys(hide_ppt_components))
     policy["export_excel"] = any_excel
     policy["export_pdf"] = any_pdf
@@ -1374,6 +1382,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     hide_tables = json.dumps(_as_list(policy.get("hide_tables")))
     hide_excel_components = json.dumps(_as_list(policy.get("hide_excel_components")))
     hide_pdf_components = json.dumps(_as_list(policy.get("hide_pdf_components")))
+    allowed_pdf_components = json.dumps(_as_list(policy.get("allowed_pdf_components")))
     hide_ppt_components = json.dumps(_as_list(policy.get("hide_ppt_components")))
     smart_bulk_filter = json.dumps(_current_smart_bulk_filter_payload(), ensure_ascii=False)
     all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
@@ -1419,6 +1428,7 @@ window.DAWIYAT_RBAC = {{
   hideTables: {hide_tables},
   hideExcelComponents: {hide_excel_components},
   hidePdfComponents: {hide_pdf_components},
+  pdfAllowedComponents: {allowed_pdf_components},
   hidePptComponents: {hide_ppt_components}
 }};
 (function applySmartBulkFilterFromStreamlit() {{
@@ -1522,6 +1532,86 @@ window.DAWIYAT_RBAC = {{
       }});
     }});
   }}
+  function pdfPrintableBlocks() {{
+    return Array.from(document.querySelectorAll('.panel, .report-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel'));
+  }}
+  function prepareSelectivePdfPrint() {{
+    const cfg = window.DAWIYAT_RBAC || {{}};
+    const allowed = (cfg.pdfAllowedComponents || []).map(x => String(x || '')).filter(Boolean);
+    if (!allowed.length) {{
+      alert('No PDF-exportable tables/components are enabled for this user. Enable Export PDF for at least one Component / Table in Admin Board.');
+      return false;
+    }}
+    restoreSelectivePdfPrint();
+    document.body.classList.add('pdf-selective-report-print');
+    const allowedTabs = new Set(cfg.allowedTabs || []);
+    ['overview','performance','tables','decision','pmo','perf-explanation','reports'].forEach(tab => {{
+      const sec = document.getElementById('tab-' + tab);
+      if (sec && allowedTabs.has(tab)) {{
+        sec.dataset.pdfWasHidden = sec.classList.contains('hidden') ? '1' : '0';
+        sec.dataset.pdfOldDisplay = sec.style.display || '';
+        sec.classList.remove('hidden');
+        sec.style.setProperty('display','block','important');
+        sec.style.setProperty('visibility','visible','important');
+      }}
+    }});
+    if (typeof renderExecutiveReports === 'function') {{ try {{ renderExecutiveReports(); }} catch(e) {{}} }}
+    const blocks = pdfPrintableBlocks();
+    let matched = 0;
+    blocks.forEach(block => {{
+      const title = blockTitle(block) || norm(block.textContent || '').slice(0, 160);
+      const isAllowed = allowed.some(n => titleMatches(title, n));
+      const containsAllowed = !isAllowed && Array.from(block.querySelectorAll('.panel, .report-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel')).some(child => {{
+        const childTitle = blockTitle(child) || norm(child.textContent || '').slice(0, 160);
+        return allowed.some(n => titleMatches(childTitle, n));
+      }});
+      if (isAllowed || containsAllowed) {{
+        if (isAllowed) matched += 1;
+        block.dataset.pdfKeep = '1';
+      }} else {{
+        block.dataset.pdfPermissionHidden = '1';
+        block.style.setProperty('display', 'none', 'important');
+        block.style.setProperty('visibility', 'hidden', 'important');
+      }}
+    }});
+    if (!matched) {{
+      restoreSelectivePdfPrint();
+      alert('PDF permission is enabled, but no visible dashboard component matches the enabled Component / Table names. Please check Component / Table names in Admin Board.');
+      return false;
+    }}
+    return true;
+  }}
+  function restoreSelectivePdfPrint() {{
+    document.body.classList.remove('pdf-selective-report-print');
+    document.querySelectorAll('[data-pdf-permission-hidden="1"]').forEach(el => {{
+      el.style.removeProperty('display');
+      el.style.removeProperty('visibility');
+      delete el.dataset.pdfPermissionHidden;
+    }});
+    document.querySelectorAll('[data-pdf-keep="1"]').forEach(el => {{ delete el.dataset.pdfKeep; }});
+    ['overview','performance','tables','decision','pmo','perf-explanation','reports'].forEach(tab => {{
+      const sec = document.getElementById('tab-' + tab);
+      if (!sec || sec.dataset.pdfWasHidden === undefined) return;
+      if (sec.dataset.pdfWasHidden === '1') sec.classList.add('hidden');
+      else sec.classList.remove('hidden');
+      sec.style.display = sec.dataset.pdfOldDisplay || '';
+      sec.style.removeProperty('visibility');
+      delete sec.dataset.pdfWasHidden;
+      delete sec.dataset.pdfOldDisplay;
+    }});
+  }}
+  window.DAWIYAT_prepareSelectivePdfPrint = prepareSelectivePdfPrint;
+  window.DAWIYAT_restoreSelectivePdfPrint = restoreSelectivePdfPrint;
+  window.addEventListener('afterprint', restoreSelectivePdfPrint);
+  document.addEventListener('click', function(e) {{
+    const target = e.target && e.target.closest ? e.target.closest('#export-pdf') : null;
+    if (!target) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (e.stopImmediatePropagation) e.stopImmediatePropagation();
+    if (prepareSelectivePdfPrint()) setTimeout(() => window.print(), 120);
+  }}, true);
+
   function applyTabs() {{
     if (rbacApplying) return;
     rbacApplying = true;

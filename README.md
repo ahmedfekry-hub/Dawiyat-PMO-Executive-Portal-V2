@@ -422,3 +422,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Table-level `Export PDF` permissions no longer control or open the full-page PDF export.
 - Admin Board edits to `User_Component_Access` control this behavior the same way as the other permissions after refresh/rerun.
 - The included permissions.xlsx contains `Global PDF Report` for every user; set Show/Export PDF to Yes only for users allowed to export the full dashboard PDF.
+
+## V5.2 Selective PDF Export Permissions
+- `Global PDF Report` controls only the visibility of the top `Export PDF Report` button.
+- The PDF content is now controlled by each row in `User_Component_Access` using `Export PDF = Yes/No`.
+- If `Global PDF Report = Yes` but no component has `Export PDF = Yes`, the user sees an alert and no PDF is generated.
+- If only `Link Code Summary Table` has `Export PDF = Yes`, the global PDF exports only that table, not the full dashboard.
+- `Global PDF Report` itself is not counted as a table/component export permission.
