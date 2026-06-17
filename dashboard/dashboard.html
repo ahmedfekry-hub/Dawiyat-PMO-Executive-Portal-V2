@@ -2260,6 +2260,13 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       </div>
 
       <div class="report-section-card">
+        <div class="report-title"><h3>WO Billing & Handover Status Report</h3><span class="report-tag">Filter Linked / Smart Bulk</span></div>
+        <div class="subtle">This report is linked to all dashboard filters and the Smart Bulk Filter. It displays Link Code, Work Order, implementation update, SOR, invoice, PAT, and handover status fields from the uploaded work order data.</div>
+        <div class="action-row" style="margin:10px 0 12px;"><button class="btn" onclick="exportTableToExcel('reports-wo-billing-handover-table','wo_billing_handover_status_report')">Export Excel</button></div>
+        <div class="table-wrap"><table id="reports-wo-billing-handover-table"></table></div>
+      </div>
+
+      <div class="report-section-card">
         <div class="report-title"><h3>Executive Reports Library</h3><span class="report-tag">Dynamic / Filter Linked</span></div>
         <div class="subtle">Executive reports below are calculated from the active dashboard filters and current uploaded CSV data.</div>
         <div id="reports-orange-dynamic" class="orange-reports-grid"></div>
@@ -6429,6 +6436,43 @@ function reportReadinessReport(rows){
     <div class="readiness-note">Scope: ${fmtInt(repo.length)} filtered Link Codes. Counts are aggregated per document type, not per Work Order.</div>
   </div>`;
 }
+
+function executiveRawValue(row, names, fallback='') {
+  const raw = row?.raw || row || {};
+  const val = getRawField(raw, names);
+  return String((val !== undefined && val !== null && String(val).trim() !== '') ? val : fallback).trim();
+}
+function renderWoBillingHandoverReport(rows) {
+  const table = document.getElementById('reports-wo-billing-handover-table');
+  if (!table) return;
+  rows = rows || [];
+  const headers = [
+    'Link Code', 'Work Order', 'Region', 'District', 'implementation update', 'SOR Status',
+    'First 50% status', 'Second 50% status', 'PAT Status', 'Handover O&M _Status', 'Handover Consultant _Status'
+  ];
+  if (!rows.length) {
+    table.innerHTML = '<thead><tr>' + headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody><tr><td colspan="11" class="empty">No records found under current filters / Smart Bulk Filter.</td></tr></tbody>';
+    return;
+  }
+  const htmlRows = rows.map(r => {
+    const vals = [
+      r.linkCode || executiveRawValue(r, ['Link Code']),
+      r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO']),
+      r.region || executiveRawValue(r, ['Region']),
+      r.district || executiveRawValue(r, ['District','WO Districts']),
+      executiveRawValue(r, ['implementation update','Implementation Update','Updated Scope','Updates']),
+      executiveRawValue(r, ['SOR Status.1','SOR Status'], r.sorStatus || ''),
+      executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || ''),
+      executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']),
+      executiveRawValue(r, ['PAT Status']),
+      executiveRawValue(r, ['Handover O&M _Status','Handover O&M Status','Handover OM Status']),
+      executiveRawValue(r, ['Handover Consultant _Status','Handover Consultant Status'])
+    ];
+    return '<tr>' + vals.map(v => `<td>${escapeHtml(v || '—')}</td>`).join('') + '</tr>';
+  }).join('');
+  table.innerHTML = '<thead><tr>' + headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody>' + htmlRows + '</tbody>';
+}
+
 function renderAdditionalOrangeReports(rows){
   const host = document.getElementById('reports-orange-dynamic');
   if(!host) return;
@@ -6461,6 +6505,7 @@ function renderExecutiveReports(){
   reportCopyHtml('#pmo-stage-exec-summary','reports-stage-summary','Stage cost exposure summary is not available under current filters.');
   let dynamicRows = getFilteredWorkorders();
   dynamicRows = applyFilteredKpiContext(dynamicRows);
+  renderWoBillingHandoverReport(dynamicRows);
   renderAdditionalOrangeReports(dynamicRows);
 }
 
