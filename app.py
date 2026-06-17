@@ -1551,26 +1551,33 @@ window.DAWIYAT_RBAC = {{
     }});
   }}
   function pdfPrintableBlocks() {{
-    return Array.from(document.querySelectorAll('.panel, .report-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel'));
+    return Array.from(document.querySelectorAll('.panel, .report-card, .report-section-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel, .overview-exec-summary-panel, .overview-summary-table-card, .assist-card'));
   }}
   function findPdfComponentBlock(componentName) {{
     const name = String(componentName || '');
     const exactSelectorMap = [
       ['Link Code Summary Table', '#link-summary-table'],
       ['WO Billing & Handover Status Report', '#wo-status-report-panel'],
+      ['WO Billing & Handover Status Report', '#reports-wo-billing-handover-table'],
       ['PMO Audit', '#pmo-audit-panel'],
       ['PMO Audit Table', '#pmo-audit-panel'],
       ['PMO Master Table', '#pmo-master-panel'],
       ['SOR Details', '#pmo-sor-details-panel'],
+      ['SOR Summary & Revenue Exposure', '#reports-sor-summary'],
       ['Overall Projects Stages', '#pmo-cost-analysis-panel'],
       ['Overall Projects Stages — Cost Analysis', '#pmo-cost-analysis-panel'],
-      ['Executive Portfolio Summary & Cost Exposure', '#portfolio-summary-panel'],
+      ['Overall Stages Summary & Cost Exposure', '#reports-stage-summary'],
+      ['Executive Overall Stages Summary & Cost Exposure', '#reports-stage-summary'],
+      ['Executive KPI Cards', '#reports-kpi-grid'],
+      ['Portfolio Summary & Cost Exposure', '#reports-portfolio-summary'],
+      ['Executive Portfolio Summary & Cost Exposure', '#reports-portfolio-summary'],
+      ['Executive Reports Library', '#reports-orange-dynamic'],
       ['Document Upload Center — Status Preview', '#doc-status-preview-panel']
     ];
     for (const pair of exactSelectorMap) {{
       if (titleMatches(pair[0], name)) {{
         const direct = document.querySelector(pair[1]);
-        if (direct) return direct.closest('.panel, .report-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel') || direct;
+        if (direct) return direct.closest('.panel, .report-card, .report-section-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel, .overview-exec-summary-panel, .overview-summary-table-card, .assist-card') || direct;
       }}
     }}
     const candidates = pdfPrintableBlocks();
@@ -1605,8 +1612,9 @@ window.DAWIYAT_RBAC = {{
         sec.style.setProperty('visibility','visible','important');
       }}
     }});
-    if (typeof renderExecutiveReports === 'function') {{ try {{ renderExecutiveReports(); }} catch(e) {{}} }}
     if (typeof renderAll === 'function') {{ try {{ renderAll(); }} catch(e) {{}} }}
+    if (typeof renderExecutiveReports === 'function') {{ try {{ renderExecutiveReports(); }} catch(e) {{}} }}
+    if (typeof renderExecutiveOverviewSummary === 'function') {{ try {{ renderExecutiveOverviewSummary(getFilteredWorkorders ? getFilteredWorkorders() : []); }} catch(e) {{}} }}
 
     const root = document.createElement('div');
     root.id = 'dawiyat-selective-pdf-root';
@@ -1634,7 +1642,7 @@ window.DAWIYAT_RBAC = {{
     }});
     if (!matched) {{
       restoreSelectivePdfPrint();
-      alert('PDF permission is enabled, but no visible dashboard component matches the enabled Component / Table names. Please check Component / Table names in Admin Board.');
+      alert('PDF permission is enabled, but no dashboard component matched the enabled Component / Table names: ' + allowed.join(', ') + '. Please use the exact component names available in Admin Board.');
       return false;
     }}
     if (missing.length) console.warn('PDF components not found:', missing);

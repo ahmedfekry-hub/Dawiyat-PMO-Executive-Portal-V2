@@ -437,3 +437,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - If no components have Export PDF = Yes, the user receives an alert and no PDF export starts.
 - Global PDF Report accepts either Show = Yes or Export PDF = Yes for the dedicated Global PDF Report row.
 - The original dashboard full-page print listener is replaced by the permission-aware selective PDF handler.
+
+
+## V5.4 Selective PDF Reports Page Component Matching Fix
+- Selective PDF export now recognizes Executive Reports page cards such as Executive Portfolio Summary & Cost Exposure, Executive KPI Cards, SOR Summary & Revenue Exposure, Overall Stages Summary & Cost Exposure, and WO Billing & Handover Status Report.
+- The PDF matching engine now includes .report-section-card blocks instead of only older .panel blocks.
+- Enabled Export PDF rows in Admin Board can now export Executive Reports page components individually.
