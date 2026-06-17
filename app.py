@@ -1420,6 +1420,7 @@ window.DAWIYAT_RBAC = {{
     const cfg = window.DAWIYAT_RBAC || {{}};
     const buttons = Array.from(document.querySelectorAll('button, a, .btn'));
     buttons.forEach(el => {{
+      if (el.dataset && el.dataset.forceExport) return;
       const txt = norm(el.textContent);
       if (cfg.hideAllExports && (txt.includes('export') || txt.includes('csv') || txt.includes('excel') || txt.includes('pdf'))) {{
         el.style.display = 'none';
@@ -1464,6 +1465,7 @@ window.DAWIYAT_RBAC = {{
       const hidePpt = (cfg.hidePptComponents || []).some(n => titleMatches(title, n));
       if (!hideExcel && !hidePdf && !hidePpt) return;
       Array.from(block.querySelectorAll('button, a, .btn')).forEach(el => {{
+        if (el.dataset && el.dataset.forceExport) return;
         const txt = norm(el.textContent);
         if (hideExcel && (txt.includes('excel') || txt.includes('csv'))) el.style.display = 'none';
         if (hidePdf && txt.includes('pdf')) el.style.display = 'none';

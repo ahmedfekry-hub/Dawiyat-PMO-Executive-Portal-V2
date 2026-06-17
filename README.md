@@ -379,3 +379,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Columns: Link Code, Work Order, Region, District, implementation update, SOR Status, First 50% status, Second 50% status, PAT Status, Handover O&M _Status, Handover Consultant _Status.
 - Report is linked to all Dashboard filters, PMO-linked filtering, and Smart Bulk Filter.
 - Includes Export Excel button.
+
+## V4.4 Executive Reports WO Status Report Fix
+- Added City column to WO Billing & Handover Status Report.
+- Corrected implementation update logic to use the real `implementation update` column only.
+- Prevented numeric fallback values such as 0/1 from appearing when the implementation update field is not the intended source.
+- Enabled the report Export Excel button with a direct report-level export action.
