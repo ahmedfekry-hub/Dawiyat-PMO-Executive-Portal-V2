@@ -391,3 +391,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Replaced the table HTML export for WO Billing & Handover Status Report with a dedicated XLSX export function.
 - Export now reads the same filtered dataset used by the report, including Smart Bulk Filter.
 - Added CSV fallback if the XLSX browser library is unavailable.
+
+
+## V4.6 WO Status Export Button Fix
+- Fixed WO Billing & Handover Status Report Export Excel button by using the same generic table export engine used by the other dashboard tables.
+- Added explicit delegated click binding for the report export button to avoid inline onclick/cache issues inside Streamlit iframe.
+- Export now downloads the visible filtered report table as Excel-compatible `.xls`.
