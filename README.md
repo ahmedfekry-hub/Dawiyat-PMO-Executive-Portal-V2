@@ -397,3 +397,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Fixed WO Billing & Handover Status Report Export Excel button by using the same generic table export engine used by the other dashboard tables.
 - Added explicit delegated click binding for the report export button to avoid inline onclick/cache issues inside Streamlit iframe.
 - Export now downloads the visible filtered report table as Excel-compatible `.xls`.
+
+
+## V4.7 WO Status Export Click Fix
+- Root cause fixed: CSS in Executive Reports was disabling pointer events for all report-page buttons.
+- The CSS is now scoped only to copied snapshot buttons, so the WO Billing & Handover Status Report Export Excel button is clickable.
+- Export function now uses the visible filtered table and has a fallback to build an export table from filtered rows.
