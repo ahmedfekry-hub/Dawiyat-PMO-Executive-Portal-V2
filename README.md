@@ -372,3 +372,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Added a small active-status summary and quick Clear button when a bulk filter is active.
 - Fixed Streamlit multiselect error after uploading Excel/CSV with Link Codes or Work Orders that are not already in current dashboard options.
 - Uploaded Excel/CSV values are now inserted into the Scan Link Codes / Scan Work Orders options before widgets render.
+
+
+## V4.3 Executive Reports - WO Billing & Handover Status Report
+- Added a new report in Executive Reports: WO Billing & Handover Status Report.
+- Columns: Link Code, Work Order, Region, District, implementation update, SOR Status, First 50% status, Second 50% status, PAT Status, Handover O&M _Status, Handover Consultant _Status.
+- Report is linked to all Dashboard filters, PMO-linked filtering, and Smart Bulk Filter.
+- Includes Export Excel button.
