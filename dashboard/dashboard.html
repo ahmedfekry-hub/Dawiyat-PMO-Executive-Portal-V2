@@ -2262,7 +2262,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="report-section-card">
         <div class="report-title"><h3>WO Billing & Handover Status Report</h3><span class="report-tag">Filter Linked / Smart Bulk</span></div>
         <div class="subtle">This report is linked to all dashboard filters and the Smart Bulk Filter. It displays Link Code, Work Order, implementation update, SOR, invoice, PAT, and handover status fields from the uploaded work order data.</div>
-        <div class="action-row" style="margin:10px 0 12px;"><button class="btn" onclick="exportTableToExcel('reports-wo-billing-handover-table','wo_billing_handover_status_report')">Export Excel</button></div>
+        <div class="action-row" style="margin:10px 0 12px;"><button class="btn secondary" type="button" data-force-export="wo-status-report" onclick="exportTableToExcel('reports-wo-billing-handover-table','wo_billing_handover_status_report')">Export Excel</button></div>
         <div class="table-wrap"><table id="reports-wo-billing-handover-table"></table></div>
       </div>
 
@@ -6442,16 +6442,23 @@ function executiveRawValue(row, names, fallback='') {
   const val = getRawField(raw, names);
   return String((val !== undefined && val !== null && String(val).trim() !== '') ? val : fallback).trim();
 }
+function executiveImplementationUpdate(row) {
+  // Use the real uploaded column only. Do not fall back to Updated Scope / Updates,
+  // because these fields may contain numeric values such as 0/1/2025/2026 and confuse the report.
+  const v = executiveRawValue(row, ['implementation update','Implementation Update']);
+  if (/^(0|1|0\.0|1\.0)$/i.test(String(v || '').trim())) return '';
+  return v;
+}
 function renderWoBillingHandoverReport(rows) {
   const table = document.getElementById('reports-wo-billing-handover-table');
   if (!table) return;
   rows = rows || [];
   const headers = [
-    'Link Code', 'Work Order', 'Region', 'District', 'implementation update', 'SOR Status',
+    'Link Code', 'Work Order', 'Region', 'City', 'District', 'implementation update', 'SOR Status',
     'First 50% status', 'Second 50% status', 'PAT Status', 'Handover O&M _Status', 'Handover Consultant _Status'
   ];
   if (!rows.length) {
-    table.innerHTML = '<thead><tr>' + headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody><tr><td colspan="11" class="empty">No records found under current filters / Smart Bulk Filter.</td></tr></tbody>';
+    table.innerHTML = '<thead><tr>' + headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody><tr><td colspan="12" class="empty">No records found under current filters / Smart Bulk Filter.</td></tr></tbody>';
     return;
   }
   const htmlRows = rows.map(r => {
@@ -6459,8 +6466,9 @@ function renderWoBillingHandoverReport(rows) {
       r.linkCode || executiveRawValue(r, ['Link Code']),
       r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO']),
       r.region || executiveRawValue(r, ['Region']),
+      r.city || executiveRawValue(r, ['City']),
       r.district || executiveRawValue(r, ['District','WO Districts']),
-      executiveRawValue(r, ['implementation update','Implementation Update','Updated Scope','Updates']),
+      executiveImplementationUpdate(r),
       executiveRawValue(r, ['SOR Status.1','SOR Status'], r.sorStatus || ''),
       executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || ''),
       executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']),
