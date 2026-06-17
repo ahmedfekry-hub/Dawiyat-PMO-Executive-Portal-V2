@@ -2262,7 +2262,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="report-section-card">
         <div class="report-title"><h3>WO Billing & Handover Status Report</h3><span class="report-tag">Filter Linked / Smart Bulk</span></div>
         <div class="subtle">This report is linked to all dashboard filters and the Smart Bulk Filter. It displays Link Code, Work Order, implementation update, SOR, invoice, PAT, and handover status fields from the uploaded work order data.</div>
-        <div class="action-row" style="margin:10px 0 12px;"><button class="btn secondary" type="button" data-force-export="wo-status-report" onclick="exportWoBillingHandoverReportExcel()">Export Excel</button></div>
+        <div class="action-row" style="margin:10px 0 12px;"><button class="btn secondary" type="button" id="reports-wo-status-export-excel" onclick="exportTableToExcel('reports-wo-billing-handover-table','wo_billing_handover_status_report')">Export Excel</button></div>
         <div class="table-wrap"><table id="reports-wo-billing-handover-table"></table></div>
       </div>
 
@@ -6501,31 +6501,12 @@ function getWoBillingHandoverExportRows() {
   }));
 }
 function exportWoBillingHandoverReportExcel() {
-  const data = getWoBillingHandoverExportRows();
-  const headers = ['Link Code','Work Order','Region','City','District','implementation update','SOR Status','First 50% status','Second 50% status','PAT Status','Handover O&M _Status','Handover Consultant _Status'];
-  if (!data.length) { alert('No rows available to export under the current filters.'); return; }
-  const filename = 'wo_billing_handover_status_report.xlsx';
-  if (typeof XLSX !== 'undefined') {
-    const ws = XLSX.utils.json_to_sheet(data, {header: headers});
-    ws['!cols'] = headers.map(h => ({wch: Math.max(14, String(h).length + 4)}));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'WO Status Report');
-    XLSX.writeFile(wb, filename);
-    return;
-  }
-  // Fallback if XLSX library is blocked: export CSV compatible with Excel.
-  const csv = [headers.join(',')].concat(data.map(row => headers.map(h => '"' + String(row[h] ?? '').replace(/"/g, '""') + '"').join(','))).join('\n');
-  const blob = new Blob(['\ufeff' + csv], {type:'text/csv;charset=utf-8;'});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = 'wo_billing_handover_status_report.csv';
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
+  // V4.6: use the same proven table-export engine as the rest of the dashboard.
+  // This avoids browser/library issues with XLSX.writeFile inside Streamlit iframe.
+  exportTableToExcel('reports-wo-billing-handover-table','wo_billing_handover_status_report');
 }
 window.exportWoBillingHandoverReportExcel = exportWoBillingHandoverReportExcel;
+
 
 function renderAdditionalOrangeReports(rows){
   const host = document.getElementById('reports-orange-dynamic');
@@ -6744,6 +6725,15 @@ document.getElementById('apply-imports').addEventListener('click', () => {
 
 state.data = buildData(INITIAL_RAW);
 renderAll();
+
+// V4.6 explicit delegated binding for WO Status report export button.
+document.addEventListener('click', function(e){
+  const btn = e.target && e.target.closest ? e.target.closest('#reports-wo-status-export-excel, [data-force-export="wo-status-report"]') : null;
+  if(btn){
+    e.preventDefault();
+    exportTableToExcel('reports-wo-billing-handover-table','wo_billing_handover_status_report');
+  }
+});
 </script>
 
 
