@@ -918,7 +918,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                 # It must NOT be counted as a normal table/component and must NOT grant
                 # permission to export all tables.
                 if component.strip().lower() in global_pdf_names:
-                    global_pdf_report = bool(show and ex_pdf)
+                    global_pdf_report = bool(show or ex_pdf)
                     continue
 
                 if show:
@@ -1370,6 +1370,12 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
         st.error("CSV injection failed: INITIAL_RAW block was not found inside dashboard.html.")
         return html
 
+    # Replace the native full-page PDF print listener with the permission-aware selective PDF handler.
+    updated = updated.replace(
+        "document.getElementById('export-pdf').addEventListener('click', () => window.print());",
+        "document.getElementById('export-pdf').addEventListener('click', () => { if (window.DAWIYAT_handleGlobalPdfExport) { window.DAWIYAT_handleGlobalPdfExport(); } else { window.print(); } });"
+    )
+
     role = current_role()
     policy = user_policy()
     allowed_tabs = json.dumps(allowed_dashboard_tabs())
@@ -1398,6 +1404,18 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
 <style>
 {deny_tab_css}
 {export_button_css}
+#dawiyat-selective-pdf-root {{ display:none; }}
+@media print {{
+  body.dawiyat-selective-pdf-active > *:not(#dawiyat-selective-pdf-root) {{ display:none !important; }}
+  body.dawiyat-selective-pdf-active #dawiyat-selective-pdf-root {{ display:block !important; padding: 0 !important; margin: 0 !important; }}
+  #dawiyat-selective-pdf-root .dawiyat-pdf-cover {{ border:1px solid #d9e3ef; border-radius:16px; padding:14px 18px; margin-bottom:12px; break-inside:avoid; }}
+  #dawiyat-selective-pdf-root .dawiyat-pdf-cover h1 {{ margin:0 0 6px; font-size:20px; color:#10223a; }}
+  #dawiyat-selective-pdf-root .dawiyat-pdf-cover p {{ margin:0; font-size:11px; color:#64748b; }}
+  #dawiyat-selective-pdf-root .dawiyat-pdf-block {{ display:block !important; visibility:visible !important; break-inside:avoid-page; page-break-inside:avoid; margin-bottom:12px; }}
+  #dawiyat-selective-pdf-root .hidden {{ display:block !important; visibility:visible !important; }}
+  #dawiyat-selective-pdf-root .btn, #dawiyat-selective-pdf-root button, #dawiyat-selective-pdf-root input, #dawiyat-selective-pdf-root select, #dawiyat-selective-pdf-root .action-row {{ display:none !important; }}
+  #dawiyat-selective-pdf-root .table-wrap, #dawiyat-selective-pdf-root .pmo-table-wrap, #dawiyat-selective-pdf-root .assist-table-wrap {{ max-height:none !important; overflow:visible !important; }}
+}}
 .file-label, #apply-imports {{ display: none !important; }}
 .header-actions::after {{
     content: "Data linked directly from Version 2 Executive Portal";
@@ -1535,15 +1553,47 @@ window.DAWIYAT_RBAC = {{
   function pdfPrintableBlocks() {{
     return Array.from(document.querySelectorAll('.panel, .report-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel'));
   }}
+  function findPdfComponentBlock(componentName) {{
+    const name = String(componentName || '');
+    const exactSelectorMap = [
+      ['Link Code Summary Table', '#link-summary-table'],
+      ['WO Billing & Handover Status Report', '#wo-status-report-panel'],
+      ['PMO Audit', '#pmo-audit-panel'],
+      ['PMO Audit Table', '#pmo-audit-panel'],
+      ['PMO Master Table', '#pmo-master-panel'],
+      ['SOR Details', '#pmo-sor-details-panel'],
+      ['Overall Projects Stages', '#pmo-cost-analysis-panel'],
+      ['Overall Projects Stages — Cost Analysis', '#pmo-cost-analysis-panel'],
+      ['Executive Portfolio Summary & Cost Exposure', '#portfolio-summary-panel'],
+      ['Document Upload Center — Status Preview', '#doc-status-preview-panel']
+    ];
+    for (const pair of exactSelectorMap) {{
+      if (titleMatches(pair[0], name)) {{
+        const direct = document.querySelector(pair[1]);
+        if (direct) return direct.closest('.panel, .report-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel') || direct;
+      }}
+    }}
+    const candidates = pdfPrintableBlocks();
+    let best = null;
+    let bestScore = 0;
+    candidates.forEach(block => {{
+      const title = blockTitle(block) || norm(block.textContent || '').slice(0, 220);
+      if (!title) return;
+      if (titleMatches(title, name)) {{
+        const score = Math.min(softNorm(title).length, softNorm(name).length);
+        if (score > bestScore) {{ best = block; bestScore = score; }}
+      }}
+    }});
+    return best;
+  }}
   function prepareSelectivePdfPrint() {{
     const cfg = window.DAWIYAT_RBAC || {{}};
-    const allowed = (cfg.pdfAllowedComponents || []).map(x => String(x || '')).filter(Boolean);
+    const allowed = (cfg.pdfAllowedComponents || []).map(x => String(x || '').trim()).filter(Boolean);
     if (!allowed.length) {{
       alert('No PDF-exportable tables/components are enabled for this user. Enable Export PDF for at least one Component / Table in Admin Board.');
       return false;
     }}
     restoreSelectivePdfPrint();
-    document.body.classList.add('pdf-selective-report-print');
     const allowedTabs = new Set(cfg.allowedTabs || []);
     ['overview','performance','tables','decision','pmo','perf-explanation','reports'].forEach(tab => {{
       const sec = document.getElementById('tab-' + tab);
@@ -1556,39 +1606,46 @@ window.DAWIYAT_RBAC = {{
       }}
     }});
     if (typeof renderExecutiveReports === 'function') {{ try {{ renderExecutiveReports(); }} catch(e) {{}} }}
-    const blocks = pdfPrintableBlocks();
+    if (typeof renderAll === 'function') {{ try {{ renderAll(); }} catch(e) {{}} }}
+
+    const root = document.createElement('div');
+    root.id = 'dawiyat-selective-pdf-root';
+    const cover = document.createElement('div');
+    cover.className = 'dawiyat-pdf-cover';
+    cover.innerHTML = '<h1>Dawiyat PMO Executive PDF Report</h1><p>Selective PDF export based on User_Component_Access → Export PDF permissions. Current filters and Smart Bulk Filter are applied before export.</p>';
+    root.appendChild(cover);
+
+    const missing = [];
     let matched = 0;
-    blocks.forEach(block => {{
-      const title = blockTitle(block) || norm(block.textContent || '').slice(0, 160);
-      const isAllowed = allowed.some(n => titleMatches(title, n));
-      const containsAllowed = !isAllowed && Array.from(block.querySelectorAll('.panel, .report-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel')).some(child => {{
-        const childTitle = blockTitle(child) || norm(child.textContent || '').slice(0, 160);
-        return allowed.some(n => titleMatches(childTitle, n));
+    allowed.forEach(componentName => {{
+      const block = findPdfComponentBlock(componentName);
+      if (!block) {{ missing.push(componentName); return; }}
+      const clone = block.cloneNode(true);
+      clone.classList.add('dawiyat-pdf-block');
+      clone.style.removeProperty('display');
+      clone.style.removeProperty('visibility');
+      clone.querySelectorAll('[style]').forEach(el => {{
+        if (String(el.style.display || '').includes('none')) el.style.removeProperty('display');
+        el.style.removeProperty('visibility');
+        el.style.removeProperty('pointer-events');
       }});
-      if (isAllowed || containsAllowed) {{
-        if (isAllowed) matched += 1;
-        block.dataset.pdfKeep = '1';
-      }} else {{
-        block.dataset.pdfPermissionHidden = '1';
-        block.style.setProperty('display', 'none', 'important');
-        block.style.setProperty('visibility', 'hidden', 'important');
-      }}
+      root.appendChild(clone);
+      matched += 1;
     }});
     if (!matched) {{
       restoreSelectivePdfPrint();
       alert('PDF permission is enabled, but no visible dashboard component matches the enabled Component / Table names. Please check Component / Table names in Admin Board.');
       return false;
     }}
+    if (missing.length) console.warn('PDF components not found:', missing);
+    document.body.appendChild(root);
+    document.body.classList.add('dawiyat-selective-pdf-active');
     return true;
   }}
   function restoreSelectivePdfPrint() {{
-    document.body.classList.remove('pdf-selective-report-print');
-    document.querySelectorAll('[data-pdf-permission-hidden="1"]').forEach(el => {{
-      el.style.removeProperty('display');
-      el.style.removeProperty('visibility');
-      delete el.dataset.pdfPermissionHidden;
-    }});
-    document.querySelectorAll('[data-pdf-keep="1"]').forEach(el => {{ delete el.dataset.pdfKeep; }});
+    document.body.classList.remove('dawiyat-selective-pdf-active');
+    const root = document.getElementById('dawiyat-selective-pdf-root');
+    if (root) root.remove();
     ['overview','performance','tables','decision','pmo','perf-explanation','reports'].forEach(tab => {{
       const sec = document.getElementById('tab-' + tab);
       if (!sec || sec.dataset.pdfWasHidden === undefined) return;
@@ -1600,8 +1657,12 @@ window.DAWIYAT_RBAC = {{
       delete sec.dataset.pdfOldDisplay;
     }});
   }}
+  function handleGlobalPdfExport() {{
+    if (prepareSelectivePdfPrint()) setTimeout(() => window.print(), 160);
+  }}
   window.DAWIYAT_prepareSelectivePdfPrint = prepareSelectivePdfPrint;
   window.DAWIYAT_restoreSelectivePdfPrint = restoreSelectivePdfPrint;
+  window.DAWIYAT_handleGlobalPdfExport = handleGlobalPdfExport;
   window.addEventListener('afterprint', restoreSelectivePdfPrint);
   document.addEventListener('click', function(e) {{
     const target = e.target && e.target.closest ? e.target.closest('#export-pdf') : null;
@@ -1609,7 +1670,7 @@ window.DAWIYAT_RBAC = {{
     e.preventDefault();
     e.stopPropagation();
     if (e.stopImmediatePropagation) e.stopImmediatePropagation();
-    if (prepareSelectivePdfPrint()) setTimeout(() => window.print(), 120);
+    handleGlobalPdfExport();
   }}, true);
 
   function applyTabs() {{

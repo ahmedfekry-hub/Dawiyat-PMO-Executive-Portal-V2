@@ -429,3 +429,11 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - If `Global PDF Report = Yes` but no component has `Export PDF = Yes`, the user sees an alert and no PDF is generated.
 - If only `Link Code Summary Table` has `Export PDF = Yes`, the global PDF exports only that table, not the full dashboard.
 - `Global PDF Report` itself is not counted as a table/component export permission.
+
+
+## V5.3 Selective PDF Export Enforcement Fix
+- Global PDF Report now controls only whether the main Export PDF Report button appears.
+- The PDF content is generated into a separate print container and includes only components with Export PDF = Yes.
+- If no components have Export PDF = Yes, the user receives an alert and no PDF export starts.
+- Global PDF Report accepts either Show = Yes or Export PDF = Yes for the dedicated Global PDF Report row.
+- The original dashboard full-page print listener is replaced by the permission-aware selective PDF handler.
