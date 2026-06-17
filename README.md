@@ -385,3 +385,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Corrected implementation update logic to use the real `implementation update` column only.
 - Prevented numeric fallback values such as 0/1 from appearing when the implementation update field is not the intended source.
 - Enabled the report Export Excel button with a direct report-level export action.
+
+
+## V4.5 WO Status Report Export Fix
+- Replaced the table HTML export for WO Billing & Handover Status Report with a dedicated XLSX export function.
+- Export now reads the same filtered dataset used by the report, including Smart Bulk Filter.
+- Added CSV fallback if the XLSX browser library is unavailable.
