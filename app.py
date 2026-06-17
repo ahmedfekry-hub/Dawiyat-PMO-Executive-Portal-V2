@@ -884,6 +884,14 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     any_excel = False
     any_pdf = False
     any_ppt = False
+    global_pdf_report = False
+    global_pdf_names = {
+        "global pdf report",
+        "export pdf report",
+        "dashboard pdf report",
+        "full dashboard pdf report",
+        "dashboard full pdf report",
+    }
 
     if "User_Component_Access" in sheets:
         df = sheets["User_Component_Access"].fillna("")
@@ -903,6 +911,9 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                 ex_excel = _excel_bool(row.get("Export Excel"), False)
                 ex_pdf = _excel_bool(row.get("Export PDF"), False)
                 ex_ppt = _excel_bool(row.get("Export PPT"), False)
+
+                if component.strip().lower() in global_pdf_names:
+                    global_pdf_report = bool(show and ex_pdf)
 
                 if show:
                     show_tables.append(component)
@@ -946,8 +957,11 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     policy["hide_ppt_components"] = list(dict.fromkeys(hide_ppt_components))
     policy["export_excel"] = any_excel
     policy["export_pdf"] = any_pdf
+    # Dedicated control for the top dashboard button: Export PDF Report.
+    # This is intentionally separated from table-level Export PDF permissions.
+    policy["global_pdf_report"] = bool(global_pdf_report)
     policy["export_ppt"] = any_ppt  # Export permission only; does NOT grant PPT Builder page access
-    policy["export"] = bool(policy.get("export_excel") or policy.get("export_pdf") or policy.get("export_ppt"))
+    policy["export"] = bool(policy.get("export_excel") or policy.get("export_pdf") or policy.get("export_ppt") or policy.get("global_pdf_report"))
     return policy
 
 
@@ -1353,6 +1367,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     allowed_tabs = json.dumps(allowed_dashboard_tabs())
     hide_excel = "true" if not policy.get("export_excel", False) else "false"
     hide_pdf = "true" if not policy.get("export_pdf", False) else "false"
+    hide_global_pdf = "true" if not policy.get("global_pdf_report", False) else "false"
     hide_all_exports = "true" if not policy.get("export", False) else "false"
     role_label = role.title()
     hide_buttons = json.dumps(_as_list(policy.get("hide_buttons")))
@@ -1365,7 +1380,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
     deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
     export_button_css = ""
-    if hide_pdf == "true" or hide_all_exports == "true":
+    if hide_global_pdf == "true" or hide_all_exports == "true":
         export_button_css += "#export-pdf, button#export-pdf, .btn#export-pdf { display:none !important; visibility:hidden !important; pointer-events:none !important; }\n"
     if hide_excel == "true" or hide_all_exports == "true":
         export_button_css += "#export-excel, button#export-excel, [id*=\"export-excel\"] { display:none !important; visibility:hidden !important; pointer-events:none !important; }\n"
@@ -1398,6 +1413,7 @@ window.DAWIYAT_RBAC = {{
   allowedTabs: {allowed_tabs},
   hideExcel: {hide_excel},
   hidePdf: {hide_pdf},
+  hideGlobalPdf: {hide_global_pdf},
   hideAllExports: {hide_all_exports},
   hideButtons: {hide_buttons},
   hideTables: {hide_tables},
@@ -1443,7 +1459,7 @@ window.DAWIYAT_RBAC = {{
   }}
   function hideExportButtons() {{
     const cfg = window.DAWIYAT_RBAC || {{}};
-    if (cfg.hidePdf || cfg.hideAllExports) {{
+    if (cfg.hideGlobalPdf || cfg.hideAllExports) {{
       const pdfBtn = document.getElementById('export-pdf');
       if (pdfBtn) {{
         pdfBtn.style.setProperty('display','none','important');
@@ -1462,7 +1478,7 @@ window.DAWIYAT_RBAC = {{
       if (cfg.hideExcel && (txt.includes('export excel') || txt.includes('export csv') || txt === 'export')) {{
         el.style.display = 'none';
       }}
-      if (cfg.hidePdf && txt.includes('export pdf')) {{
+      if (cfg.hidePdf && txt.includes('export pdf') && el.id !== 'export-pdf') {{
         el.style.display = 'none';
       }}
       (cfg.hideButtons || []).forEach(needle => {{

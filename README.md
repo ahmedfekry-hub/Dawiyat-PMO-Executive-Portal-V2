@@ -415,3 +415,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Fixed Dashboard HTML global Export PDF Report button visibility.
 - The button is now hidden server-side with CSS when User_Component_Access has Export PDF = No for the user.
 - This is not a permissions.xlsx issue; it was a static HTML dashboard button that needed a hard permission gate before iframe rendering.
+
+
+## V5.0 Dynamic Export PDF Permission Fix
+- Top dashboard **Export PDF Report** is now controlled by a dedicated component row: `Global PDF Report`.
+- Table-level `Export PDF` permissions no longer control or open the full-page PDF export.
+- Admin Board edits to `User_Component_Access` control this behavior the same way as the other permissions after refresh/rerun.
+- The included permissions.xlsx contains `Global PDF Report` for every user; set Show/Export PDF to Yes only for users allowed to export the full dashboard PDF.
