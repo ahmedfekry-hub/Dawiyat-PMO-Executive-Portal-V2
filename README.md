@@ -443,3 +443,11 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Selective PDF export now recognizes Executive Reports page cards such as Executive Portfolio Summary & Cost Exposure, Executive KPI Cards, SOR Summary & Revenue Exposure, Overall Stages Summary & Cost Exposure, and WO Billing & Handover Status Report.
 - The PDF matching engine now includes .report-section-card blocks instead of only older .panel blocks.
 - Enabled Export PDF rows in Admin Board can now export Executive Reports page components individually.
+
+
+## V5.5 User Permission Conflict + KSA Time Fix
+- Fixed duplicated component-name conflict: Show=Yes now wins when the same component appears in another page with Show=No.
+- Tables & Exports remains visible when the user has Tables & Exports page permission and its table components are Show=Yes.
+- Admin Board edits still write directly to data/permissions.xlsx; users see changes after browser refresh or Logout/Login.
+- Last Login and generated timestamps now use Saudi Arabia time (UTC+3).
+- Added best-effort CSS/config to hide Streamlit Manage App toolbar elements from the portal UI. Streamlit Cloud may still show Manage App to app owners/collaborators at the platform level.

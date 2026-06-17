@@ -8,7 +8,7 @@ import json
 import re
 import shutil
 import smtplib
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
 from email.message import EmailMessage
 from pathlib import Path
 from typing import Any, Dict, List, Mapping, Tuple
@@ -66,6 +66,11 @@ DOCUMENT_EXTENSIONS = {
     "Commercial": ["pdf", "xlsx", "xls", "docx", "zip"],
 }
 GOOGLE_DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
+
+KSA_TZ = timezone(timedelta(hours=3))
+
+def ksa_now() -> datetime:
+    return datetime.now(KSA_TZ)
 
 
 def image_to_base64(path: Path) -> str:
@@ -172,6 +177,23 @@ PORTAL_CSS = """
     max-width: 100%;
 }
 header, footer {visibility: hidden;}
+/* Best-effort hide Streamlit Cloud developer toolbar/Manage App from the portal UI.
+   Note: Streamlit may still show Manage App to app owners/collaborators outside app DOM. */
+[data-testid="stToolbar"],
+[data-testid="stDecoration"],
+[data-testid="stStatusWidget"],
+[data-testid="manage-app-button"],
+.stDeployButton,
+button[title="Manage app"],
+a[title="Manage app"],
+div[aria-label="Manage app"],
+iframe[title="streamlit runtime"],
+.viewerBadge_container__1QSob {
+    display: none !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
+}
+
 [data-testid="stSidebar"] {
     background: linear-gradient(180deg,#0f2746 0%,#10223a 100%);
 }
@@ -493,9 +515,9 @@ def _format_login_time(timestamp_str: str | None = None) -> str:
     """Return a readable local login time for the user session."""
     try:
         ts = int(timestamp_str) if timestamp_str else int(time.time())
-        return datetime.fromtimestamp(ts).strftime("%d-%b-%Y %I:%M %p")
+        return datetime.fromtimestamp(ts, KSA_TZ).strftime("%d-%b-%Y %I:%M %p")
     except Exception:
-        return datetime.now().strftime("%d-%b-%Y %I:%M %p")
+        return ksa_now().strftime("%d-%b-%Y %I:%M %p")
 
 
 
@@ -663,7 +685,7 @@ def _read_permissions_excel() -> Dict[str, pd.DataFrame]:
         for name, df in raw_sheets.items():
             sheets[name] = _normalize_permission_sheet(df, specs.get(name, [])) if name in specs else df.fillna("")
         st.session_state["permissions_last_signature"] = _permissions_signature()
-        st.session_state["permissions_last_loaded"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state["permissions_last_loaded"] = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
         return sheets
     except Exception as exc:
         st.warning(f"Unable to read permissions.xlsx. Falling back to Secrets/default permissions. Details: {exc}")
@@ -693,7 +715,7 @@ def _write_permissions_excel_sheets(sheets: Dict[str, pd.DataFrame]) -> None:
             safe_name = str(name)[:31] or "Sheet1"
             df.to_excel(writer, sheet_name=safe_name, index=False)
     st.session_state["permission_runtime_signature"] = _permissions_signature()
-    st.session_state["permissions_last_loaded"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    st.session_state["permissions_last_loaded"] = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 def _update_permission_sheet_from_editor(sheet_name: str, edited_df: pd.DataFrame, selected_user: str = "All Users") -> None:
@@ -880,9 +902,11 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     show_tables: List[str] = []
     hide_tables: List[str] = []
     hide_excel_components: List[str] = []
+    allowed_excel_components: List[str] = []
     hide_pdf_components: List[str] = []
     allowed_pdf_components: List[str] = []
     hide_ppt_components: List[str] = []
+    allowed_ppt_components: List[str] = []
     any_excel = False
     any_pdf = False
     any_ppt = False
@@ -925,6 +949,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                     show_tables.append(component)
                     if ex_excel:
                         any_excel = True
+                        allowed_excel_components.append(component)
                     else:
                         hide_excel_components.append(component)
                     if ex_pdf:
@@ -934,6 +959,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                         hide_pdf_components.append(component)
                     if ex_ppt:
                         any_ppt = True
+                        allowed_ppt_components.append(component)
                     else:
                         hide_ppt_components.append(component)
                 else:
@@ -949,6 +975,19 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                     hide_excel_components.append(component)
                     hide_pdf_components.append(component)
                     hide_ppt_components.append(component)
+
+    # Same component names can exist in more than one page. If the component is
+    # explicitly Show=Yes / Export=Yes anywhere for this user, that positive
+    # permission must win. This fixes cases like Executive Reports=Yes while the
+    # same component name is No in Executive Overview, which previously hid it.
+    show_set = {str(x).strip().lower() for x in show_tables}
+    excel_allowed_set = {str(x).strip().lower() for x in allowed_excel_components}
+    pdf_set = {str(x).strip().lower() for x in allowed_pdf_components}
+    ppt_allowed_set = {str(x).strip().lower() for x in allowed_ppt_components}
+    hide_tables = [x for x in hide_tables if str(x).strip().lower() not in show_set]
+    hide_excel_components = [x for x in hide_excel_components if str(x).strip().lower() not in excel_allowed_set]
+    hide_pdf_components = [x for x in hide_pdf_components if str(x).strip().lower() not in pdf_set]
+    hide_ppt_components = [x for x in hide_ppt_components if str(x).strip().lower() not in ppt_allowed_set]
 
     # Canonical order and deduplication
     canonical_pages = ["Dashboard", "AI Executive Assistant", "Smart Alerts", "Executive Reports", "📊 Executive PPT Builder", "Upload CSV", "📤 Document Upload Center", "Admin Board"]
@@ -1181,7 +1220,7 @@ def validate_current_authenticated_user() -> bool:
     current_sig = _permissions_signature()
     if st.session_state.get("permission_runtime_signature") != current_sig:
         st.session_state["permission_runtime_signature"] = current_sig
-        st.session_state["permission_runtime_checked_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        st.session_state["permission_runtime_checked_at"] = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
 
     users = get_users()
     if username not in users:
@@ -1522,7 +1561,7 @@ window.DAWIYAT_RBAC = {{
     const cfg = window.DAWIYAT_RBAC || {{}};
     const needles = (cfg.hideTables || []).map(x => String(x || '')).filter(Boolean);
     if (!needles.length) return;
-    const blocks = Array.from(document.querySelectorAll('.panel, .kpi, .table-wrap, section, .report-card, .report-section'));
+    const blocks = Array.from(document.querySelectorAll('.panel, .kpi, .table-wrap, .report-card, .report-section')); // do not hide top-level tab sections
     blocks.forEach(el => {{
       const title = blockTitle(el);
       if (title && needles.some(n => titleMatches(title, n))) {{
@@ -2063,7 +2102,7 @@ def render_dashboard() -> None:
 
 
 def backup_file(path: Path) -> Path:
-    stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    stamp = ksa_now().strftime("%Y%m%d_%H%M%S")
     dest = BACKUP_DIR / f"{path.stem}_{stamp}{path.suffix}"
     if path.exists():
         shutil.copy(path, dest)
@@ -2824,7 +2863,7 @@ def build_pdf_report() -> bytes:
     story = []
 
     story.append(Paragraph("Dawiyat PMO Executive Report", styles["Title"]))
-    story.append(Paragraph(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}", styles["Normal"]))
+    story.append(Paragraph(f"Generated: {ksa_now().strftime('%Y-%m-%d %H:%M')}", styles["Normal"]))
     story.append(Spacer(1, 12))
 
     summary_data = [
@@ -4494,7 +4533,7 @@ def executive_ppt_builder_page() -> None:
             st.download_button(
                 "📥 Download Selected PowerPoint Presentation",
                 data=ppt_bytes,
-                file_name=f"Dawiyat_Executive_Presentation_{datetime.now().strftime('%Y%m%d_%H%M')}.pptx",
+                file_name=f"Dawiyat_Executive_Presentation_{ksa_now().strftime('%Y%m%d_%H%M')}.pptx",
                 mime="application/vnd.openxmlformats-officedocument.presentationml.presentation",
                 use_container_width=True,
             )
@@ -4552,7 +4591,7 @@ def admin_page() -> None:
     with reload_col1:
         if st.button("🔄 Reload Permissions", use_container_width=True):
             st.session_state["permission_runtime_signature"] = ""
-            st.session_state["permissions_manual_reload_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.session_state["permissions_manual_reload_at"] = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
             st.rerun()
     with reload_col2:
         st.info("Permissions are read from data/permissions.xlsx on each normal Streamlit rerun. No timed auto-refresh is used. Users see changes after browser refresh or Logout/Login.")
