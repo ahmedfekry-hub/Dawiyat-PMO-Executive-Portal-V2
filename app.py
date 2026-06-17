@@ -861,6 +861,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
         "hide_tables": [],
         "show_tables": [],
         "hide_excel_components": [],
+        "allowed_excel_components": [],
         "hide_pdf_components": [],
         "allowed_pdf_components": [],
         "hide_ppt_components": [],
@@ -902,11 +903,9 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     show_tables: List[str] = []
     hide_tables: List[str] = []
     hide_excel_components: List[str] = []
-    allowed_excel_components: List[str] = []
     hide_pdf_components: List[str] = []
     allowed_pdf_components: List[str] = []
     hide_ppt_components: List[str] = []
-    allowed_ppt_components: List[str] = []
     any_excel = False
     any_pdf = False
     any_ppt = False
@@ -949,7 +948,6 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                     show_tables.append(component)
                     if ex_excel:
                         any_excel = True
-                        allowed_excel_components.append(component)
                     else:
                         hide_excel_components.append(component)
                     if ex_pdf:
@@ -959,7 +957,6 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
                         hide_pdf_components.append(component)
                     if ex_ppt:
                         any_ppt = True
-                        allowed_ppt_components.append(component)
                     else:
                         hide_ppt_components.append(component)
                 else:
@@ -981,12 +978,13 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     # permission must win. This fixes cases like Executive Reports=Yes while the
     # same component name is No in Executive Overview, which previously hid it.
     show_set = {str(x).strip().lower() for x in show_tables}
-    excel_allowed_set = {str(x).strip().lower() for x in allowed_excel_components}
     pdf_set = {str(x).strip().lower() for x in allowed_pdf_components}
-    ppt_allowed_set = {str(x).strip().lower() for x in allowed_ppt_components}
+    excel_allowed_components = [x for x in show_tables if str(x).strip().lower() not in {str(h).strip().lower() for h in hide_excel_components}]
+    excel_allowed_set = {str(x).strip().lower() for x in excel_allowed_components}
+    ppt_allowed_set = {str(x).strip().lower() for x in show_tables if str(x).strip().lower() not in {str(h).strip().lower() for h in hide_ppt_components}}
     hide_tables = [x for x in hide_tables if str(x).strip().lower() not in show_set]
-    hide_excel_components = [x for x in hide_excel_components if str(x).strip().lower() not in excel_allowed_set]
     hide_pdf_components = [x for x in hide_pdf_components if str(x).strip().lower() not in pdf_set]
+    hide_excel_components = [x for x in hide_excel_components if str(x).strip().lower() not in excel_allowed_set]
     hide_ppt_components = [x for x in hide_ppt_components if str(x).strip().lower() not in ppt_allowed_set]
 
     # Canonical order and deduplication
@@ -999,6 +997,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     policy["show_tables"] = show_tables
     policy["hide_tables"] = hide_tables
     policy["hide_excel_components"] = list(dict.fromkeys(hide_excel_components))
+    policy["allowed_excel_components"] = list(dict.fromkeys(excel_allowed_components))
     policy["hide_pdf_components"] = list(dict.fromkeys(hide_pdf_components))
     policy["allowed_pdf_components"] = list(dict.fromkeys(allowed_pdf_components))
     policy["hide_ppt_components"] = list(dict.fromkeys(hide_ppt_components))
@@ -1426,6 +1425,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     hide_buttons = json.dumps(_as_list(policy.get("hide_buttons")))
     hide_tables = json.dumps(_as_list(policy.get("hide_tables")))
     hide_excel_components = json.dumps(_as_list(policy.get("hide_excel_components")))
+    allowed_excel_components = json.dumps(_as_list(policy.get("allowed_excel_components")))
     hide_pdf_components = json.dumps(_as_list(policy.get("hide_pdf_components")))
     allowed_pdf_components = json.dumps(_as_list(policy.get("allowed_pdf_components")))
     hide_ppt_components = json.dumps(_as_list(policy.get("hide_ppt_components")))
@@ -1484,6 +1484,7 @@ window.DAWIYAT_RBAC = {{
   hideButtons: {hide_buttons},
   hideTables: {hide_tables},
   hideExcelComponents: {hide_excel_components},
+  excelAllowedComponents: {allowed_excel_components},
   hidePdfComponents: {hide_pdf_components},
   pdfAllowedComponents: {allowed_pdf_components},
   hidePptComponents: {hide_ppt_components}
@@ -1572,7 +1573,7 @@ window.DAWIYAT_RBAC = {{
   }}
   function hideComponentExportButtons() {{
     const cfg = window.DAWIYAT_RBAC || {{}};
-    const blocks = Array.from(document.querySelectorAll('.panel, section, div'));
+    const blocks = Array.from(document.querySelectorAll('.panel, .report-card, .report-section-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel, .overview-exec-summary-panel, .overview-summary-table-card, .assist-card')); // scoped blocks only; avoids hiding table buttons from parent containers
     blocks.forEach(block => {{
       const title = blockTitle(block);
       if (!title) return;
@@ -1588,6 +1589,50 @@ window.DAWIYAT_RBAC = {{
         if (hidePpt && (txt.includes('ppt') || txt.includes('presentation') || txt.includes('powerpoint'))) el.style.display = 'none';
       }});
     }});
+  }}
+  function showAllowedExcelExportButtons() {{
+    const cfg = window.DAWIYAT_RBAC || {{}};
+    if (cfg.hideAllExports || cfg.hideExcel) return;
+    const allowed = (cfg.excelAllowedComponents || []).map(x => String(x || '')).filter(Boolean);
+    if (!allowed.length) return;
+    const tablesTabAllowed = (cfg.allowedTabs || []).includes('tables');
+    const blocks = Array.from(document.querySelectorAll('.panel, .report-card, .report-section-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel, .overview-exec-summary-panel, .overview-summary-table-card, .assist-card'));
+    blocks.forEach(block => {{
+      const title = blockTitle(block) || norm(block.textContent || '').slice(0, 220);
+      const isAllowedBlock = allowed.some(n => titleMatches(title, n));
+      if (!isAllowedBlock) return;
+      block.style.removeProperty('display');
+      block.style.removeProperty('visibility');
+      Array.from(block.querySelectorAll('button, a, .btn')).forEach(el => {{
+        const txt = norm(el.textContent);
+        const call = String(el.getAttribute('onclick') || '').toLowerCase();
+        const id = String(el.id || '').toLowerCase();
+        const isExcelButton = txt.includes('export excel') || txt.includes('excel') || txt.includes('csv') || call.includes('exporttabletoexcel') || id.includes('export') && id.includes('excel');
+        if (isExcelButton) {{
+          el.style.removeProperty('display');
+          el.style.removeProperty('visibility');
+          el.style.removeProperty('pointer-events');
+          el.style.setProperty('pointer-events','auto','important');
+        }}
+      }});
+    }});
+    // If the workbook contains a generic "Export Excel" component for Tables & Exports, keep all
+    // table export buttons visible on that tab when the Tables tab itself is allowed.
+    if (tablesTabAllowed && allowed.some(n => titleMatches(n, 'Export Excel'))) {{
+      const tablesSection = document.getElementById('tab-tables');
+      if (tablesSection) {{
+        Array.from(tablesSection.querySelectorAll('button, a, .btn')).forEach(el => {{
+          const txt = norm(el.textContent);
+          const call = String(el.getAttribute('onclick') || '').toLowerCase();
+          if (txt.includes('export excel') || call.includes('exporttabletoexcel')) {{
+            el.style.removeProperty('display');
+            el.style.removeProperty('visibility');
+            el.style.removeProperty('pointer-events');
+            el.style.setProperty('pointer-events','auto','important');
+          }}
+        }});
+      }}
+    }}
   }}
   function pdfPrintableBlocks() {{
     return Array.from(document.querySelectorAll('.panel, .report-card, .report-section-card, .pmo-compact-panel, .sor-exec-summary-panel, .stage-exec-summary-panel, .overview-exec-summary-panel, .overview-summary-table-card, .assist-card'));
@@ -1752,6 +1797,7 @@ window.DAWIYAT_RBAC = {{
     hideExportButtons();
     hideTablesByText();
     hideComponentExportButtons();
+    showAllowedExcelExportButtons();
     rbacApplying = false;
   }}
   document.addEventListener('DOMContentLoaded', applyTabs);

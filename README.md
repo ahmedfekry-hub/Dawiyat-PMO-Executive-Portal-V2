@@ -451,3 +451,11 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Admin Board edits still write directly to data/permissions.xlsx; users see changes after browser refresh or Logout/Login.
 - Last Login and generated timestamps now use Saudi Arabia time (UTC+3).
 - Added best-effort CSS/config to hide Streamlit Manage App toolbar elements from the portal UI. Streamlit Cloud may still show Manage App to app owners/collaborators at the platform level.
+
+
+## V5.6 Tables Export Excel Visibility Fix
+- Fixed Tables & Exports buttons hidden while Export Excel permissions are Yes.
+- Added explicit allowed_excel_components logic from User_Component_Access.
+- Scoped component export hiding to real panels/cards only, preventing parent containers from hiding valid table export buttons.
+- Added support for the generic Tables & Exports / Export Excel permission row to keep all enabled table export buttons visible.
+- Included the latest uploaded permissions.xlsx.
