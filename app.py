@@ -4827,7 +4827,7 @@ def render_session_bar() -> None:
         <div class="session-bar">
             <div class="session-main">
                 <span class="session-pill">👤 <strong>{username}</strong></span>
-                <span class="session-pill">🏢 Department: <strong>{role_label}</strong></span>
+                <span class="session-pill">🏢 Role: <strong>{role_label}</strong></span>
                 <span class="session-pill">🕒 Last Login: <strong>{last_login}</strong></span>
                 <span class="session-pill session-active">🔐 Session Active</span>
             </div>
