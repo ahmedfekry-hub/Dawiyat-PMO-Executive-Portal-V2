@@ -471,3 +471,19 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 ## V5.6.2 Final Signature Fixed
 - Fixed duplicated `(PMO) (PMO)` in dashboard header, assistant branding, PDF and PPT signatures.
 - Final text: `Prepared by Eng/Ahmed Fekry - Quality & Performance Director (PMO)`.
+
+## V5.8 PMO Governance Agents Pilot
+- Added protected data layer model:
+  - Layer 1: Master files `u_osp_work_order.csv`, `District.csv`, `Penalties.csv` remain protected.
+  - Layer 2: controlled user updates are saved in `data/project_updates.csv`.
+  - Layer 3: dashboard engine overlays Project Updates on top of Master Data at runtime.
+- Added `Data Update Agent` page with:
+  - Data Layers overview
+  - Admin-only master data replacement for District/Penalties
+  - User Notification Access
+  - Change Detection Agent log
+- Added `Notification Center 🔔` with unread counter in the top session bar.
+- Added `Executive Daily Digest` pilot page.
+- Added `WhatsApp Agent` pilot outbox page.
+- Project Updates Center no longer writes directly into `u_osp_work_order.csv`; changes are audited in `change_log.csv` and notifications are created.
+- `District.csv` and `Penalties.csv` remain under Admin control only.

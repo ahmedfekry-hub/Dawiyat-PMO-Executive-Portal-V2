@@ -30,6 +30,12 @@ BACKUP_DIR = BASE_DIR / "backups"
 BACKUP_DIR.mkdir(exist_ok=True)
 
 WO_PATH = DATA_DIR / "u_osp_work_order.csv"
+PROJECT_UPDATES_PATH = DATA_DIR / "project_updates.csv"
+CHANGE_LOG_PATH = DATA_DIR / "change_log.csv"
+NOTIFICATIONS_PATH = DATA_DIR / "notifications.csv"
+NOTIFICATION_ACCESS_PATH = DATA_DIR / "notification_access.csv"
+DAILY_DIGEST_PATH = DATA_DIR / "daily_digest.csv"
+WHATSAPP_OUTBOX_PATH = DATA_DIR / "whatsapp_outbox.csv"
 PENALTIES_PATH = DATA_DIR / "Penalties.csv"
 DOC_STATUS_CACHE_PATH = DATA_DIR / "Dawiyat_Document_Status.csv"
 DISTRICT_PATH = DATA_DIR / "District.csv"
@@ -37,6 +43,12 @@ PERMISSIONS_XLSX_PATH = DATA_DIR / "permissions.xlsx"
 
 DATA_FILES = {
     "u_osp_work_order.csv": WO_PATH,
+    "project_updates.csv": PROJECT_UPDATES_PATH,
+    "change_log.csv": CHANGE_LOG_PATH,
+    "notifications.csv": NOTIFICATIONS_PATH,
+    "notification_access.csv": NOTIFICATION_ACCESS_PATH,
+    "daily_digest.csv": DAILY_DIGEST_PATH,
+    "whatsapp_outbox.csv": WHATSAPP_OUTBOX_PATH,
     "Penalties.csv": PENALTIES_PATH,
     "District.csv": DISTRICT_PATH,
 }
@@ -66,6 +78,36 @@ DOCUMENT_EXTENSIONS = {
     "Commercial": ["pdf", "xlsx", "xls", "docx", "zip"],
 }
 GOOGLE_DRIVE_FOLDER_MIME = "application/vnd.google-apps.folder"
+
+# Editable update center configuration
+PROJECT_UPDATE_EDITABLE_COLUMNS = [
+    "Fiber Status", "Civil Status", "FULL WO STATUS",
+    "Invoice Status", "SOR Status", "1st 50 Invoice Status",
+    "1st 50 Invoice Cost Amount", "PAT Status", "AsBuilt  Status",
+    "DCR_Status", "RFS Certificate", "As-built BOQ", "Redline",
+    "Handover O&M _Status", "Handover Consultant _Status", "SOR Reference Number",
+]
+
+PROJECT_UPDATE_STATUS_OPTIONS = {
+    "Fiber Status": ["Not Started", "Completed", "In Progress"],
+    "Civil Status": ["Not Started", "Completed", "In Progress"],
+    "FULL WO STATUS": ["Not Started", "Completed", "In Progress"],
+    "Invoice Status": ["Civil Not Start", "As-Built Stage", "Fibre Materials", "Waiting SOR", "SOR 50% Stage", "PT Stage", "Civil On-Hold", "PT Stage - POP Issue", "Civil In Progress"],
+    "SOR Status": ["Created", "Not Create", "Requested"],
+    "1st 50 Invoice Status": ["SOR not Create", "Submitted", "Not Start", "In Progress"],
+    "PAT Status": ["Not Started", "Scheduled", "Under Progress", "Re-Test Required", "Under Review", "Accepted", "Failed"],
+    "AsBuilt  Status": ["Not Started", "Under Preparation", "Under Review", "Submitted", "Approved", "Rejected"],
+    "DCR_Status": ["Not Started", "Under Preparation", "Submitted", "Under Review", "Approved", "Missing Documents", "Rejected"],
+    "RFS Certificate": ["Not Started", "Under Preparation", "Submitted", "Under Review", "Approved", "Missing Documents", "Rejected"],
+    "As-built BOQ": ["Not Started", "Under Preparation", "Submitted", "Under Review", "Approved", "Missing Documents", "Rejected"],
+    "Redline": ["Not Started", "Under Preparation", "Submitted", "Under Review", "Approved", "Missing Documents", "Rejected"],
+    "Handover O&M _Status": ["Not Started", "Scheduled", "Waiting OILS Sheet from MO", "Approved", "Rejected", "Under Clearing Remarks"],
+    "Handover Consultant _Status": ["Not Started", "Scheduled", "Waiting OILS Sheet from MO", "Approved", "Rejected", "Under Clearing Remarks"],
+}
+
+PROJECT_UPDATE_FINANCE_COLUMNS = ["Invoice Status", "SOR Status", "1st 50 Invoice Status", "1st 50 Invoice Cost Amount", "SOR Reference Number"]
+PROJECT_UPDATE_PM_COLUMNS = ["Fiber Status", "Civil Status", "FULL WO STATUS", "PAT Status", "AsBuilt  Status", "DCR_Status", "RFS Certificate", "As-built BOQ", "Redline", "Handover O&M _Status", "Handover Consultant _Status"]
+PROJECT_MASTER_ADMIN_FILES = {"District.csv": DISTRICT_PATH, "Penalties.csv": PENALTIES_PATH}
 
 KSA_TZ = timezone(timedelta(hours=3))
 
@@ -136,6 +178,7 @@ ROLE_PERMISSIONS = {
     "viewer": {
         "dashboard": True, "assistant": False, "alerts": False, "reports": False,
         "admin": False, "upload": False, "email": False, "documents": False, "ppt_builder": False,
+        "project_updates": False,
         "export": False, "export_excel": False, "export_pdf": False, "export_ppt": False,
         "pages": ["Dashboard"],
         "dashboard_tabs": ["overview"],
@@ -800,6 +843,7 @@ def _page_name_to_key(page_name: str) -> str:
         "smart alerts": "alerts",
         "ai executive assistant": "assistant",
         "admin board": "admin",
+        "project updates center": "project_updates",
     }
     return mapping.get(text, "")
 
@@ -851,6 +895,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
         "email": False,
         "documents": False,
         "ppt_builder": False,
+        "project_updates": False,
         "export": False,
         "export_excel": False,
         "export_pdf": False,
@@ -988,7 +1033,7 @@ def get_user_based_policy_from_excel(username: str) -> Dict:
     hide_ppt_components = [x for x in hide_ppt_components if str(x).strip().lower() not in ppt_allowed_set]
 
     # Canonical order and deduplication
-    canonical_pages = ["Dashboard", "AI Executive Assistant", "Smart Alerts", "Executive Reports", "📊 Executive PPT Builder", "Upload CSV", "📤 Document Upload Center", "Admin Board"]
+    canonical_pages = ["Dashboard", "Project Updates Center", "Data Update Agent", "Notification Center 🔔", "Executive Daily Digest", "WhatsApp Agent", "AI Executive Assistant", "Smart Alerts", "Executive Reports", "📊 Executive PPT Builder", "Upload CSV", "📤 Document Upload Center", "Admin Board"]
     pages = [p for p in canonical_pages if p in list(dict.fromkeys(pages))]
     canonical_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
     tabs = [t for t in canonical_tabs if t in list(dict.fromkeys(tabs))]
@@ -1175,6 +1220,11 @@ def allowed_pages_for_current_user() -> List[str]:
     if policy.get("assistant"): out.append("AI Executive Assistant")
     if policy.get("alerts"): out.append("Smart Alerts")
     if policy.get("reports"): out.append("Executive Reports")
+    if policy.get("project_updates"): out.append("Project Updates Center")
+    if policy.get("data_update_agent") or policy.get("admin"): out.append("Data Update Agent")
+    if policy.get("notification_center"): out.append("Notification Center 🔔")
+    if policy.get("executive_daily_digest"): out.append("Executive Daily Digest")
+    if policy.get("whatsapp_agent"): out.append("WhatsApp Agent")
     if policy.get("ppt_builder"): out.append("📊 Executive PPT Builder")
     if policy.get("upload"): out.append("Upload CSV")
     if policy.get("documents"): out.append("📤 Document Upload Center")
@@ -1347,6 +1397,107 @@ def df_to_records(df: pd.DataFrame) -> List[dict]:
 
 
 
+
+def ensure_governance_files() -> None:
+    DATA_DIR.mkdir(exist_ok=True)
+    defaults = {
+        PROJECT_UPDATES_PATH: ["Link Code", "Work Order", *PROJECT_UPDATE_EDITABLE_COLUMNS, "Updated By", "Updated At"],
+        CHANGE_LOG_PATH: ["Change ID", "Updated At", "Updated By", "Link Code", "Work Order", "Field", "Old Value", "New Value", "Source"],
+        NOTIFICATIONS_PATH: ["Notification ID", "Created At", "To User", "Category", "Title", "Message", "Is Read", "Related Link Code", "Related Work Order"],
+        NOTIFICATION_ACCESS_PATH: ["Username", "Category", "Enabled"],
+        DAILY_DIGEST_PATH: ["Digest ID", "Created At", "Created By", "Audience", "Digest Text"],
+        WHATSAPP_OUTBOX_PATH: ["Message ID", "Created At", "To User", "To WhatsApp", "Message", "Status", "Sent At"],
+    }
+    for path, cols in defaults.items():
+        if not path.exists():
+            pd.DataFrame(columns=cols).to_csv(path, index=False, encoding="utf-8-sig")
+
+
+def _append_csv_rows(path: Path, rows: List[dict]) -> None:
+    if not rows:
+        return
+    ensure_governance_files()
+    old = safe_read_csv(path) if path.exists() else pd.DataFrame()
+    new_df = pd.DataFrame(rows).fillna("")
+    all_cols = list(dict.fromkeys(list(old.columns) + list(new_df.columns)))
+    old = old.reindex(columns=all_cols, fill_value="")
+    new_df = new_df.reindex(columns=all_cols, fill_value="")
+    pd.concat([old, new_df], ignore_index=True).to_csv(path, index=False, encoding="utf-8-sig")
+
+
+def apply_project_updates_to_workorders(wo: pd.DataFrame) -> pd.DataFrame:
+    """Layer 2 overlay: keep u_osp_work_order as master, apply latest user updates from project_updates.csv."""
+    if wo is None or wo.empty:
+        return wo
+    ensure_governance_files()
+    updates = safe_read_csv(PROJECT_UPDATES_PATH).copy()
+    if updates.empty:
+        return wo
+    out = wo.copy()
+    for col in PROJECT_UPDATE_EDITABLE_COLUMNS:
+        if col not in out.columns:
+            out[col] = ""
+    link_col = first_existing_col(out, ["Link Code"])
+    wo_col = first_existing_col(out, ["Work Order", "WO", "WO ID", "Workorder"])
+    # Apply by Work Order first, then Link Code fallback. Keep latest row per key.
+    if "Updated At" in updates.columns:
+        updates = updates.sort_values("Updated At")
+    if wo_col and "Work Order" in updates.columns:
+        for col in PROJECT_UPDATE_EDITABLE_COLUMNS:
+            if col in updates.columns:
+                sub = updates[(updates["Work Order"].astype(str).str.strip() != "") & (updates[col].astype(str).str.strip() != "")]
+                if not sub.empty:
+                    u_by_wo = sub.drop_duplicates("Work Order", keep="last").set_index("Work Order")
+                    mapped = out[wo_col].astype(str).map(u_by_wo[col].astype(str).to_dict())
+                    out[col] = out[col].where(mapped.isna() | (mapped.astype(str).str.strip() == ""), mapped)
+    if link_col and "Link Code" in updates.columns:
+        for col in PROJECT_UPDATE_EDITABLE_COLUMNS:
+            if col in updates.columns:
+                sub = updates[(updates["Link Code"].astype(str).str.strip() != "") & (updates[col].astype(str).str.strip() != "")]
+                if not sub.empty:
+                    u_by_link = sub.drop_duplicates("Link Code", keep="last").set_index("Link Code")
+                    mapped = out[link_col].astype(str).map(u_by_link[col].astype(str).to_dict())
+                    out[col] = out[col].where(mapped.isna() | (mapped.astype(str).str.strip() == ""), mapped)
+    return out
+
+
+def create_update_notifications(changes: List[dict]) -> None:
+    if not changes:
+        return
+    users = list(get_users().keys())
+    now = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
+    rows = []
+    for ch in changes:
+        title = f"{ch.get('Field','')} updated"
+        msg = f"{ch.get('Updated By','')} changed {ch.get('Field','')} for WO {ch.get('Work Order','')} from '{ch.get('Old Value','')}' to '{ch.get('New Value','')}'."
+        for user in users:
+            # Do not notify the person who made the change.
+            if str(user).strip().lower() == str(ch.get('Updated By','')).strip().lower():
+                continue
+            rows.append({
+                "Notification ID": hashlib.md5(f"{now}-{user}-{title}-{len(rows)}".encode()).hexdigest()[:12],
+                "Created At": now,
+                "To User": user,
+                "Category": "Project Update",
+                "Title": title,
+                "Message": msg,
+                "Is Read": "No",
+                "Related Link Code": ch.get("Link Code", ""),
+                "Related Work Order": ch.get("Work Order", ""),
+            })
+    _append_csv_rows(NOTIFICATIONS_PATH, rows)
+
+
+def unread_notifications_count(username: str) -> int:
+    ensure_governance_files()
+    df = safe_read_csv(NOTIFICATIONS_PATH)
+    if df.empty or "To User" not in df.columns:
+        return 0
+    mask = df["To User"].astype(str).str.lower().eq(str(username).lower())
+    if "Is Read" in df.columns:
+        mask &= df["Is Read"].astype(str).str.lower().ne("yes")
+    return int(mask.sum())
+
 def read_cached_document_status_records() -> List[dict]:
     """Read last Google Drive document scan status for dashboard preview.
 
@@ -1370,8 +1521,9 @@ def read_cached_document_status_records() -> List[dict]:
     return []
 
 def build_initial_raw() -> Dict[str, List[dict]]:
+    merged_workorders = apply_project_updates_to_workorders(safe_read_csv(WO_PATH))
     return {
-        "workorders": df_to_records(safe_read_csv(WO_PATH)),
+        "workorders": df_to_records(merged_workorders),
         "penalties": df_to_records(safe_read_csv(PENALTIES_PATH)),
         "districts": df_to_records(safe_read_csv(DISTRICT_PATH)),
         "document_status": read_cached_document_status_records(),
@@ -1851,7 +2003,7 @@ def first_existing_col(df: pd.DataFrame, candidates: List[str]) -> str:
 
 
 def load_workorders() -> pd.DataFrame:
-    wo = safe_read_csv(WO_PATH)
+    wo = apply_project_updates_to_workorders(safe_read_csv(WO_PATH))
     if wo.empty:
         return wo
     link_col = first_existing_col(wo, ["Link Code"])
@@ -2147,12 +2299,243 @@ def render_dashboard() -> None:
     components.html(dashboard_html, height=3100, scrolling=True)
 
 
+def current_user_update_columns() -> List[str]:
+    username = str(st.session_state.get("username", "")).strip().lower()
+    role = str(st.session_state.get("role", "")).strip().lower()
+    if username == "ahmedfekry" or role in {"admin", "pmo"}:
+        return PROJECT_UPDATE_EDITABLE_COLUMNS.copy()
+    if "finance" in role:
+        return PROJECT_UPDATE_FINANCE_COLUMNS.copy()
+    if any(k in role for k in ["project", "manager", "operation", "pm"]):
+        return PROJECT_UPDATE_PM_COLUMNS.copy()
+    return []
+
+def project_updates_center_page() -> None:
+    st.title("📝 Project Updates Center")
+    st.caption("Authorized users update controlled status columns only. Master data remains protected; changes are saved in data/project_updates.csv and overlaid on the dashboard after refresh.")
+    if not can("project_updates") and not can("admin"):
+        st.error("You do not have permission to access Project Updates Center.")
+        return
+
+    df = safe_read_csv(WO_PATH).copy()
+    if df.empty:
+        st.warning("u_osp_work_order.csv is empty or missing.")
+        return
+    # Ensure required editable columns exist in current data file.
+    for col in PROJECT_UPDATE_EDITABLE_COLUMNS:
+        if col not in df.columns:
+            df[col] = ""
+
+    link_col = first_existing_col(df, ["Link Code"])
+    wo_col = first_existing_col(df, ["Work Order"])
+    region_col = first_existing_col(df, ["Region"])
+    project_col = first_existing_col(df, ["Project"])
+    stage_col = first_existing_col(df, ["Stage"])
+
+    c1, c2, c3 = st.columns([1, 1, 1])
+    with c1:
+        search_link = st.text_input("Search Link Code", placeholder="e.g. RIYA-66")
+    with c2:
+        search_wo = st.text_input("Search Work Order", placeholder="e.g. 2502OSP...")
+    with c3:
+        max_rows = st.number_input("Max Rows", min_value=25, max_value=1000, value=200, step=25)
+
+    view = df.copy()
+    if search_link and link_col:
+        view = view[view[link_col].astype(str).str.contains(search_link, case=False, na=False)]
+    if search_wo and wo_col:
+        view = view[view[wo_col].astype(str).str.contains(search_wo, case=False, na=False)]
+    view = view.head(int(max_rows)).copy()
+    view.insert(0, "_row_id", view.index.astype(int))
+
+    editable_cols = current_user_update_columns()
+    id_cols = [c for c in ["_row_id", link_col, wo_col, region_col, project_col, stage_col] if c and c in view.columns]
+    display_cols = id_cols + [c for c in PROJECT_UPDATE_EDITABLE_COLUMNS if c in view.columns]
+    view = view[display_cols]
+
+    if not editable_cols:
+        st.info("Your role is view-only for this update center.")
+
+    col_config = {"_row_id": st.column_config.NumberColumn("Row ID", disabled=True)}
+    for col, options in PROJECT_UPDATE_STATUS_OPTIONS.items():
+        if col in view.columns:
+            existing_values = [str(v).strip() for v in view[col].dropna().astype(str).unique().tolist() if str(v).strip()]
+            values = list(dict.fromkeys(["", *options, *existing_values]))
+            col_config[col] = st.column_config.SelectboxColumn(col, options=values, required=False)
+    if "1st 50 Invoice Cost Amount" in view.columns:
+        col_config["1st 50 Invoice Cost Amount"] = st.column_config.TextColumn("1st 50 Invoice Cost Amount")
+    if "SOR Reference Number" in view.columns:
+        col_config["SOR Reference Number"] = st.column_config.TextColumn("SOR Reference Number")
+
+    disabled_cols = [c for c in view.columns if c == "_row_id" or c not in editable_cols]
+    edited = st.data_editor(
+        view,
+        use_container_width=True,
+        hide_index=True,
+        disabled=disabled_cols,
+        column_config=col_config,
+        key="project_updates_editor",
+    )
+    st.caption(f"Showing {len(view):,} rows. Editable columns for this user: {', '.join(editable_cols) if editable_cols else 'None'}")
+
+    if st.button("💾 Save Project Updates", type="primary", use_container_width=True):
+        if not editable_cols:
+            st.error("No editable columns are assigned to your role.")
+            return
+        base_full = safe_read_csv(WO_PATH).copy()
+        effective_full = apply_project_updates_to_workorders(base_full).copy()
+        for col in PROJECT_UPDATE_EDITABLE_COLUMNS:
+            if col not in base_full.columns:
+                base_full[col] = ""
+            if col not in effective_full.columns:
+                effective_full[col] = ""
+        username = st.session_state.get('username','')
+        now = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
+        update_rows = []
+        change_rows = []
+        for _, row in edited.iterrows():
+            try:
+                idx = int(row.get("_row_id"))
+            except Exception:
+                continue
+            if idx not in effective_full.index:
+                continue
+            link_val = str(effective_full.at[idx, link_col]) if link_col else str(row.get("Link Code", ""))
+            wo_val = str(effective_full.at[idx, wo_col]) if wo_col else str(row.get("Work Order", ""))
+            any_changed = False
+            wide_row = {"Link Code": link_val, "Work Order": wo_val, "Updated By": username, "Updated At": now}
+            for col in editable_cols:
+                if col in edited.columns:
+                    old_val = str(effective_full.at[idx, col]) if col in effective_full.columns else ""
+                    new_val = str(row.get(col, ""))
+                    wide_row[col] = new_val
+                    if old_val != new_val:
+                        any_changed = True
+                        change_rows.append({
+                            "Change ID": hashlib.md5(f"{now}-{username}-{wo_val}-{col}-{old_val}-{new_val}".encode()).hexdigest()[:12],
+                            "Updated At": now, "Updated By": username, "Link Code": link_val, "Work Order": wo_val,
+                            "Field": col, "Old Value": old_val, "New Value": new_val, "Source": "Project Updates Center",
+                        })
+            if any_changed:
+                update_rows.append(wide_row)
+        if update_rows:
+            _append_csv_rows(PROJECT_UPDATES_PATH, update_rows)
+            _append_csv_rows(CHANGE_LOG_PATH, change_rows)
+            create_update_notifications(change_rows)
+        st.cache_data.clear()
+        st.success(f"Saved {len(change_rows):,} changed cells by {username}. Master u_osp_work_order.csv was not modified. Refresh Dashboard to see updates.")
+
+
 def backup_file(path: Path) -> Path:
     stamp = ksa_now().strftime("%Y%m%d_%H%M%S")
     dest = BACKUP_DIR / f"{path.stem}_{stamp}{path.suffix}"
     if path.exists():
         shutil.copy(path, dest)
     return dest
+
+
+
+def data_update_agent_page() -> None:
+    st.title("🧠 Data Update Agent")
+    st.caption("Governed data layers: Master data is Admin-only, while project status updates are saved separately and audited.")
+    ensure_governance_files()
+    tab1, tab2, tab3, tab4 = st.tabs(["Data Layers", "Master Data Admin", "User Notification Access", "Change Detection Agent"])
+    with tab1:
+        st.subheader("Dashboard Data Layers")
+        st.markdown("""
+        **Layer 1 — Master Data (Admin only):** `u_osp_work_order.csv`, `District.csv`, `Penalties.csv`  
+        **Layer 2 — Project Updates:** `project_updates.csv`  
+        **Layer 3 — Dashboard Engine:** Master data + updates + District + Penalties
+        """)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Project Updates", len(safe_read_csv(PROJECT_UPDATES_PATH)))
+        c2.metric("Change Log Rows", len(safe_read_csv(CHANGE_LOG_PATH)))
+        c3.metric("Unread Notifications", unread_notifications_count(st.session_state.get("username", "")))
+    with tab2:
+        st.subheader("Admin-only Master Data")
+        if not _is_admin_board_owner():
+            st.info("District.csv and Penalties.csv are protected master files. Only ahmedfekry can replace them.")
+        else:
+            for label, path in PROJECT_MASTER_ADMIN_FILES.items():
+                st.markdown(f"### {label}")
+                df = safe_read_csv(path)
+                st.caption(f"Current rows: {len(df):,} | Path: data/{path.name}")
+                uploaded = st.file_uploader(f"Replace {label}", type=["csv"], key=f"master_replace_{label}")
+                if uploaded is not None and st.button(f"💾 Save {label}", key=f"save_master_{label}"):
+                    backup_file(path)
+                    path.write_bytes(uploaded.getvalue())
+                    st.cache_data.clear()
+                    st.success(f"{label} replaced successfully.")
+    with tab3:
+        st.subheader("User Notification Access")
+        access = safe_read_csv(NOTIFICATION_ACCESS_PATH)
+        if access.empty:
+            access = pd.DataFrame({"Username": list(get_users().keys()), "Category": "Project Update", "Enabled": "Yes"})
+        edited = st.data_editor(access, use_container_width=True, hide_index=True, num_rows="dynamic", key="notification_access_editor")
+        if st.button("💾 Save Notification Access", use_container_width=True):
+            edited.fillna("").to_csv(NOTIFICATION_ACCESS_PATH, index=False, encoding="utf-8-sig")
+            st.cache_data.clear()
+            st.success("Notification access saved.")
+    with tab4:
+        st.subheader("Change Detection Agent")
+        log = safe_read_csv(CHANGE_LOG_PATH)
+        if log.empty:
+            st.info("No changes recorded yet.")
+        else:
+            st.dataframe(log.sort_values("Updated At", ascending=False), use_container_width=True, hide_index=True)
+            st.download_button("⬇️ Download Change Log", log.to_csv(index=False).encode("utf-8-sig"), "change_log.csv", "text/csv")
+
+
+def notification_center_page() -> None:
+    st.title("🔔 Notification Center")
+    ensure_governance_files()
+    username = st.session_state.get("username", "")
+    df = safe_read_csv(NOTIFICATIONS_PATH)
+    if df.empty or "To User" not in df.columns:
+        st.info("No notifications yet.")
+        return
+    user_df = df[df["To User"].astype(str).str.lower() == str(username).lower()].copy()
+    unread = user_df[user_df.get("Is Read", "No").astype(str).str.lower() != "yes"] if not user_df.empty else pd.DataFrame()
+    st.metric("Unread Notifications", len(unread))
+    if st.button("Mark all as read", use_container_width=True):
+        df.loc[df["To User"].astype(str).str.lower() == str(username).lower(), "Is Read"] = "Yes"
+        df.to_csv(NOTIFICATIONS_PATH, index=False, encoding="utf-8-sig")
+        st.cache_data.clear()
+        st.rerun()
+    st.dataframe(user_df.sort_values("Created At", ascending=False), use_container_width=True, hide_index=True)
+
+
+def executive_daily_digest_page() -> None:
+    st.title("📩 Executive Daily Digest")
+    ensure_governance_files()
+    log = safe_read_csv(CHANGE_LOG_PATH)
+    today = ksa_now().strftime("%Y-%m-%d")
+    todays = log[log.get("Updated At", "").astype(str).str.startswith(today)] if not log.empty and "Updated At" in log.columns else pd.DataFrame()
+    digest = f"Executive Daily Digest - {today}\n\nTotal changes today: {len(todays)}\n"
+    if not todays.empty:
+        by_user = todays.groupby("Updated By").size().reset_index(name="Changes").to_string(index=False)
+        by_field = todays.groupby("Field").size().reset_index(name="Changes").to_string(index=False)
+        digest += f"\nBy User:\n{by_user}\n\nBy Field:\n{by_field}\n"
+    st.text_area("Digest Preview", digest, height=320)
+    if st.button("💾 Save Digest", use_container_width=True):
+        row = {"Digest ID": hashlib.md5(digest.encode()).hexdigest()[:12], "Created At": ksa_now().strftime("%Y-%m-%d %H:%M:%S"), "Created By": st.session_state.get("username", ""), "Audience": "Executive", "Digest Text": digest}
+        _append_csv_rows(DAILY_DIGEST_PATH, [row])
+        st.success("Digest saved.")
+
+
+def whatsapp_agent_page() -> None:
+    st.title("🟢 WhatsApp Agent")
+    st.caption("Pilot outbox: messages are prepared here. Actual WhatsApp sending requires a connected WhatsApp Business API or approved integration.")
+    ensure_governance_files()
+    users = list(get_users().keys())
+    to_user = st.selectbox("Recipient", users)
+    message = st.text_area("Message", placeholder="Write or paste WhatsApp update message...")
+    if st.button("Queue WhatsApp Message", use_container_width=True):
+        row = {"Message ID": hashlib.md5(f"{ksa_now()}-{to_user}-{message}".encode()).hexdigest()[:12], "Created At": ksa_now().strftime("%Y-%m-%d %H:%M:%S"), "To User": to_user, "To WhatsApp": "", "Message": message, "Status": "Queued", "Sent At": ""}
+        _append_csv_rows(WHATSAPP_OUTBOX_PATH, [row])
+        st.success("Message queued in WhatsApp outbox.")
+    outbox = safe_read_csv(WHATSAPP_OUTBOX_PATH)
+    st.dataframe(outbox.sort_values("Created At", ascending=False) if not outbox.empty and "Created At" in outbox.columns else outbox, use_container_width=True, hide_index=True)
 
 
 def upload_data_page() -> None:
@@ -4778,6 +5161,7 @@ def render_session_bar() -> None:
     role = str(st.session_state.get("role", "viewer") or "viewer").lower()
     role_label = role.title()
     last_login = str(st.session_state.get("last_login", "") or _format_login_time())
+    unread_count = unread_notifications_count(username) if st.session_state.get("authenticated") else 0
 
     st.markdown(
         f"""
@@ -4829,6 +5213,7 @@ def render_session_bar() -> None:
                 <span class="session-pill">👤 <strong>{username}</strong></span>
                 <span class="session-pill">👔 Role: <strong>{role_label}</strong></span>
                 <span class="session-pill">🕒 Last Login: <strong>{last_login}</strong></span>
+                <span class="session-pill">🔔 Notifications: <strong>{unread_count}</strong></span>
                 <span class="session-pill session-active">🔐 Session Active</span>
             </div>
         </div>
@@ -4911,6 +5296,16 @@ def main() -> None:
         return
     if page == "Dashboard":
         render_dashboard()
+    elif page == "Project Updates Center":
+        project_updates_center_page()
+    elif page == "Data Update Agent":
+        data_update_agent_page()
+    elif page == "Notification Center 🔔":
+        notification_center_page()
+    elif page == "Executive Daily Digest":
+        executive_daily_digest_page()
+    elif page == "WhatsApp Agent":
+        whatsapp_agent_page()
     elif page == "AI Executive Assistant":
         ai_assistant_page()
     elif page == "Smart Alerts":
