@@ -5655,14 +5655,16 @@ function renderPmoCost(rows){
     [...distMap.entries()].map(([d,o])=>`<tr><td><b>${escapeHtml(d)}</b></td>${cols.map(c=>`<td>${fmtMoney(o[c])}</td>`).join('')}<td><b>${fmtMoney(sum(Object.values(o)))}</b></td></tr>`).join('')+
     `<tr><td><b>Grand Total</b></td>${cols.map(c=>`<td><b>${fmtMoney(sum([...distMap.values()].map(o=>o[c])))}</b></td>`).join('')}<td><b>${fmtMoney(sum(rows.map(r=>effectiveCost(r))))}</b></td></tr></tbody>`;
 
-  // SOR Details is now Link-Code driven, not Work-Order driven.
-  // Each Link Code is counted once only. If any WO under the Link Code has SOR Created,
-  // the full Link Code is classified as Created; otherwise it is Not Created.
+  // SOR Details / Executive SOR Summary is Link-Code driven, not Work-Order driven.
+  // IMPORTANT: never key by District + Link Code. A Link Code may appear under more than one
+  // district/WO row, and district-based keys duplicate the same Link Code, causing SOR totals
+  // to be higher than Executive Portfolio totals under Smart Bulk Filter.
+  // The toggle only changes the display grouping label; the count remains unique Link Code.
   const linkRollup=new Map();
   rows.forEach(r=>{
     const link=String(r.linkCode||'').trim() || String(r.workOrder||'').trim();
     const d=groupValue(r);
-    const linkKey=(showLink?link:(d+'||'+link));
+    const linkKey=link;
     if(!linkRollup.has(linkKey))linkRollup.set(linkKey,{group:d,link,rows:[],hasCreated:false,cost:0,invoice:0,invoiceStatuses:{}});
     const x=linkRollup.get(linkKey);
     x.rows.push(r);
