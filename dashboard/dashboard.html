@@ -2042,7 +2042,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="panel-head">
         <div>
           <h2>Weighted KPI Logic</h2>
-          <div class="subtle">Professional KPI classification uses Civil/Fiber progress (Civil 60% / Fiber 40%), calendar delay, planned variance, deviations, penalties, rejections, closure readiness (PAT 35% / AsBuilt 25% / Documents 20% / Handover O&M 10% / Handover Consultant 10%), and update freshness.</div>
+          <div class="subtle">Professional KPI classification uses Civil/Fiber progress (Civil 60% / Fiber 40%), calendar delay, planned variance, deviations, penalties, rejections, closure readiness (PAT 35% / AsBuilt 25% / Documents 10% split as DCR 2.5% + RFS Certificate 2.5% + As-built BOQ 2.5% + Redline 2.5% / Handover O&M 20% / Handover Consultant 10%), and update freshness.</div>
         </div>
       </div>
       <div id="weighted-kpi-evaluation"></div>
@@ -2682,7 +2682,7 @@ const CLOSURE_WORKFLOW_SCORES = {
     'rejected': {score:5, explanation:'مرفوض'}
   }
 };
-const CLOSURE_READINESS_WEIGHTS = { pat:35, asBuilt:25, documents:10, handoverOM:20, handoverConsultant:10, handover:30 }; // handover split: O&M 20% + Consultant 10%
+const CLOSURE_READINESS_WEIGHTS = { pat:35, asBuilt:25, dcr:2.5, rfsCertificate:2.5, asBuiltBoq:2.5, redline:2.5, documents:10, handoverOM:20, handoverConsultant:10, handover:30 }; // Documents split: DCR 2.5% + RFS Certificate 2.5% + As-built BOQ 2.5% + Redline 2.5%
 function normalizeWorkflowStatus(value) {
   return String(value || '').replace(/\u00A0/g,' ').trim().toLowerCase().replace(/[–—]/g,'-').replace(/\s+/g,' ');
 }
@@ -2748,7 +2748,15 @@ function computeClosureReadiness(w) {
   // Empty / blank / unmapped values are counted as 0% to force follow-up visibility.
   const pat = workflowStatusScore(raw, ['PAT Status','PAT Workflow Status','Inspection Status','PAT Approval Status'], 'pat', 0);
   const asBuilt = workflowStatusScore(raw, ['AsBuilt Status','As-Built Status','As Built Status','AsBuilt Workflow Status'], 'asBuilt', 0);
-  const documents = workflowStatusScore(raw, ['Documents Status','Documents Workflow Status','RFS Report Documents Workflow','Document Status'], 'documents', 0);
+  const dcr = workflowStatusScore(raw, ['DCR_Status','DCR Status'], 'documents', 0);
+  const rfsCertificate = workflowStatusScore(raw, ['RFS Certificate','RFS_Certificate'], 'documents', 0);
+  const asBuiltBoq = workflowStatusScore(raw, ['As-built BOQ','As Built BOQ','AsBuilt BOQ','As-built_BOQ'], 'documents', 0);
+  const redline = workflowStatusScore(raw, ['Redline','Red Line'], 'documents', 0);
+  const documents = {
+    status: `DCR: ${dcr.status || 'Missing / Blank'} | RFS: ${rfsCertificate.status || 'Missing / Blank'} | As-built BOQ: ${asBuiltBoq.status || 'Missing / Blank'} | Redline: ${redline.status || 'Missing / Blank'}`,
+    score: clampScore((Number(dcr.score||0)+Number(rfsCertificate.score||0)+Number(asBuiltBoq.score||0)+Number(redline.score||0))/4),
+    explanation: `DCR: ${dcr.explanation || ''} | RFS: ${rfsCertificate.explanation || ''} | As-built BOQ: ${asBuiltBoq.explanation || ''} | Redline: ${redline.explanation || ''}`
+  };
   const handoverOM = workflowStatusScore(raw, [
     'Handover O&M _Status',
     'Handover O&M Status',
@@ -2773,7 +2781,10 @@ function computeClosureReadiness(w) {
   const closureReadinessScore =
     pat.score * (CLOSURE_READINESS_WEIGHTS.pat / 100) +
     asBuilt.score * (CLOSURE_READINESS_WEIGHTS.asBuilt / 100) +
-    documents.score * (CLOSURE_READINESS_WEIGHTS.documents / 100) +
+    dcr.score * (CLOSURE_READINESS_WEIGHTS.dcr / 100) +
+    rfsCertificate.score * (CLOSURE_READINESS_WEIGHTS.rfsCertificate / 100) +
+    asBuiltBoq.score * (CLOSURE_READINESS_WEIGHTS.asBuiltBoq / 100) +
+    redline.score * (CLOSURE_READINESS_WEIGHTS.redline / 100) +
     finalHandoverOM.score * (CLOSURE_READINESS_WEIGHTS.handoverOM / 100) +
     finalHandoverConsultant.score * (CLOSURE_READINESS_WEIGHTS.handoverConsultant / 100);
 
@@ -2782,18 +2793,30 @@ function computeClosureReadiness(w) {
     inspectionScore: pat.score,
     asBuiltScore: asBuilt.score,
     documentsScore: documents.score,
+    dcrScore: dcr.score,
+    rfsCertificateScore: rfsCertificate.score,
+    asBuiltBoqScore: asBuiltBoq.score,
+    redlineScore: redline.score,
     handoverScore: combinedHandoverScore,
     handoverOMScore: finalHandoverOM.score,
     handoverConsultantScore: finalHandoverConsultant.score,
     patStatus: pat.status,
     asBuiltStatus: asBuilt.status,
     documentsStatus: documents.status,
+    dcrStatus: dcr.status,
+    rfsCertificateStatus: rfsCertificate.status,
+    asBuiltBoqStatus: asBuiltBoq.status,
+    redlineStatus: redline.status,
     handoverStatus: combinedHandoverStatus,
     handoverOMStatus: finalHandoverOM.status,
     handoverConsultantStatus: finalHandoverConsultant.status,
     patExplanation: pat.explanation,
     asBuiltExplanation: asBuilt.explanation,
     documentsExplanation: documents.explanation,
+    dcrExplanation: dcr.explanation,
+    rfsCertificateExplanation: rfsCertificate.explanation,
+    asBuiltBoqExplanation: asBuiltBoq.explanation,
+    redlineExplanation: redline.explanation,
     handoverExplanation: `O&M: ${finalHandoverOM.explanation || ''} | Consultant: ${finalHandoverConsultant.explanation || ''}`,
     handoverOMExplanation: finalHandoverOM.explanation,
     handoverConsultantExplanation: finalHandoverConsultant.explanation,
@@ -4171,7 +4194,7 @@ function assistantBillingBlocked(w){
 }
 function assistantRootCause(w){
   const raw = w.raw || {};
-  const notes = [w.notes, raw['Permit Review'], raw['PAT Status'], raw['FAT Status'], raw['AsBuilt Status'], raw['Documents Status'], raw['Handover O&M _Status'], raw['Handover Consultant _Status'], raw['Handover Status'], raw['Invoice Status'], raw['SOR Status'], w.statusMainReason, w.statusFactors].join(' | ');
+  const notes = [w.notes, raw['Permit Review'], raw['PAT Status'], raw['FAT Status'], raw['AsBuilt Status'], raw['DCR_Status'], raw['RFS Certificate'], raw['As-built BOQ'], raw['Redline'], raw['Handover O&M _Status'], raw['Handover Consultant _Status'], raw['Handover Status'], raw['Invoice Status'], raw['SOR Status'], w.statusMainReason, w.statusFactors].join(' | ');
   if (assistantBillingBlocked(w)) return 'Billing / SOR Gate';
   if (w.actualProgress >= 100 && w.closureStatus !== 'Closed') return 'Administrative Closure';
   if (assistantHasText(notes, /permit|municipality|تصريح|not yet requested/)) return 'Permit / Municipality';
@@ -5121,7 +5144,11 @@ function renderWeightedKpiEvaluation(rows, selected) {
   const closureSubItemsHtml = `
     <div class="mini-kpi-line closure-subitem"><span>↳ PAT Status (35% of Closure)<br><small>${escapeHtml(k.components.patStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.patClosureScore||0)}</strong></div>
     <div class="mini-kpi-line closure-subitem"><span>↳ AsBuilt Status (25%)<br><small>${escapeHtml(k.components.asBuiltStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.asBuiltScore||0)}</strong></div>
-    <div class="mini-kpi-line closure-subitem"><span>↳ Documents Status (10%)<br><small>${escapeHtml(k.components.documentsStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.documentsScore||0)}</strong></div>
+    <div class="mini-kpi-line closure-subitem"><span>↳ Documents Status Total (10%)<br><small>DCR / RFS / BOQ / Redline</small></span><strong>${fmtPct(k.components.documentsScore||0)}</strong></div>
+    <div class="mini-kpi-line closure-subitem"><span>↳ DCR Status (2.5%)<br><small>${escapeHtml(k.components.dcrStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.dcrScore||0)}</strong></div>
+    <div class="mini-kpi-line closure-subitem"><span>↳ RFS Certificate (2.5%)<br><small>${escapeHtml(k.components.rfsCertificateStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.rfsCertificateScore||0)}</strong></div>
+    <div class="mini-kpi-line closure-subitem"><span>↳ As-built BOQ (2.5%)<br><small>${escapeHtml(k.components.asBuiltBoqStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.asBuiltBoqScore||0)}</strong></div>
+    <div class="mini-kpi-line closure-subitem"><span>↳ Redline (2.5%)<br><small>${escapeHtml(k.components.redlineStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.redlineScore||0)}</strong></div>
     <div class="mini-kpi-line closure-subitem"><span>↳ Handover O&M (20%)<br><small>${escapeHtml(k.components.handoverOMStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.handoverOMScore||0)}</strong></div>
     <div class="mini-kpi-line closure-subitem"><span>↳ Handover Consultant (10%)<br><small>${escapeHtml(k.components.handoverConsultantStatus || 'Missing / Blank')}</small></span><strong>${fmtPct(k.components.handoverConsultantScore||0)}</strong></div>
   `;
@@ -6021,7 +6048,7 @@ function perfGovAnswerHtml(key, ctx){
   if (key === 'penalties') return `<h3>Penalties Logic (5%)</h3>${summary}<div class="perf-gov-note perf-gov-rtl"><b>إجمالي الغرامات ضمن الفلتر الحالي:</b> ${fmtMoney(ctx.totalPenalty)}. يتم احتساب تأثير الغرامات حسب القيمة المالية: لا توجد غرامات = 100، تأثير منخفض، متوسط، خطر مالي، أو تأثير حرج. هذا البند يوضح Financial Exposure وليس فقط المخالفة الفنية.</div>${perfGovTopRowsHtml(ctx)}`;
   if (key === 'rejections') return `<h3>Rejections Logic (10%)</h3>${summary}<div class="perf-gov-note perf-gov-rtl"><b>إجمالي حالات الرفض ضمن الفلتر الحالي:</b> ${fmtInt(ctx.totalRejection)}. حالات الرفض تؤثر على الجودة والاعتماد الفني، وتؤدي إلى خفض التقييم حتى لو كان progress مرتفعاً.</div>${perfGovTopRowsHtml(ctx)}`;
   if (key === 'freshness') return `<h3>Update Freshness (5%)</h3>${summary}<div class="perf-gov-note perf-gov-rtl">يقيس هذا البند حداثة البيانات. إذا كان آخر تحديث قريباً تكون الدرجة أعلى، وإذا كان التحديث قديماً أو غير واضح تنخفض الدرجة لأن الإدارة لا تستطيع الاعتماد على بيانات غير محدثة.</div>${perfGovTopRowsHtml(ctx)}`;
-  if (key === 'closure') return `<h3>Closure Readiness (25%)</h3>${summary}<div class="perf-gov-note perf-gov-rtl">Closure Readiness يقيس جاهزية الإغلاق النهائي والفوترة والتسليم، ويتكون من: PAT Status وزن 35%، AsBuilt Status وزن 25%، Documents Workflow وزن 20%، Handover O&M Status وزن 10%، Handover Consultant Status وزن 10%.</div><div class="perf-gov-formula">Closure Readiness = (PAT × 35%) + (AsBuilt × 25%) + (Documents × 20%) + (Handover O&M × 10%) + (Handover Consultant × 10%)</div>${perfGovTopRowsHtml(ctx)}`;
+  if (key === 'closure') return `<h3>Closure Readiness (25%)</h3>${summary}<div class="perf-gov-note perf-gov-rtl">Closure Readiness يقيس جاهزية الإغلاق النهائي والفوترة والتسليم، ويتكون من: PAT Status وزن 35%، AsBuilt Status وزن 25%، Documents Status وزن 10% موزعة على DCR/RFS/BOQ/Redline بواقع 2.5% لكل بند، Handover O&M Status وزن 20%، Handover Consultant Status وزن 10%.</div><div class="perf-gov-formula">Closure Readiness = (PAT × 35%) + (AsBuilt × 25%) + (Documents × 10%) + (Handover O&M × 20%) + (Handover Consultant × 10%)</div>${perfGovTopRowsHtml(ctx)}`;
   if (key === 'pending') return `<h3>Pending Closure Logic</h3>${summary}<div class="perf-gov-note perf-gov-rtl">يظهر الموقع Pending Closure عندما يكون الإنجاز أو المؤشرات الفنية مكتملة ولكن الإغلاق الإداري لم يكتمل داخل النظام، أو عندما يوجد Closed At Date بينما Work Order Status لا يزال غير Closed. عدد أوامر العمل المتأثرة حالياً: <b>${fmtInt(ctx.pendingClosure)}</b>.</div>${perfGovTopRowsHtml(ctx)}`;
   if (key === 'classification') return `<h3>Final Classification Logic</h3>${summary}<div class="perf-gov-table-wrap"><table class="perf-gov-table"><thead><tr><th>Status</th><th>Range</th><th>Executive Meaning</th><th>Required Action</th></tr></thead><tbody><tr><td><span class="perf-gov-pill green">On Track</span></td><td>85%-100%</td><td>المشروع تحت السيطرة</td><td>متابعة تشغيلية عادية</td></tr><tr><td><span class="perf-gov-pill blue">Near Closure</span></td><td>75%-85%</td><td>قريب من الإغلاق النهائي</td><td>متابعة بسيطة</td></tr><tr><td><span class="perf-gov-pill yellow">At Risk</span></td><td>50%-75%</td><td>يوجد خطر على الجدول أو الإغلاق</td><td>تدخل مدير المشروع</td></tr><tr><td><span class="perf-gov-pill red">Off Track</span></td><td>&lt;50%</td><td>المشروع متعثر</td><td>Recovery Plan</td></tr><tr><td><span class="perf-gov-pill red">Critical</span></td><td>Severe risk</td><td>تعثر أو مشاكل حرجة جداً</td><td>تصعيد للإدارة العليا</td></tr></tbody></table></div>${perfGovTopRowsHtml(ctx)}`;
   if (key === 'why100') return `<h3>Why 100% Progress Still Not Closed?</h3>${summary}<div class="perf-gov-note perf-gov-rtl">الداشبورد لا يقيس نسبة الإنجاز فقط. قد يظهر الموقع بنسبة 100% لكنه يبقى At Risk أو Off Track بسبب عدم اكتمال PAT أو AsBuilt أو Documents أو Handover أو وجود تأخير أو غرامات أو رفض أو عدم اكتمال الإغلاق الإداري داخل النظام.</div>${perfGovTopRowsHtml(ctx)}`;
