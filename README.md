@@ -505,3 +505,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Fixed Executive SOR Summary & Revenue Exposure count mismatch under Smart Bulk Filter.
 - SOR summary now counts each Link Code once only, even if the same Link Code appears under multiple districts / WO rows.
 - Smart Bulk Filter OR logic remains active for Link Code or Work Order matching.
+
+
+## V5.8.5 Smart Bulk Count Alignment Fix
+- Smart Bulk source-of-truth rule updated: when uploaded Work Orders exist, the dashboard filters by the exact Work Order list only.
+- If the uploaded file contains only Link Codes, the dashboard filters by Link Code and includes all related Work Orders.
+- This aligns KPI, Portfolio, SOR, and Project Updates counts with the uploaded operational scope.
+- SOR Summary no longer counts blank Link Code rows by falling back to Work Order; this keeps SOR Link Code totals consistent with Executive KPI/Portfolio totals.

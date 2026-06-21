@@ -2383,15 +2383,14 @@ def project_updates_center_page() -> None:
     smart_links = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", [])))
     smart_wos = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", [])))
     if (smart_links or smart_wos) and (link_col or wo_col):
-        # Smart Bulk uses OR logic: keep rows matching uploaded Link Code OR uploaded Work Order.
-        # This prevents losing valid WOs when the uploaded Link Code differs from master data.
-        smart_mask = pd.Series(False, index=view.index)
-        if smart_links and link_col:
-            smart_mask = smart_mask | view[link_col].astype(str).str.strip().str.upper().isin({x.upper() for x in smart_links})
+        # Same source-of-truth rule as the dashboard:
+        # If Work Orders exist, filter exact WOs. Otherwise use Link Code.
         if smart_wos and wo_col:
-            smart_mask = smart_mask | view[wo_col].astype(str).str.strip().str.upper().isin({x.upper() for x in smart_wos})
-        view = view[smart_mask]
-        st.info(f"Smart Bulk Filter applied to Project Updates using OR logic: {len(smart_links)} Link Codes, {len(smart_wos)} Work Orders.")
+            view = view[view[wo_col].astype(str).str.strip().str.upper().isin({x.upper() for x in smart_wos})]
+            st.info(f"Smart Bulk Filter applied to Project Updates by exact Work Order list: {len(smart_wos)} Work Orders.")
+        elif smart_links and link_col:
+            view = view[view[link_col].astype(str).str.strip().str.upper().isin({x.upper() for x in smart_links})]
+            st.info(f"Smart Bulk Filter applied to Project Updates by Link Code: {len(smart_links)} Link Codes.")
 
     if search_link and link_col:
         view = view[view[link_col].astype(str).str.contains(search_link, case=False, na=False)]
