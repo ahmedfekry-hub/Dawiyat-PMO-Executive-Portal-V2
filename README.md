@@ -487,3 +487,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Added `WhatsApp Agent` pilot outbox page.
 - Project Updates Center no longer writes directly into `u_osp_work_order.csv`; changes are audited in `change_log.csv` and notifications are created.
 - `District.csv` and `Penalties.csv` remain under Admin control only.
+
+
+## V5.8.2 Governance Pages Back Button + Project Updates Smart Bulk
+- Added visible **← Back to Dashboard** button to Project Updates Center, Data Update Agent, Notification Center, Executive Daily Digest, and WhatsApp Agent Outbox.
+- Added Smart Bulk Filter inside Project Updates Center so users can upload/select large Link Code or Work Order lists before editing updates.
+- Project Updates grid now respects Smart Bulk Filter plus manual Link Code / Work Order search.

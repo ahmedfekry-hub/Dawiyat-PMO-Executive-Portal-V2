@@ -2320,6 +2320,18 @@ def render_dashboard() -> None:
     components.html(dashboard_html, height=3100, scrolling=True)
 
 
+
+def render_back_to_dashboard_button(key_suffix: str = "") -> None:
+    """Back button for hidden action/governance pages opened from Dashboard Quick Actions."""
+    safe_key = f"back_to_dashboard_{key_suffix}" if key_suffix else "back_to_dashboard"
+    back_cols = st.columns([1.2, 4])
+    with back_cols[0]:
+        if st.button("← Back to Dashboard", use_container_width=True, key=safe_key):
+            st.session_state.pop("active_hidden_page", None)
+            st.session_state["force_dashboard"] = True
+            st.rerun()
+
+
 def current_user_update_columns() -> List[str]:
     username = str(st.session_state.get("username", "")).strip().lower()
     role = str(st.session_state.get("role", "")).strip().lower()
@@ -2332,6 +2344,7 @@ def current_user_update_columns() -> List[str]:
     return []
 
 def project_updates_center_page() -> None:
+    render_back_to_dashboard_button("project_updates")
     st.title("📝 Project Updates Center")
     st.caption("Authorized users update controlled status columns only. Master data remains protected; changes are saved in data/project_updates.csv and overlaid on the dashboard after refresh.")
     if not can("project_updates") and not can("admin"):
@@ -2346,6 +2359,10 @@ def project_updates_center_page() -> None:
     for col in PROJECT_UPDATE_EDITABLE_COLUMNS:
         if col not in df.columns:
             df[col] = ""
+
+    st.markdown("#### 🎯 Smart Bulk Filter for Project Updates")
+    st.caption("Use the same Smart Bulk Filter to narrow the editable grid to a large selected list of Link Codes and/or Work Orders before making updates.")
+    render_smart_bulk_filter_panel({"workorders": df.to_dict("records")})
 
     link_col = first_existing_col(df, ["Link Code"])
     wo_col = first_existing_col(df, ["Work Order"])
@@ -2362,6 +2379,16 @@ def project_updates_center_page() -> None:
         max_rows = st.number_input("Max Rows", min_value=25, max_value=1000, value=200, step=25)
 
     view = df.copy()
+
+    smart_links = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", [])))
+    smart_wos = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", [])))
+    if smart_links and link_col:
+        view = view[view[link_col].astype(str).str.strip().isin(smart_links)]
+    if smart_wos and wo_col:
+        view = view[view[wo_col].astype(str).str.strip().isin(smart_wos)]
+    if smart_links or smart_wos:
+        st.info(f"Smart Bulk Filter applied to Project Updates: {len(smart_links)} Link Codes, {len(smart_wos)} Work Orders.")
+
     if search_link and link_col:
         view = view[view[link_col].astype(str).str.contains(search_link, case=False, na=False)]
     if search_wo and wo_col:
@@ -2457,6 +2484,7 @@ def backup_file(path: Path) -> Path:
 
 
 def data_update_agent_page() -> None:
+    render_back_to_dashboard_button("data_update_agent")
     st.title("🧠 Data Update Agent")
     st.caption("Governed data layers: Master data is Admin-only, while project status updates are saved separately and audited.")
     ensure_governance_files()
@@ -2508,6 +2536,7 @@ def data_update_agent_page() -> None:
 
 
 def notification_center_page() -> None:
+    render_back_to_dashboard_button("notification_center")
     st.title("🔔 Notification Center")
     ensure_governance_files()
     username = st.session_state.get("username", "")
@@ -2527,6 +2556,7 @@ def notification_center_page() -> None:
 
 
 def executive_daily_digest_page() -> None:
+    render_back_to_dashboard_button("executive_daily_digest")
     st.title("📩 Executive Daily Digest")
     ensure_governance_files()
     log = safe_read_csv(CHANGE_LOG_PATH)
@@ -2545,6 +2575,7 @@ def executive_daily_digest_page() -> None:
 
 
 def whatsapp_agent_page() -> None:
+    render_back_to_dashboard_button("whatsapp_agent")
     st.title("🟢 WhatsApp Agent")
     st.caption("Pilot outbox: messages are prepared here. Actual WhatsApp sending requires a connected WhatsApp Business API or approved integration.")
     ensure_governance_files()
