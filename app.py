@@ -2958,7 +2958,7 @@ def build_pdf_report() -> bytes:
         story.append(at)
 
     story.append(Spacer(1, 14))
-    story.append(Paragraph("Prepared by Eng/Ahmed Fekry - Quality & Performance Director (PMO)", styles["Normal"]))
+    story.append(Paragraph("Prepared by Eng/Ahmed Fekry - Quality & Performance Director", styles["Normal"]))
 
     doc.build(story)
     return buffer.getvalue()
@@ -3264,7 +3264,7 @@ def _add_footer(slide):
     bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(0, 0, 128); bar.line.fill.background()
     box = slide.shapes.add_textbox(Inches(1.35), Inches(7.07), Inches(10.65), Inches(0.24))
     p = box.text_frame.paragraphs[0]
-    p.text = "Prepared by Eng/Ahmed Fekry — Quality & Performance Director (PMO)"
+    p.text = "Prepared by Eng/Ahmed Fekry — Quality & Performance Director"
     p.alignment = PP_ALIGN.CENTER
     run = p.runs[0]
     run.font.bold = True; run.font.size = Pt(13); run.font.color.rgb = RGBColor(255, 221, 0)
@@ -3469,7 +3469,7 @@ def _add_thanks_slide(prs, blank):
     bar.fill.solid(); bar.fill.fore_color.rgb = RGBColor(0, 0, 128); bar.line.fill.background()
     tx = slide.shapes.add_textbox(Inches(1.55), Inches(5.39), Inches(10.25), Inches(0.35))
     p = tx.text_frame.paragraphs[0]
-    p.text = "Prepared by Eng/Ahmed Fekry — Quality & Performance Director (PMO)"
+    p.text = "Prepared by Eng/Ahmed Fekry — Quality & Performance Director"
     p.alignment = PP_ALIGN.CENTER
     p.runs[0].font.bold = True; p.runs[0].font.size = Pt(22); p.runs[0].font.color.rgb = RGBColor(255, 221, 0)
     return slide
@@ -4827,7 +4827,7 @@ def render_session_bar() -> None:
         <div class="session-bar">
             <div class="session-main">
                 <span class="session-pill">👤 <strong>{username}</strong></span>
-                <span class="session-pill">🏢 Role: <strong>{role_label}</strong></span>
+                <span class="session-pill">🏢 Department: <strong>{role_label}</strong></span>
                 <span class="session-pill">🕒 Last Login: <strong>{last_login}</strong></span>
                 <span class="session-pill session-active">🔐 Session Active</span>
             </div>
