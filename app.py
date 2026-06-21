@@ -1656,12 +1656,17 @@ window.DAWIYAT_RBAC = {{
       const f = window.DAWIYAT_SMART_BULK_FILTER || {{}};
       if (typeof state === 'undefined' || typeof renderAll !== 'function') return;
       state.uploadedSiteFilter = f.active ? f : {{active:false, fileName:'', linkCodes:[], workOrders:[], linkColumn:'', woColumn:''}};
+      // IMPORTANT: Smart Bulk Filter must be an OR filter between Link Code and Work Order.
+      // Do NOT copy uploaded Link Codes/Work Orders into the normal dashboard filters,
+      // because normal filters are applied with AND logic.
       if (f.active) {{
-        if (Array.isArray(f.linkCodes) && f.linkCodes.length) state.filters.linkCode = f.linkCodes;
-        if (Array.isArray(f.workOrders) && f.workOrders.length) state.filters.workOrder = f.workOrders;
+        if (state.filters) {{
+          state.filters.linkCode = 'All';
+          state.filters.workOrder = 'All';
+        }}
         if (state.pmo && state.pmo.filters) {{
-          if (Array.isArray(f.linkCodes) && f.linkCodes.length) state.pmo.filters.linkCode = f.linkCodes;
-          if (Array.isArray(f.workOrders) && f.workOrders.length) state.pmo.filters.workOrder = f.workOrders;
+          state.pmo.filters.linkCode = 'All';
+          state.pmo.filters.workOrder = 'All';
         }}
       }}
       renderAll();
@@ -2382,12 +2387,16 @@ def project_updates_center_page() -> None:
 
     smart_links = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", [])))
     smart_wos = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", [])))
-    if smart_links and link_col:
-        view = view[view[link_col].astype(str).str.strip().isin(smart_links)]
-    if smart_wos and wo_col:
-        view = view[view[wo_col].astype(str).str.strip().isin(smart_wos)]
-    if smart_links or smart_wos:
-        st.info(f"Smart Bulk Filter applied to Project Updates: {len(smart_links)} Link Codes, {len(smart_wos)} Work Orders.")
+    if (smart_links or smart_wos) and (link_col or wo_col):
+        # Smart Bulk uses OR logic: keep rows matching uploaded Link Code OR uploaded Work Order.
+        # This prevents losing valid WOs when the uploaded Link Code differs from master data.
+        smart_mask = pd.Series(False, index=view.index)
+        if smart_links and link_col:
+            smart_mask = smart_mask | view[link_col].astype(str).str.strip().str.upper().isin({x.upper() for x in smart_links})
+        if smart_wos and wo_col:
+            smart_mask = smart_mask | view[wo_col].astype(str).str.strip().str.upper().isin({x.upper() for x in smart_wos})
+        view = view[smart_mask]
+        st.info(f"Smart Bulk Filter applied to Project Updates using OR logic: {len(smart_links)} Link Codes, {len(smart_wos)} Work Orders.")
 
     if search_link and link_col:
         view = view[view[link_col].astype(str).str.contains(search_link, case=False, na=False)]

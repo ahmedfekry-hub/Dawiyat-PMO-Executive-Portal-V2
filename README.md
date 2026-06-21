@@ -493,3 +493,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Added visible **← Back to Dashboard** button to Project Updates Center, Data Update Agent, Notification Center, Executive Daily Digest, and WhatsApp Agent Outbox.
 - Added Smart Bulk Filter inside Project Updates Center so users can upload/select large Link Code or Work Order lists before editing updates.
 - Project Updates grid now respects Smart Bulk Filter plus manual Link Code / Work Order search.
+
+
+## V5.8.3 Smart Bulk OR Logic Fix
+- Fixed Smart Bulk Filter logic so uploaded Link Codes and Work Orders are applied as OR, not AND.
+- The uploaded file DWT Project Updated Details.xlsx has 57 Link Codes and 108 Work Orders. Four uploaded Link Codes do not exactly match the master u_osp_work_order Link Code naming, but their Work Orders do exist.
+- Dashboard and Project Updates Center now keep valid Work Orders even when Link Code labels differ between source files.
