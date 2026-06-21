@@ -531,3 +531,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Missing Work Orders are shown only in a dedicated **Missing Work Orders** table.
 - If a Link Code label is missing but its Work Order exists, the Work Order remains included and the Link Code is listed only for data-quality review.
 - Filtering remains Work-Order-primary when WOs are uploaded, with Link Code used for validation/fallback visibility.
+
+## V5.8.9 Portfolio Breakdown + Updated Scope Filter Fix
+- Project Distribution and Stage Distribution now count each Link Code once only, assigning it to its dominant Project/Stage by highest WO Cost, then by WO count.
+- This makes breakdown Link Code totals reconcile with the Total Link Codes card.
+- Removed the obsolete Updated Scope filter because the source column was removed from the active data model.
