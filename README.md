@@ -536,3 +536,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Project Distribution and Stage Distribution now count each Link Code once only, assigning it to its dominant Project/Stage by highest WO Cost, then by WO count.
 - This makes breakdown Link Code totals reconcile with the Total Link Codes card.
 - Removed the obsolete Updated Scope filter because the source column was removed from the active data model.
+
+## V5.8.10 Portfolio Breakdown Link Count Reconciliation Fix
+- Fixed Project Distribution and Stage Distribution link counts so their Link Code totals reconcile with Total Link Codes.
+- Rows with blank Link Code, including Scope Target = Initiation rows, are now included in WO count and cost but do not create artificial Link Code counts.
+- Same logic applied to Streamlit/PPT/report helper summaries.

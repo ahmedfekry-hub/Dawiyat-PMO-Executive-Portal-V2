@@ -4032,28 +4032,59 @@ def _opt_values(df: pd.DataFrame, col: str) -> List[str]:
     return vals
 
 
-def portfolio_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+def _summary_by_unique_link(rows: pd.DataFrame, dim_col: str, out_col: str) -> pd.DataFrame:
     rows = _ensure_ppt_columns(rows)
+    columns = [out_col, "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"]
     if rows.empty:
-        return pd.DataFrame(columns=["Project", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"])
-    total_cost = rows["Cost"].sum() or 1
-    g = rows.groupby("Project", dropna=False).agg(
-        **{"Link Codes": ("Link Code", "nunique"), "WOs": ("Work Order", "count"), "WO Cost": ("Cost", "sum"), "Avg Progress": ("Progress", "mean")}
-    ).reset_index()
-    g["Share"] = g["WO Cost"] / total_cost * 100
-    return g.sort_values("WO Cost", ascending=False)
+        return pd.DataFrame(columns=columns)
+    total_cost = float(pd.to_numeric(rows["Cost"], errors="coerce").fillna(0).sum()) or 1.0
+    buckets: Dict[str, Dict[str, Any]] = {}
+    # Rows without Link Code (for example Scope Target = Initiation) are included
+    # in WO and cost, but they must not create artificial Link Code counts.
+    for _, r in rows.iterrows():
+        link = str(r.get("Link Code", "") or "").strip()
+        wo = str(r.get("Work Order", "") or "").strip()
+        has_link = bool(link) and link.lower() not in {"n/a", "nan", "none", "-"}
+        group_key = f"LINK::{link}" if has_link else f"NO_LINK::{wo or _}"
+        dim = str(r.get(dim_col, "N/A") or "N/A").strip() or "N/A"
+        cost = float(pd.to_numeric(pd.Series([r.get("Cost", 0)]), errors="coerce").fillna(0).iloc[0])
+        prog = float(pd.to_numeric(pd.Series([r.get("Progress", 0)]), errors="coerce").fillna(0).iloc[0])
+        if group_key not in buckets:
+            buckets[group_key] = {"link": link, "countable": has_link, "rows": [], "dims": {}}
+        buckets[group_key]["rows"].append((dim, cost, prog))
+        buckets[group_key]["dims"].setdefault(dim, {"cost": 0.0, "n": 0})
+        buckets[group_key]["dims"][dim]["cost"] += cost
+        buckets[group_key]["dims"][dim]["n"] += 1
+    out: Dict[str, Dict[str, Any]] = {}
+    for item in buckets.values():
+        chosen = sorted(item["dims"].items(), key=lambda kv: (-kv[1]["cost"], -kv[1]["n"], str(kv[0])))[0][0]
+        out.setdefault(chosen, {out_col: chosen, "_links": set(), "WOs": 0, "WO Cost": 0.0, "_progress": []})
+        if item["countable"]:
+            out[chosen]["_links"].add(item["link"])
+        for _dim, cost, prog in item["rows"]:
+            out[chosen]["WOs"] += 1
+            out[chosen]["WO Cost"] += cost
+            out[chosen]["_progress"].append(prog)
+    records = []
+    for item in out.values():
+        cost = item["WO Cost"]
+        records.append({
+            out_col: item[out_col],
+            "Link Codes": len(item["_links"]),
+            "WOs": item["WOs"],
+            "WO Cost": cost,
+            "Avg Progress": sum(item["_progress"]) / len(item["_progress"]) if item["_progress"] else 0,
+            "Share": cost / total_cost * 100,
+        })
+    return pd.DataFrame(records, columns=columns).sort_values(["WO Cost", "Link Codes"], ascending=[False, False])
+
+
+def portfolio_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
+    return _summary_by_unique_link(rows, "Project", "Project")
 
 
 def stage_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:
-    rows = _ensure_ppt_columns(rows)
-    if rows.empty:
-        return pd.DataFrame(columns=["Stage", "Link Codes", "WOs", "WO Cost", "Avg Progress", "Share"])
-    total_cost = rows["Cost"].sum() or 1
-    g = rows.groupby("Stage", dropna=False).agg(
-        **{"Link Codes": ("Link Code", "nunique"), "WOs": ("Work Order", "count"), "WO Cost": ("Cost", "sum"), "Avg Progress": ("Progress", "mean")}
-    ).reset_index()
-    g["Share"] = g["WO Cost"] / total_cost * 100
-    return g.sort_values("WO Cost", ascending=False)
+    return _summary_by_unique_link(rows, "Stage", "Stage")
 
 
 def sor_summary_dataframe(rows: pd.DataFrame) -> pd.DataFrame:

@@ -3791,19 +3791,35 @@ function renderExecutiveOverviewSummary(rows) {
   const totalLinks = unique(rows.map(r => r.linkCode)).length;
   const totalWos = rows.length;
   const avgProgress = average(rows.map(r => Number(r.actualProgress || 0)));
-  function groupedBy(keyFn){
-    const m = new Map();
-    rows.forEach(r => {
+  function groupedByUniqueLink(keyFn){
+    const perLink = new Map();
+    rows.forEach((r, idx) => {
+      const rawLink = String(r.linkCode || '').trim();
+      const rawWo = String(r.workOrder || '').trim();
+      const hasLink = !!rawLink && rawLink.toLowerCase() !== 'n/a' && rawLink !== '-';
+      const linkKey = hasLink ? ('LINK::' + rawLink) : ('NO_LINK_ROW::' + (rawWo || idx));
       const key = keyFn(r) || 'N/A';
+      if(!perLink.has(linkKey)) perLink.set(linkKey, {link:rawLink, linkCountable:hasLink, rows:[], buckets:new Map(), progress:[]});
+      const item = perLink.get(linkKey);
+      item.rows.push(r); item.progress.push(Number(r.actualProgress || 0));
+      if(!item.buckets.has(key)) item.buckets.set(key, {name:key, rows:[], cost:0});
+      const b = item.buckets.get(key); b.rows.push(r); b.cost += costOf(r);
+    });
+    const m = new Map();
+    [...perLink.values()].forEach(linkItem => {
+      const buckets = [...linkItem.buckets.values()].sort((a,b)=>b.cost-a.cost || b.rows.length-a.rows.length || String(a.name).localeCompare(String(b.name)));
+      const chosen = buckets[0] || {name:'N/A'};
+      const key = chosen.name || 'N/A';
       if(!m.has(key)) m.set(key, {name:key, rows:[], links:new Set(), cost:0, progress:[]});
       const o = m.get(key);
-      o.rows.push(r); o.links.add(r.linkCode); o.cost += costOf(r); o.progress.push(Number(r.actualProgress || 0));
+      if(linkItem.linkCountable) o.links.add(linkItem.link);
+      linkItem.rows.forEach(r => { o.rows.push(r); o.cost += costOf(r); o.progress.push(Number(r.actualProgress || 0)); });
     });
     return [...m.values()].map(o => ({...o, linkCount:o.links.size, woCount:o.rows.length, avgProgress:average(o.progress), costShare: totalCost ? (o.cost/totalCost*100) : 0}))
-      .sort((a,b)=>b.cost-a.cost || b.linkCount-a.linkCount || a.name.localeCompare(b.name));
+      .sort((a,b)=>b.cost-a.cost || b.linkCount-a.linkCount || String(a.name).localeCompare(String(b.name)));
   }
-  const byProject = groupedBy(r => r.project || 'N/A');
-  const byStage = groupedBy(r => r.stage || 'N/A');
+  const byProject = groupedByUniqueLink(r => r.project || 'N/A');
+  const byStage = groupedByUniqueLink(r => r.stage || 'N/A');
   const topProject = byProject[0] || {name:'N/A', cost:0, linkCount:0, woCount:0, costShare:0};
   const topStage = byStage[0] || {name:'N/A', cost:0, linkCount:0, woCount:0, costShare:0};
   function card(label, value, pct, meta, color){
