@@ -3427,11 +3427,16 @@ function applyUploadedSiteFilter(rows) {
   const linkSet = new Set((f.linkCodes || []).map(normSiteId).filter(Boolean));
   const woSet = new Set((f.workOrders || []).map(normSiteId).filter(Boolean));
   if (!f.active || (!linkSet.size && !woSet.size)) return rows || [];
-  return (rows || []).filter(r => {
-    const linkOk = linkSet.size && linkSet.has(normSiteId(r.linkCode));
-    const woOk = woSet.size && woSet.has(normSiteId(r.workOrder));
-    return linkOk || woOk;
-  });
+
+  // Smart Bulk source-of-truth rule:
+  // 1) If Work Orders are provided, filter by exact Work Order list only.
+  //    This keeps the dashboard aligned with the uploaded operational scope
+  //    (e.g., 108 uploaded WOs = 108 dashboard WOs), even if Link Code labels differ.
+  // 2) If no Work Orders are provided, filter by Link Code and include all WOs under those sites.
+  if (woSet.size) {
+    return (rows || []).filter(r => woSet.has(normSiteId(r.workOrder)));
+  }
+  return (rows || []).filter(r => linkSet.has(normSiteId(r.linkCode)));
 }
 function updateBulkFilterStatus() {
   const el = document.getElementById('bulk-filter-status');
@@ -5662,7 +5667,8 @@ function renderPmoCost(rows){
   // The toggle only changes the display grouping label; the count remains unique Link Code.
   const linkRollup=new Map();
   rows.forEach(r=>{
-    const link=String(r.linkCode||'').trim() || String(r.workOrder||'').trim();
+    const link=String(r.linkCode||'').trim();
+    if(!link) return; // keep SOR totals consistent with Executive KPI/Portfolio link-code scope
     const d=groupValue(r);
     const linkKey=link;
     if(!linkRollup.has(linkKey))linkRollup.set(linkKey,{group:d,link,rows:[],hasCreated:false,cost:0,invoice:0,invoiceStatuses:{}});
