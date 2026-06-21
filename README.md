@@ -524,3 +524,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - It no longer reports all independent Link Codes and Work Orders as missing.
 - Missing / Mismatch Scope shows only cases such as: Link Code label missing but Work Order exists, Work Order missing but Link Code exists, or neither exists.
 - Uploaded Work Orders remain the primary matching key when present, while Link Codes are used for reconciliation and fallback visibility.
+
+## V5.8.8 Smart Bulk Independent Validation Fix
+- Smart Bulk validation now checks uploaded Link Codes and uploaded Work Orders independently against `u_osp_work_order`.
+- Missing Link Codes are shown only in a dedicated **Missing Link Codes** table.
+- Missing Work Orders are shown only in a dedicated **Missing Work Orders** table.
+- If a Link Code label is missing but its Work Order exists, the Work Order remains included and the Link Code is listed only for data-quality review.
+- Filtering remains Work-Order-primary when WOs are uploaded, with Link Code used for validation/fallback visibility.
