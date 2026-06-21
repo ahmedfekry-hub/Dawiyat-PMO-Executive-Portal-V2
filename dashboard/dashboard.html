@@ -6103,14 +6103,18 @@ function renderExecutiveOverviewSummary(rows) {
   function groupedByUniqueLink(keyFn){
     // One Link Code must be counted in only one breakdown bucket so that
     // Project/Stage distribution totals reconcile exactly with Total Link Codes.
-    // The selected bucket is the category with the highest cost for that Link Code;
-    // if all costs are zero, the category with most WOs is used.
+    // IMPORTANT: rows with blank Link Code (for example Scope Target = Initiation)
+    // must NOT be counted as artificial Link Codes by falling back to Work Order.
+    // They are still included in WO count and cost, but Link Code count remains 0.
     const perLink = new Map();
-    rows.forEach(r => {
-      const link = String(r.linkCode || '').trim() || String(r.workOrder || '').trim() || 'N/A';
+    rows.forEach((r, idx) => {
+      const rawLink = String(r.linkCode || '').trim();
+      const rawWo = String(r.workOrder || '').trim();
+      const hasLink = !!rawLink && rawLink.toLowerCase() !== 'n/a' && rawLink !== '-';
+      const linkKey = hasLink ? ('LINK::' + rawLink) : ('NO_LINK_ROW::' + (rawWo || idx));
       const key = keyFn(r) || 'N/A';
-      if(!perLink.has(link)) perLink.set(link, {link, rows:[], buckets:new Map(), progress:[]});
-      const item = perLink.get(link);
+      if(!perLink.has(linkKey)) perLink.set(linkKey, {link:rawLink, linkCountable:hasLink, rows:[], buckets:new Map(), progress:[]});
+      const item = perLink.get(linkKey);
       item.rows.push(r);
       item.progress.push(Number(r.actualProgress || 0));
       if(!item.buckets.has(key)) item.buckets.set(key, {name:key, rows:[], cost:0});
@@ -6125,7 +6129,7 @@ function renderExecutiveOverviewSummary(rows) {
       const key = chosen.name || 'N/A';
       if(!m.has(key)) m.set(key, {name:key, rows:[], links:new Set(), cost:0, progress:[]});
       const o = m.get(key);
-      o.links.add(linkItem.link);
+      if(linkItem.linkCountable) o.links.add(linkItem.link);
       linkItem.rows.forEach(r => { o.rows.push(r); o.cost += costOf(r); o.progress.push(Number(r.actualProgress || 0)); });
     });
     return [...m.values()].map(o => ({...o, linkCount:o.links.size, woCount:o.rows.length, avgProgress:average(o.progress), costShare: totalCost ? (o.cost/totalCost*100) : 0}))
