@@ -459,3 +459,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Scoped component export hiding to real panels/cards only, preventing parent containers from hiding valid table export buttons.
 - Added support for the generic Tables & Exports / Export Excel permission row to keep all enabled table export buttons visible.
 - Included the latest uploaded permissions.xlsx.
+
+
+## V5.6.1 Data Structure + Signature Fix
+- Restored the required project folder structure: `data/`, `dashboard/`, `assets/`, `.streamlit/`.
+- Dashboard now reads CSV files from `data/u_osp_work_order.csv`, `data/District.csv`, and `data/Penalties.csv`.
+- Fixed the prepared-by signature in both `app.py` and `dashboard/dashboard.html` to: `Prepared by Eng/Ahmed Fekry - Quality & Performance Director (PMO)`.
+- Kept the dashboard title as: `Dawiyat Executive Project Dashboard`.
