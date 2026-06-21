@@ -2587,13 +2587,39 @@ def project_updates_center_page() -> None:
     project_col = first_existing_col(df, ["Project"])
     stage_col = first_existing_col(df, ["Stage"])
 
-    c1, c2, c3 = st.columns([1, 1, 1])
+    st.markdown("#### 🔎 Direct Search Filters")
+    st.caption("Same search-and-add style used in the main dashboard filters. Select one or many Link Codes / Work Orders to narrow the editable grid.")
+    c1, c2, c3 = st.columns([1.1, 1.1, 0.7])
+    link_options = []
+    wo_options = []
+    if link_col and link_col in df.columns:
+        link_options = sorted([str(x).strip() for x in df[link_col].dropna().astype(str).unique().tolist() if str(x).strip()])
+    if wo_col and wo_col in df.columns:
+        wo_options = sorted([str(x).strip() for x in df[wo_col].dropna().astype(str).unique().tolist() if str(x).strip()])
     with c1:
-        search_link = st.text_input("Search Link Code", placeholder="e.g. RIYA-66")
+        selected_search_links = st.multiselect(
+            "Link Code (search & add)",
+            options=link_options,
+            default=st.session_state.get("project_update_search_links", []),
+            placeholder="Search / paste / select Link Codes",
+            key="project_update_search_links",
+        )
+        st.caption("Select one or many Link Codes.")
     with c2:
-        search_wo = st.text_input("Search Work Order", placeholder="e.g. 2502OSP...")
+        selected_search_wos = st.multiselect(
+            "Work Order (search & add)",
+            options=wo_options,
+            default=st.session_state.get("project_update_search_wos", []),
+            placeholder="Search / paste / select Work Orders",
+            key="project_update_search_wos",
+        )
+        st.caption("Select one or many Work Orders.")
     with c3:
         max_rows = st.number_input("Max Rows", min_value=25, max_value=1000, value=200, step=25)
+        if st.button("Clear Search", use_container_width=True, key="project_update_clear_search"):
+            st.session_state["project_update_search_links"] = []
+            st.session_state["project_update_search_wos"] = []
+            st.rerun()
 
     view = df.copy()
 
@@ -2609,10 +2635,16 @@ def project_updates_center_page() -> None:
             view = view[view[link_col].astype(str).str.strip().str.upper().isin({x.upper() for x in smart_links})]
             st.info(f"Smart Bulk Filter applied to Project Updates by Link Code: {len(smart_links)} Link Codes.")
 
-    if search_link and link_col:
-        view = view[view[link_col].astype(str).str.contains(search_link, case=False, na=False)]
-    if search_wo and wo_col:
-        view = view[view[wo_col].astype(str).str.contains(search_wo, case=False, na=False)]
+    search_links = set(_clean_smart_filter_values(selected_search_links))
+    search_wos = set(_clean_smart_filter_values(selected_search_wos))
+    if (search_links or search_wos) and (link_col or wo_col):
+        mask = pd.Series(False, index=view.index)
+        if search_links and link_col:
+            mask = mask | view[link_col].astype(str).str.strip().str.upper().isin({x.upper() for x in search_links})
+        if search_wos and wo_col:
+            mask = mask | view[wo_col].astype(str).str.strip().str.upper().isin({x.upper() for x in search_wos})
+        view = view[mask]
+        st.info(f"Direct Search applied: {len(search_links)} Link Codes / {len(search_wos)} Work Orders.")
     view = view.head(int(max_rows)).copy()
     view.insert(0, "_row_id", view.index.astype(int))
 

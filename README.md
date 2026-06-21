@@ -541,3 +541,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Fixed Project Distribution and Stage Distribution link counts so their Link Code totals reconcile with Total Link Codes.
 - Rows with blank Link Code, including Scope Target = Initiation rows, are now included in WO count and cost but do not create artificial Link Code counts.
 - Same logic applied to Streamlit/PPT/report helper summaries.
+
+## V5.8.11 Project Updates Search UI Fixed
+- Replaced Project Updates Center text search boxes with dashboard-style multi-select search filters.
+- Added Link Code (search & add) and Work Order (search & add) filters.
+- Added Clear Search button for Project Updates Center.
