@@ -512,3 +512,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - If the uploaded file contains only Link Codes, the dashboard filters by Link Code and includes all related Work Orders.
 - This aligns KPI, Portfolio, SOR, and Project Updates counts with the uploaded operational scope.
 - SOR Summary no longer counts blank Link Code rows by falling back to Work Order; this keeps SOR Link Code totals consistent with Executive KPI/Portfolio totals.
+
+## V5.8.6 Smart Bulk Scope Counters + WO Primary Matching
+- Added three Smart Bulk counters: Uploaded Scope, Matched Scope, and Missing Scope.
+- Work Order is now the primary matching key whenever the uploaded file contains Work Orders.
+- Link Code labels that do not exist exactly in `u_osp_work_order.csv` are reported under Missing Scope, but their Work Orders are still included when found.
+- Dashboard pages continue using the same injected Smart Bulk payload so counts are not recalculated independently per page.
