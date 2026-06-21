@@ -2104,36 +2104,108 @@ def _smart_norm_id(value: Any) -> str:
 def _smart_bulk_scope_summary(workorders: List[dict]) -> Dict[str, Any]:
     uploaded_links = _clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", []))
     uploaded_wos = _clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", []))
+    uploaded_pairs = st.session_state.get("smart_bulk_pairs", []) or (st.session_state.get("smart_bulk_uploaded", {}) or {}).get("pairs", []) or []
     link_set = {_smart_norm_id(x) for x in uploaded_links if _smart_norm_id(x)}
     wo_set = {_smart_norm_id(x) for x in uploaded_wos if _smart_norm_id(x)}
 
-    data_links = {_smart_norm_id(r.get("linkCode", "")) for r in (workorders or []) if _smart_norm_id(r.get("linkCode", ""))}
-    data_wos = {_smart_norm_id(r.get("workOrder", "")) for r in (workorders or []) if _smart_norm_id(r.get("workOrder", ""))}
+    data_links_map: Dict[str, List[dict]] = {}
+    data_wos_map: Dict[str, dict] = {}
+    for r in (workorders or []):
+        ln = _smart_norm_id(r.get("linkCode", ""))
+        wn = _smart_norm_id(r.get("workOrder", ""))
+        if ln:
+            data_links_map.setdefault(ln, []).append(r)
+        if wn:
+            data_wos_map[wn] = r
+    data_links = set(data_links_map.keys())
+    data_wos = set(data_wos_map.keys())
 
-    # WO is the primary key when it exists in the upload. This avoids counting extra WOs
-    # under a Link Code that were not part of the uploaded operational list.
-    if wo_set:
-        matched_rows = [r for r in (workorders or []) if _smart_norm_id(r.get("workOrder", "")) in wo_set]
-    elif link_set:
-        matched_rows = [r for r in (workorders or []) if _smart_norm_id(r.get("linkCode", "")) in link_set]
+    matched_rows_by_index: Dict[int, dict] = {}
+    reconciliation_rows: List[Dict[str, str]] = []
+
+    def _add_rows(rows: List[dict]):
+        for rr in rows:
+            matched_rows_by_index[id(rr)] = rr
+
+    if uploaded_pairs:
+        # Row-level reconciliation:
+        # 1) Try the uploaded Link Code if it exists in source.
+        # 2) Try the uploaded Work Order if it exists in source.
+        # Missing Scope reports only row-pair inconsistencies, not independent bulk lists.
+        seen = set()
+        for pair in uploaded_pairs:
+            link_original = str(pair.get("link_code", "") or "").strip()
+            wo_original = str(pair.get("work_order", "") or "").strip()
+            link_norm = _smart_norm_id(link_original)
+            wo_norm = _smart_norm_id(wo_original)
+            key = (link_norm, wo_norm)
+            if key in seen or (not link_norm and not wo_norm):
+                continue
+            seen.add(key)
+
+            link_found = bool(link_norm and link_norm in data_links)
+            wo_found = bool(wo_norm and wo_norm in data_wos)
+            actual_link = ""
+            actual_wo = ""
+
+            if link_found:
+                _add_rows(data_links_map.get(link_norm, []))
+                actual_link = link_original
+            if wo_found:
+                wr = data_wos_map[wo_norm]
+                _add_rows([wr])
+                actual_wo = str(wr.get("workOrder", "") or wo_original)
+                actual_link = str(wr.get("linkCode", "") or actual_link)
+
+            issue = ""
+            if link_norm and wo_norm:
+                if (not link_found) and wo_found:
+                    issue = "Link Code label not found, but Work Order exists and was included"
+                elif link_found and (not wo_found):
+                    issue = "Work Order not found, but Link Code exists and was included"
+                elif (not link_found) and (not wo_found):
+                    issue = "Neither Link Code nor Work Order found"
+            elif link_norm and not link_found:
+                issue = "Link Code not found"
+            elif wo_norm and not wo_found:
+                issue = "Work Order not found"
+
+            if issue:
+                reconciliation_rows.append({
+                    "Uploaded Link Code": link_original or "—",
+                    "Uploaded Work Order": wo_original or "—",
+                    "Issue": issue,
+                    "Actual Link Code from WO": actual_link or "—",
+                    "Actual Work Order": actual_wo or "—",
+                })
     else:
-        matched_rows = []
+        # Manual/search selection fallback.
+        if wo_set:
+            _add_rows([r for r in (workorders or []) if _smart_norm_id(r.get("workOrder", "")) in wo_set])
+            for x in uploaded_wos:
+                if _smart_norm_id(x) and _smart_norm_id(x) not in data_wos:
+                    reconciliation_rows.append({"Uploaded Link Code":"—","Uploaded Work Order":x,"Issue":"Work Order not found","Actual Link Code from WO":"—","Actual Work Order":"—"})
+        if link_set and not wo_set:
+            _add_rows([r for r in (workorders or []) if _smart_norm_id(r.get("linkCode", "")) in link_set])
+            for x in uploaded_links:
+                if _smart_norm_id(x) and _smart_norm_id(x) not in data_links:
+                    reconciliation_rows.append({"Uploaded Link Code":x,"Uploaded Work Order":"—","Issue":"Link Code not found","Actual Link Code from WO":"—","Actual Work Order":"—"})
 
+    matched_rows = list(matched_rows_by_index.values())
     matched_links_actual = sorted({_smart_norm_id(r.get("linkCode", "")) for r in matched_rows if _smart_norm_id(r.get("linkCode", ""))})
     matched_wos_actual = sorted({_smart_norm_id(r.get("workOrder", "")) for r in matched_rows if _smart_norm_id(r.get("workOrder", ""))})
-
-    missing_link_labels = [x for x in uploaded_links if _smart_norm_id(x) and _smart_norm_id(x) not in data_links]
-    missing_wos = [x for x in uploaded_wos if _smart_norm_id(x) and _smart_norm_id(x) not in data_wos]
 
     return {
         "uploaded_links": uploaded_links,
         "uploaded_wos": uploaded_wos,
+        "uploaded_pairs": uploaded_pairs,
         "matched_links_count": len(matched_links_actual),
         "matched_wos_count": len(matched_wos_actual),
-        "missing_link_labels": missing_link_labels,
-        "missing_wos": missing_wos,
+        "missing_link_labels": [],
+        "missing_wos": [],
+        "reconciliation_rows": reconciliation_rows,
         "matched_rows_count": len(matched_rows),
-        "mode": "Work Order Primary" if wo_set else ("Link Code" if link_set else "None"),
+        "mode": "Row-level Link Code + Work Order reconciliation" if uploaded_pairs else ("Work Order Primary" if wo_set else ("Link Code" if link_set else "None")),
     }
 
 def _smart_bulk_options_from_workorders(workorders: List[dict]) -> Tuple[List[str], List[str]]:
@@ -2146,7 +2218,7 @@ def _smart_bulk_options_from_workorders(workorders: List[dict]) -> Tuple[List[st
 
 def _parse_smart_bulk_upload(uploaded_file) -> Dict[str, Any]:
     if uploaded_file is None:
-        return {"link_codes": [], "work_orders": [], "link_column": "", "wo_column": "", "file_name": ""}
+        return {"link_codes": [], "work_orders": [], "pairs": [], "link_column": "", "wo_column": "", "file_name": ""}
     name = getattr(uploaded_file, "name", "uploaded_file")
     try:
         if str(name).lower().endswith(".csv"):
@@ -2155,18 +2227,44 @@ def _parse_smart_bulk_upload(uploaded_file) -> Dict[str, Any]:
             df = pd.read_excel(uploaded_file, dtype=str)
     except Exception as exc:
         st.error(f"Could not read uploaded Smart Bulk Filter file: {exc}")
-        return {"link_codes": [], "work_orders": [], "link_column": "", "wo_column": "", "file_name": name}
+        return {"link_codes": [], "work_orders": [], "pairs": [], "link_column": "", "wo_column": "", "file_name": name}
 
     df.columns = [str(c).strip() for c in df.columns]
     link_col = _find_smart_filter_column(df, LINK_CODE_HEADER_ALIASES)
     wo_col = _find_smart_filter_column(df, WORK_ORDER_HEADER_ALIASES)
     link_codes = _clean_smart_filter_values(df[link_col].dropna().tolist()) if link_col else []
     work_orders = _clean_smart_filter_values(df[wo_col].dropna().tolist()) if wo_col else []
+
+    # Keep row-level pairs so Missing Scope is based on the uploaded row relationship:
+    # Link Code + Work Order together. This prevents reporting all independent Link Codes
+    # as missing when the Work Order exists and should be the actual matching key.
+    pairs: List[Dict[str, str]] = []
+    if link_col or wo_col:
+        for _, row in df.iterrows():
+            link_vals = _clean_smart_filter_values([row.get(link_col, "")]) if link_col else []
+            wo_vals = _clean_smart_filter_values([row.get(wo_col, "")]) if wo_col else []
+            max_len = max(len(link_vals), len(wo_vals), 0)
+            for i in range(max_len):
+                link = link_vals[i] if i < len(link_vals) else (link_vals[0] if link_vals else "")
+                wo = wo_vals[i] if i < len(wo_vals) else (wo_vals[0] if wo_vals else "")
+                if str(link or "").strip() or str(wo or "").strip():
+                    pairs.append({"link_code": str(link or "").strip(), "work_order": str(wo or "").strip()})
+
+    # de-duplicate pairs while preserving order
+    seen_pairs = set()
+    unique_pairs = []
+    for pair in pairs:
+        key = (_smart_norm_id(pair.get("link_code", "")), _smart_norm_id(pair.get("work_order", "")))
+        if key not in seen_pairs:
+            seen_pairs.add(key)
+            unique_pairs.append(pair)
+
     if not link_codes and not work_orders:
         st.warning("No Link Code or Work Order column was detected. The file can use names such as Link Code, LinkCode, Site Code, WO, WO ID, or Work Order.")
     return {
         "link_codes": link_codes,
         "work_orders": work_orders,
+        "pairs": unique_pairs,
         "link_column": link_col,
         "wo_column": wo_col,
         "file_name": name,
@@ -2177,11 +2275,13 @@ def _current_smart_bulk_filter_payload() -> Dict[str, Any]:
     link_codes = _clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", []))
     work_orders = _clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", []))
     uploaded = st.session_state.get("smart_bulk_uploaded", {}) or {}
+    pairs = st.session_state.get("smart_bulk_pairs", []) or uploaded.get("pairs", []) or []
     return {
         "active": bool(link_codes or work_orders),
         "fileName": uploaded.get("file_name", "Manual / Search Selection") if uploaded else "Manual / Search Selection",
         "linkCodes": link_codes,
         "workOrders": work_orders,
+        "pairs": pairs,
         "linkColumn": uploaded.get("link_column", ""),
         "woColumn": uploaded.get("wo_column", ""),
         "filterMode": "WORK_ORDER_PRIMARY" if work_orders else ("LINK_CODE" if link_codes else "NONE"),
@@ -2210,7 +2310,7 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
     with top_cols[2]:
         if is_active and st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear"):
             for k in [
-                "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders",
+                "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
                 "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
             ]:
                 st.session_state.pop(k, None)
@@ -2235,6 +2335,8 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
                 st.session_state["smart_bulk_link_codes"] = parsed["link_codes"]
             if parsed.get("work_orders"):
                 st.session_state["smart_bulk_work_orders"] = parsed["work_orders"]
+            if parsed.get("pairs"):
+                st.session_state["smart_bulk_pairs"] = parsed["pairs"]
             if parsed.get("link_codes") or parsed.get("work_orders"):
                 st.success(
                     f"Loaded from {parsed.get('file_name','file')}: "
@@ -2277,7 +2379,7 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
             st.write("")
             if st.button("🧹 Clear Smart Filter", use_container_width=True, key="smart_bulk_clear"):
                 for k in [
-                    "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders",
+                    "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
                     "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
                 ]:
                     st.session_state.pop(k, None)
@@ -2299,23 +2401,15 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
             st.metric("Matched Scope", f"{scope['matched_links_count']} Links / {scope['matched_wos_count']} WOs")
             st.caption(f"Applied mode: {scope['mode']}. Work Order is primary when available.")
         with c3:
-            missing_total = len(scope['missing_link_labels']) + len(scope['missing_wos'])
-            st.metric("Missing Scope", missing_total)
-            if missing_total:
-                with st.expander("Show missing Link Codes / Work Orders", expanded=True):
-                    if scope['missing_link_labels']:
-                        st.write("Missing Link Code labels in u_osp_work_order:")
-                        st.code("\n".join(scope['missing_link_labels']))
-                    if scope['missing_wos']:
-                        st.write("Missing Work Orders in u_osp_work_order:")
-                        st.code("\n".join(scope['missing_wos']))
-            else:
-                st.caption("No missing Work Orders. Link Code label differences are reported separately when found.")
-        if scope['missing_link_labels'] and not scope['missing_wos']:
-            st.warning(
-                "Some uploaded Link Code labels were not found exactly in u_osp_work_order, "
-                "but their Work Orders were found and included because Work Order is the primary matching key."
-            )
+            reconciliation_rows = scope.get('reconciliation_rows', []) or []
+            st.metric("Missing / Mismatch Scope", len(reconciliation_rows))
+            st.caption("Only row-level pair issues are shown, not independent bulk lists.")
+        reconciliation_rows = scope.get('reconciliation_rows', []) or []
+        if reconciliation_rows:
+            with st.expander("Show Missing / Mismatch Scope Details", expanded=True):
+                st.dataframe(pd.DataFrame(reconciliation_rows), use_container_width=True, hide_index=True)
+        else:
+            st.success("No missing or mismatched Link Code / Work Order pairs were found in u_osp_work_order.")
 
 @st.cache_data(show_spinner=False)
 def read_dashboard_html_cached(path_str: str, mtime: float) -> str:

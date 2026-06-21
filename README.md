@@ -518,3 +518,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Work Order is now the primary matching key whenever the uploaded file contains Work Orders.
 - Link Code labels that do not exist exactly in `u_osp_work_order.csv` are reported under Missing Scope, but their Work Orders are still included when found.
 - Dashboard pages continue using the same injected Smart Bulk payload so counts are not recalculated independently per page.
+
+## V5.8.7 Smart Bulk Pair Reconciliation Fix
+- Missing Scope now compares uploaded Link Code + Work Order row pairs.
+- It no longer reports all independent Link Codes and Work Orders as missing.
+- Missing / Mismatch Scope shows only cases such as: Link Code label missing but Work Order exists, Work Order missing but Link Code exists, or neither exists.
+- Uploaded Work Orders remain the primary matching key when present, while Link Codes are used for reconciliation and fallback visibility.
