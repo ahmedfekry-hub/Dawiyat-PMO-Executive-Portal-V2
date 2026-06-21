@@ -499,3 +499,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Fixed Smart Bulk Filter logic so uploaded Link Codes and Work Orders are applied as OR, not AND.
 - The uploaded file DWT Project Updated Details.xlsx has 57 Link Codes and 108 Work Orders. Four uploaded Link Codes do not exactly match the master u_osp_work_order Link Code naming, but their Work Orders do exist.
 - Dashboard and Project Updates Center now keep valid Work Orders even when Link Code labels differ between source files.
+
+
+## V5.8.4 SOR Unique Link Code Fix
+- Fixed Executive SOR Summary & Revenue Exposure count mismatch under Smart Bulk Filter.
+- SOR summary now counts each Link Code once only, even if the same Link Code appears under multiple districts / WO rows.
+- Smart Bulk Filter OR logic remains active for Link Code or Work Order matching.

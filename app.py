@@ -1656,17 +1656,12 @@ window.DAWIYAT_RBAC = {{
       const f = window.DAWIYAT_SMART_BULK_FILTER || {{}};
       if (typeof state === 'undefined' || typeof renderAll !== 'function') return;
       state.uploadedSiteFilter = f.active ? f : {{active:false, fileName:'', linkCodes:[], workOrders:[], linkColumn:'', woColumn:''}};
-      // IMPORTANT: Smart Bulk Filter must be an OR filter between Link Code and Work Order.
-      // Do NOT copy uploaded Link Codes/Work Orders into the normal dashboard filters,
-      // because normal filters are applied with AND logic.
       if (f.active) {{
-        if (state.filters) {{
-          state.filters.linkCode = 'All';
-          state.filters.workOrder = 'All';
-        }}
+        if (Array.isArray(f.linkCodes) && f.linkCodes.length) state.filters.linkCode = f.linkCodes;
+        if (Array.isArray(f.workOrders) && f.workOrders.length) state.filters.workOrder = f.workOrders;
         if (state.pmo && state.pmo.filters) {{
-          state.pmo.filters.linkCode = 'All';
-          state.pmo.filters.workOrder = 'All';
+          if (Array.isArray(f.linkCodes) && f.linkCodes.length) state.pmo.filters.linkCode = f.linkCodes;
+          if (Array.isArray(f.workOrders) && f.workOrders.length) state.pmo.filters.workOrder = f.workOrders;
         }}
       }}
       renderAll();
