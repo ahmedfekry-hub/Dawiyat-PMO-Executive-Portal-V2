@@ -466,3 +466,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Dashboard now reads CSV files from `data/u_osp_work_order.csv`, `data/District.csv`, and `data/Penalties.csv`.
 - Fixed the prepared-by signature in both `app.py` and `dashboard/dashboard.html` to: `Prepared by Eng/Ahmed Fekry - Quality & Performance Director (PMO)`.
 - Kept the dashboard title as: `Dawiyat Executive Project Dashboard`.
+
+
+## V5.6.2 Final Signature Fixed
+- Fixed duplicated `(PMO) (PMO)` in dashboard header, assistant branding, PDF and PPT signatures.
+- Final text: `Prepared by Eng/Ahmed Fekry - Quality & Performance Director (PMO)`.
