@@ -208,7 +208,11 @@ st.set_page_config(
 
 # Streamlit pages that must stay hidden from sidebar navigation.
 # They are opened only through controlled action buttons on the Dashboard.
-HIDDEN_ACTION_PAGES = {"📤 Document Upload Center", "📊 Executive PPT Builder", "Admin Board"}
+HIDDEN_ACTION_PAGES = {
+    "📤 Document Upload Center", "📊 Executive PPT Builder", "Admin Board",
+    "Project Updates Center", "Data Update Agent", "Notification Center 🔔",
+    "Executive Daily Digest", "WhatsApp Agent",
+}
 
 
 PORTAL_CSS = """
@@ -844,6 +848,11 @@ def _page_name_to_key(page_name: str) -> str:
         "ai executive assistant": "assistant",
         "admin board": "admin",
         "project updates center": "project_updates",
+        "data update agent": "data_update_agent",
+        "notification center": "notification_center",
+        "notification center 🔔": "notification_center",
+        "executive daily digest": "executive_daily_digest",
+        "whatsapp agent": "whatsapp_agent",
     }
     return mapping.get(text, "")
 
@@ -2267,31 +2276,43 @@ def render_dashboard() -> None:
 
     render_smart_bulk_filter_panel(raw)
 
-    # Hidden action pages: shown only as compact buttons on Dashboard, not as large cards or sidebar pages.
+    # Hidden action/governance pages: shown as compact buttons on Dashboard according to permissions.
+    all_allowed = allowed_pages_for_current_user()
     quick_actions = []
-    if can("documents"):
+    if "Project Updates Center" in all_allowed:
+        quick_actions.append(("📝 Open Project Updates Center", "Project Updates Center", "secondary"))
+    if "Data Update Agent" in all_allowed:
+        quick_actions.append(("🧠 Open Data Update Agent", "Data Update Agent", "secondary"))
+    if "Notification Center 🔔" in all_allowed:
+        quick_actions.append((f"🔔 Open Notification Center ({unread_notifications_count(st.session_state.get('username',''))})", "Notification Center 🔔", "secondary"))
+    if "Executive Daily Digest" in all_allowed:
+        quick_actions.append(("📩 Open Executive Daily Digest", "Executive Daily Digest", "secondary"))
+    if "WhatsApp Agent" in all_allowed:
+        quick_actions.append(("🟢 Open WhatsApp Agent Outbox", "WhatsApp Agent", "secondary"))
+    if "📤 Document Upload Center" in all_allowed:
         quick_actions.append(("📤 Open Document Upload Center", "📤 Document Upload Center", "secondary"))
-    if can("ppt_builder"):
+    if "📊 Executive PPT Builder" in all_allowed:
         quick_actions.append(("📊 Open Executive PPT Builder", "📊 Executive PPT Builder", "secondary"))
-    if can("admin") and _is_admin_board_owner():
+    if "Admin Board" in all_allowed and _is_admin_board_owner():
         quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
 
     if quick_actions:
         st.markdown(
             """
             <div class="quick-actions-panel">
-                <div class="quick-actions-title">Quick Actions</div>
-                <div class="quick-actions-subtitle">Document Center, PPT Builder, and Admin Board are hidden from navigation and open only from here according to user permissions.</div>
+                <div class="quick-actions-title">Quick Actions & Governance Agents</div>
+                <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
-        action_cols = st.columns(len(quick_actions))
-        for col, (label, target_page, btn_type) in zip(action_cols, quick_actions):
-            with col:
-                if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
-                    st.session_state["active_hidden_page"] = target_page
-                    st.rerun()
+        for i in range(0, len(quick_actions), 4):
+            action_cols = st.columns(min(4, len(quick_actions) - i))
+            for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
+                with col:
+                    if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
+                        st.session_state["active_hidden_page"] = target_page
+                        st.rerun()
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
@@ -5289,6 +5310,21 @@ def main() -> None:
         return
     if active_hidden_page == "Admin Board":
         admin_page()
+        return
+    if active_hidden_page == "Project Updates Center":
+        project_updates_center_page()
+        return
+    if active_hidden_page == "Data Update Agent":
+        data_update_agent_page()
+        return
+    if active_hidden_page == "Notification Center 🔔":
+        notification_center_page()
+        return
+    if active_hidden_page == "Executive Daily Digest":
+        executive_daily_digest_page()
+        return
+    if active_hidden_page == "WhatsApp Agent":
+        whatsapp_agent_page()
         return
 
     if page == "No Access":
