@@ -558,3 +558,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Corrected `Second 50% status` source mapping from Excel column BR to BP.
 - Added a professional executive invoicing summary above the WO Billing & Handover Status Report.
 - Summary includes total invoiced SAR, 1st 50% done, 1st 50% in progress, 2nd 50% done, pending handover, distribution donut, total WOs, completion rate, and invoice exposure.
+
+
+## V5.8.14 WO Billing Invoice Status Summary
+- Rebuilt WO Billing & Handover Status Report summary to match the requested Invoice Status Summary format.
+- Counts are Link-Code based, with Total Amount by active filtered Link-Code scope.
+- Chart now follows the summary table categories and displays percentage labels in the chart area.
