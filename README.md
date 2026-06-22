@@ -594,3 +594,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Executive PMO Insights now uses one valid Link Code = one record.
 - Work Orders are no longer used as fallback for Link Code counters.
 - Handover O&M and Handover Consultant Link Code counts are calculated at Link-Code level with one status per Link Code.
+
+
+## V5.8.20 First 50 Formula + Asbuilt Final Amount
+- 1st 50 Invoice Cost Amount is derived per row when Scope Target = Implementation: 50% of WO Cost, falling back to Cost when WO Cost is blank.
+- Added Asbuilt Final Amount to Project Updates Center for final value updates.

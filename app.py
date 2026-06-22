@@ -86,6 +86,7 @@ PROJECT_UPDATE_EDITABLE_COLUMNS = [
     "1st 50 Invoice Cost Amount", "PAT Status", "AsBuilt  Status",
     "DCR_Status", "RFS Certificate", "As-built BOQ", "Redline",
     "Handover O&M _Status", "Handover Consultant _Status", "SOR Reference Number",
+    "Asbuilt Final Amount",
 ]
 
 PROJECT_UPDATE_STATUS_OPTIONS = {
@@ -106,7 +107,7 @@ PROJECT_UPDATE_STATUS_OPTIONS = {
 }
 
 PROJECT_UPDATE_FINANCE_COLUMNS = ["Invoice Status", "SOR Status", "1st 50 Invoice Status", "1st 50 Invoice Cost Amount", "SOR Reference Number"]
-PROJECT_UPDATE_PM_COLUMNS = ["Fiber Status", "Civil Status", "FULL WO STATUS", "PAT Status", "AsBuilt  Status", "DCR_Status", "RFS Certificate", "As-built BOQ", "Redline", "Handover O&M _Status", "Handover Consultant _Status"]
+PROJECT_UPDATE_PM_COLUMNS = ["Fiber Status", "Civil Status", "FULL WO STATUS", "PAT Status", "AsBuilt  Status", "DCR_Status", "RFS Certificate", "As-built BOQ", "Redline", "Handover O&M _Status", "Handover Consultant _Status", "Asbuilt Final Amount"]
 PROJECT_MASTER_ADMIN_FILES = {"District.csv": DISTRICT_PATH, "Penalties.csv": PENALTIES_PATH}
 
 KSA_TZ = timezone(timedelta(hours=3))
@@ -1591,6 +1592,46 @@ def apply_derived_billing_fields(wo: pd.DataFrame) -> pd.DataFrame:
         out["First 50% status"] = out[first50_source].astype(str)
     if second50_source:
         out["Second 50% status"] = out[second50_source].astype(str)
+
+    # 1st 50 Invoice Cost Amount formula:
+    # If Scope Target is Implementation, amount = 50% of WO Cost; if WO Cost is blank/zero, use Cost.
+    # Otherwise the value is left blank, matching the intended Excel formula behaviour.
+    scope_col = first_existing_col(out, ["Scope Target", "Scope_Target"]) or _excel_column_by_letter(out, "BW")
+    wo_cost_col = first_existing_col(out, ["WO Cost", "WO COST", "Work Order Cost"]) or _excel_column_by_letter(out, "H")
+    cost_col = first_existing_col(out, ["Cost", "COST"]) or _excel_column_by_letter(out, "I")
+
+    def _num(v: Any) -> float:
+        s = str(v if v is not None else "").strip()
+        if not s or s.lower() in {"nan", "none", "n/a", "na", "-"}:
+            return 0.0
+        s = s.replace(",", "").replace("SAR", "").replace("ر.س", "").replace("ر.س.", "").strip()
+        try:
+            return float(s)
+        except Exception:
+            return 0.0
+
+    def _fmt_amount(x: float) -> str:
+        if not x:
+            return ""
+        if abs(x - round(x)) < 0.005:
+            return str(int(round(x)))
+        return f"{x:.2f}"
+
+    if scope_col and (wo_cost_col or cost_col):
+        def _calc_first50(row: pd.Series) -> str:
+            scope = _txt(row.get(scope_col, "")).lower()
+            if scope != "implementation":
+                return ""
+            wo_val = _num(row.get(wo_cost_col, "")) if wo_cost_col else 0.0
+            cost_val = _num(row.get(cost_col, "")) if cost_col else 0.0
+            base = wo_val if wo_val else cost_val
+            return _fmt_amount(base * 0.5)
+        out["1st 50 Invoice Cost Amount"] = out.apply(_calc_first50, axis=1)
+    elif "1st 50 Invoice Cost Amount" not in out.columns:
+        out["1st 50 Invoice Cost Amount"] = ""
+
+    if "Asbuilt Final Amount" not in out.columns:
+        out["Asbuilt Final Amount"] = ""
     return out
 
 
@@ -2729,6 +2770,8 @@ def project_updates_center_page() -> None:
             col_config[col] = st.column_config.SelectboxColumn(col, options=values, required=False)
     if "1st 50 Invoice Cost Amount" in view.columns:
         col_config["1st 50 Invoice Cost Amount"] = st.column_config.TextColumn("1st 50 Invoice Cost Amount")
+    if "Asbuilt Final Amount" in view.columns:
+        col_config["Asbuilt Final Amount"] = st.column_config.TextColumn("Asbuilt Final Amount")
     if "SOR Reference Number" in view.columns:
         col_config["SOR Reference Number"] = st.column_config.TextColumn("SOR Reference Number")
 
