@@ -1548,7 +1548,7 @@ def apply_derived_billing_fields(wo: pd.DataFrame) -> pd.DataFrame:
     - implementation update uses BH Fiber Status, BI Civil Status, BJ FULL WO STATUS logic per row.
     - SOR Status.1 = BL
     - First 50% status = BM
-    - Second 50% status = BR
+    - Second 50% status = BP
     """
     if wo is None or wo.empty:
         return wo
@@ -1583,7 +1583,7 @@ def apply_derived_billing_fields(wo: pd.DataFrame) -> pd.DataFrame:
     # Preserve source columns and write display/report output columns row-by-row.
     sor_source = _excel_column_by_letter(out, "BL") or first_existing_col(out, ["SOR Status"])
     first50_source = _excel_column_by_letter(out, "BM") or first_existing_col(out, ["1st 50 Invoice Status", "First 50 Invoice Status"])
-    second50_source = _excel_column_by_letter(out, "BR") or first_existing_col(out, ["Second 50% status", "2nd 50 Invoice Status", "Second 50 Invoice Status"])
+    second50_source = _excel_column_by_letter(out, "BP") or first_existing_col(out, ["Second 50% status", "2nd 50 Invoice Status", "Second 50 Invoice Status"])
 
     if sor_source:
         out["SOR Status.1"] = out[sor_source].astype(str)

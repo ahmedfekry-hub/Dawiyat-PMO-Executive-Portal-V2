@@ -552,3 +552,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Applied row-by-row derived `implementation update` logic from Fiber/Civil/FULL WO STATUS.
 - Populated report fields from Excel-letter mapping: SOR Status.1 = BL, First 50% status = BM, Second 50% status = BR.
 - Added `SOR Reference Number` to WO Billing & Handover Status Report and Excel export.
+
+
+## V5.8.13 WO Billing Summary + BP Mapping Fix
+- Corrected `Second 50% status` source mapping from Excel column BR to BP.
+- Added a professional executive invoicing summary above the WO Billing & Handover Status Report.
+- Summary includes total invoiced SAR, 1st 50% done, 1st 50% in progress, 2nd 50% done, pending handover, distribution donut, total WOs, completion rate, and invoice exposure.
