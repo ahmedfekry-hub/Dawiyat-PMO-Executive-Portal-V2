@@ -6637,9 +6637,22 @@ function renderWoBillingExecutiveSummary(rows) {
   const secondNotStarted = linkGroups.filter(g => isNotStarted(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
   const secondUnderPrep = linkGroups.filter(g => isUnderPrep(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
   const sorCreatedGroups = linkGroups.filter(g => sorCreated(pick(g, ['SOR Status.1','SOR Status'])));
+  const sorRefGroups = linkGroups.filter(g => {
+    const ref = String(pick(g, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR No'], '') || '').trim();
+    return ref && !['n/a','na','none','null','-','—'].includes(ref.toLowerCase());
+  });
+  const sorRefSet = new Set();
+  sorRefGroups.forEach(g => {
+    const ref = String(pick(g, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR No'], '') || '').trim();
+    if (ref && !['n/a','na','none','null','-','—'].includes(ref.toLowerCase())) sorRefSet.add(ref);
+  });
 
-  const totalSorCreatedCount = groupCount(sorCreatedGroups);
-  const totalSorCreatedAmount = groupAmount(sorCreatedGroups);
+  // Total SOR Created = count of SOR Reference Number values.
+  // Total Link Code Count = all active Link Codes in the current filtered scope.
+  // Total Amount = active WO Cost, with the same effective cost fallback used across the dashboard.
+  const totalSorCreatedCount = sorRefSet.size || groupCount(sorRefGroups);
+  const totalLinkCodeCount = groupCount(linkGroups);
+  const totalAmountAll = groupAmount(linkGroups);
   const chartCats = [
     ['Total Invoiced (Submitted)', groupCount(firstSubmitted), groupAmount(firstSubmitted), '#60a5fa'],
     ['1st 50% (In progress)', groupCount(firstInProgress), groupAmount(firstInProgress), '#f97316'],
@@ -6652,7 +6665,7 @@ function renderWoBillingExecutiveSummary(rows) {
   let deg = 0;
   const stops = chartCats.map(c => { const start=deg; deg += (Number(c[1]||0)/totalChartCount)*360; return [start,deg]; });
   const pct = c => totalChartCount ? ((Number(c||0)/totalChartCount)*100) : 0;
-  const completionRate = totalSorCreatedCount ? (groupCount(firstSubmitted) / totalSorCreatedCount) * 100 : 0;
+  const completionRate = totalLinkCodeCount ? (groupCount(firstSubmitted) / totalLinkCodeCount) * 100 : 0;
 
   const totalSubmittedInvoiceAmount = groupInvoice50Amount(firstSubmitted);
 
@@ -6676,14 +6689,14 @@ function renderWoBillingExecutiveSummary(rows) {
       </div>
       <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Link Code Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
         ${tableRows.map(r=>`<tr><td><b>${r[0]}</b></td><td><b>${fmtInt(r[1])}</b></td><td><b>${fmtMoney(r[2])} ر.س</b></td></tr>`).join('')}
-        <tr><td style="color:#7c3aad;font-size:18px"><b>Total Amount (SAR)</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalSorCreatedCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalSorCreatedAmount)} ر.س</b></td></tr>
+        <tr><td style="color:#7c3aad;font-size:18px"><b>Total Amount (SAR)</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalLinkCodeCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalAmountAll)} ر.س</b></td></tr>
       </tbody></table>
     </div>
     <div class="wo-billing-box">
       <div class="wo-billing-head">Invoicing Distribution</div>
       <div class="wo-billing-chart">
         <div class="wo-donut-wrap">
-          <div class="wo-donut" style="--p1:${stops[0][1]}deg;--p2:${stops[1][1]}deg;--p3:${stops[2][1]}deg;--p4:${stops[3][1]}deg;--p5:${stops[4][1]}deg;"><div class="wo-donut-center">${fmtInt(totalSorCreatedCount || linkGroups.length)}<br><span style="font-size:11px">Link Codes</span></div></div>
+          <div class="wo-donut" style="--p1:${stops[0][1]}deg;--p2:${stops[1][1]}deg;--p3:${stops[2][1]}deg;--p4:${stops[3][1]}deg;--p5:${stops[4][1]}deg;"><div class="wo-donut-center">${fmtInt(totalLinkCodeCount)}<br><span style="font-size:11px">Link Codes</span></div></div>
           ${chartCats.map((c,i)=> c[1] ? `<div class="wo-pct-label l${i+1}">${fmtPct(pct(c[1]))}</div>` : '').join('')}
         </div>
         <div class="wo-legend">${chartCats.map(c=>`<div><i style="background:${c[3]}"></i>${escapeHtml(c[0])}: <b>${fmtInt(c[1])}</b> <span style="color:#64748b">(${fmtPct(pct(c[1]))})</span></div>`).join('')}</div>
@@ -6693,9 +6706,9 @@ function renderWoBillingExecutiveSummary(rows) {
       <div class="wo-billing-head">Executive PMO Insights</div>
       <div class="wo-insight">
         <div class="wo-insight-card blue">Total SOR Created<span class="value">${fmtInt(groupCount(firstSubmitted))}</span></div>
-        <div class="wo-insight-card purple">Total Link Code Count<span class="value">${fmtInt(totalSorCreatedCount)}</span></div>
+        <div class="wo-insight-card purple">Total Link Code Count<span class="value">${fmtInt(totalLinkCodeCount)}</span></div>
         <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
-        <div class="wo-insight-card teal">Total Amount (SAR)<span class="value">${fmtMoney(totalSorCreatedAmount)} SAR</span></div>
+        <div class="wo-insight-card teal">Total Amount (SAR)<span class="value">${fmtMoney(totalAmountAll)} SAR</span></div>
         <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(totalSubmittedInvoiceAmount)} SAR</span></div>
       </div>
     </div>
