@@ -6606,10 +6606,13 @@ function renderWoBillingExecutiveSummary(rows) {
     const wo = String(r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO']) || '').trim();
     const key = link || ('WO:' + wo);
     if (!key || key === 'WO:') return;
-    if (!groups.has(key)) groups.set(key, {key, link, rows:[], amount:0});
+    if (!groups.has(key)) groups.set(key, {key, link, rows:[], amount:0, invoice50Amount:0});
     const g = groups.get(key);
     g.rows.push(r);
     g.amount += effectiveCost(r) || 0;
+    // Invoice amount must come from the dedicated 1st 50% invoice amount field.
+    // This prevents Total Invoiced from incorrectly using the full WO/SOR amount.
+    g.invoice50Amount += parseNum(executiveRawValue(r, ['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount','1st 50% Invoice Cost Amount','First 50% Invoice Cost Amount'], 0)) || 0;
   });
   const linkGroups = [...groups.values()];
   const pick = (g, fields, fallback='') => {
@@ -6621,6 +6624,7 @@ function renderWoBillingExecutiveSummary(rows) {
   };
   const groupCount = arr => arr.length;
   const groupAmount = arr => sum((arr || []).map(g => g.amount || 0));
+  const groupInvoice50Amount = arr => sum((arr || []).map(g => g.invoice50Amount || 0));
 
   const firstSubmitted = linkGroups.filter(g => isSubmitted(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
   const firstInProgress = linkGroups.filter(g => isInProgress(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
@@ -6646,8 +6650,10 @@ function renderWoBillingExecutiveSummary(rows) {
   const pct = c => totalChartCount ? ((Number(c||0)/totalChartCount)*100) : 0;
   const completionRate = totalSorCreatedCount ? (groupCount(firstSubmitted) / totalSorCreatedCount) * 100 : 0;
 
+  const totalSubmittedInvoiceAmount = groupInvoice50Amount(firstSubmitted);
+
   const tableRows = [
-    ['Total Invoiced<br>(Submitted)', groupCount(firstSubmitted), groupAmount(firstSubmitted)],
+    ['Total Invoiced<br>(Submitted)', groupCount(firstSubmitted), totalSubmittedInvoiceAmount],
     ['1st 50%_(In progress)', groupCount(firstInProgress), groupAmount(firstInProgress)],
     ['1st 50%_(Not Start)', groupCount(firstNotStarted), groupAmount(firstNotStarted)],
     ['2nd 50%_(Submitted)', groupCount(secondSubmitted), groupAmount(secondSubmitted)],
@@ -6659,7 +6665,7 @@ function renderWoBillingExecutiveSummary(rows) {
     <div class="wo-billing-box">
       <div class="wo-billing-head">FTTH Invoicing Executive Dashboard</div>
       <div class="wo-metrics-grid">
-        <div class="wo-metric blue"><span>Total Invoiced (SAR)</span><b>${fmtMoney(groupAmount(firstSubmitted))}</b></div>
+        <div class="wo-metric blue"><span>Total Invoiced (SAR)</span><b>${fmtMoney(totalSubmittedInvoiceAmount)}</b></div>
         <div class="wo-metric green"><span>1st 50% Done</span><b>${fmtInt(groupCount(firstSubmitted))}</b></div>
         <div class="wo-metric red"><span>1st 50% Inprogress</span><b>${fmtInt(groupCount(firstInProgress))}</b></div>
         <div class="wo-metric orange"><span>2nd 50% Done</span><b>${fmtInt(groupCount(secondSubmitted))}</b></div>
@@ -6684,7 +6690,7 @@ function renderWoBillingExecutiveSummary(rows) {
       <div class="wo-insight">
         <div class="wo-insight-card blue">Total SOR Created<span class="value">${fmtInt(totalSorCreatedCount)}</span></div>
         <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
-        <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(groupAmount(firstSubmitted))} SAR</span></div>
+        <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(totalSubmittedInvoiceAmount)} SAR</span></div>
       </div>
     </div>
   </div>`;
