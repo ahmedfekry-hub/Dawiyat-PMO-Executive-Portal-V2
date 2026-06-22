@@ -574,3 +574,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 ## V5.8.16 WO Billing PMO Insights Fixed
 - Right-side Executive PMO Insights now separates Total SOR Created, Total Link Code Count, Completion Rate, Total Amount, and Invoice Exposure.
 - Removed the confusing Total SOR Created label from the FTTH Invoicing Executive Dashboard footer and retained Total Amount (SAR).
+
+## V5.8.17 WO Billing SOR Reference and Amount Logic Fixed
+- Total SOR Created now counts SOR Reference Number values.
+- Total Link Code Count now shows the active filtered Link Code count.
+- Total Amount (SAR) now uses the active WO Cost/effective Cost fallback used across the dashboard.
+- Total Invoiced (SAR) remains the total amount for 1st 50% Submitted only.
