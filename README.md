@@ -569,3 +569,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - TOTAL INVOICED (SAR) now uses the dedicated 1st 50 Invoice Cost Amount for rows where 1st 50% is Submitted.
 - The Total Invoiced (Submitted) row in the WO Billing summary uses the same submitted invoice amount.
 - Invoice Exposure in the PMO insight card now matches Total Invoiced (SAR).
+
+
+## V5.8.16 WO Billing PMO Insights Fixed
+- Right-side Executive PMO Insights now separates Total SOR Created, Total Link Code Count, Completion Rate, Total Amount, and Invoice Exposure.
+- Removed the confusing Total SOR Created label from the FTTH Invoicing Executive Dashboard footer and retained Total Amount (SAR).
