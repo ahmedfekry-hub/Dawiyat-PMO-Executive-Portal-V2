@@ -564,3 +564,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Rebuilt WO Billing & Handover Status Report summary to match the requested Invoice Status Summary format.
 - Counts are Link-Code based, with Total Amount by active filtered Link-Code scope.
 - Chart now follows the summary table categories and displays percentage labels in the chart area.
+
+## V5.8.15 WO Billing Total Invoiced Fix
+- TOTAL INVOICED (SAR) now uses the dedicated 1st 50 Invoice Cost Amount for rows where 1st 50% is Submitted.
+- The Total Invoiced (Submitted) row in the WO Billing summary uses the same submitted invoice amount.
+- Invoice Exposure in the PMO insight card now matches Total Invoiced (SAR).
