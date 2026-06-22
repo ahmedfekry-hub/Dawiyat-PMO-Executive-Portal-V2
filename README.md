@@ -546,3 +546,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Replaced Project Updates Center text search boxes with dashboard-style multi-select search filters.
 - Added Link Code (search & add) and Work Order (search & add) filters.
 - Added Clear Search button for Project Updates Center.
+
+
+## V5.8.12 Derived Billing Fields
+- Applied row-by-row derived `implementation update` logic from Fiber/Civil/FULL WO STATUS.
+- Populated report fields from Excel-letter mapping: SOR Status.1 = BL, First 50% status = BM, Second 50% status = BR.
+- Added `SOR Reference Number` to WO Billing & Handover Status Report and Excel export.

@@ -1529,8 +1529,73 @@ def read_cached_document_status_records() -> List[dict]:
         return []
     return []
 
+
+# --- V5.8.12 derived billing/handover fields ---
+def _excel_column_by_letter(df: pd.DataFrame, letter: str) -> str:
+    """Return DataFrame column name by Excel-style letter (A=1)."""
+    n = 0
+    for ch in str(letter).strip().upper():
+        if "A" <= ch <= "Z":
+            n = n * 26 + (ord(ch) - 64)
+    idx = n - 1
+    return df.columns[idx] if 0 <= idx < len(df.columns) else ""
+
+
+def apply_derived_billing_fields(wo: pd.DataFrame) -> pd.DataFrame:
+    """Apply row-by-row derived fields required for WO Billing & Handover report.
+
+    Excel mapping requested:
+    - implementation update uses BH Fiber Status, BI Civil Status, BJ FULL WO STATUS logic per row.
+    - SOR Status.1 = BL
+    - First 50% status = BM
+    - Second 50% status = BR
+    """
+    if wo is None or wo.empty:
+        return wo
+    out = wo.copy()
+
+    fiber_col = first_existing_col(out, ["Fiber Status"]) or _excel_column_by_letter(out, "BH")
+    civil_col = first_existing_col(out, ["Civil Status"]) or _excel_column_by_letter(out, "BI")
+    full_col = first_existing_col(out, ["FULL WO STATUS", "Full WO Status"]) or _excel_column_by_letter(out, "BJ")
+
+    def _txt(v: Any) -> str:
+        return str(v if v is not None else "").strip()
+
+    def _impl(row: pd.Series) -> str:
+        bj = _txt(row.get(full_col, "")) if full_col else ""
+        bi = _txt(row.get(civil_col, "")) if civil_col else ""
+        bh = _txt(row.get(fiber_col, "")) if fiber_col else ""
+        if bj == "Completed":
+            return "Completed"
+        if bj == "Not Start":
+            return "Civil Not Start"
+        if bj == "In Progress":
+            if bi == "In Progress":
+                return "Civil In Progress"
+            if bi == "Completed":
+                return "Fiber In Progress"
+            if bh == "In Progress":
+                return "Fiber In Progress"
+        return ""
+
+    out["implementation update"] = out.apply(_impl, axis=1)
+
+    # Preserve source columns and write display/report output columns row-by-row.
+    sor_source = _excel_column_by_letter(out, "BL") or first_existing_col(out, ["SOR Status"])
+    first50_source = _excel_column_by_letter(out, "BM") or first_existing_col(out, ["1st 50 Invoice Status", "First 50 Invoice Status"])
+    second50_source = _excel_column_by_letter(out, "BR") or first_existing_col(out, ["Second 50% status", "2nd 50 Invoice Status", "Second 50 Invoice Status"])
+
+    if sor_source:
+        out["SOR Status.1"] = out[sor_source].astype(str)
+    if first50_source:
+        out["First 50% status"] = out[first50_source].astype(str)
+    if second50_source:
+        out["Second 50% status"] = out[second50_source].astype(str)
+    return out
+
+
 def build_initial_raw() -> Dict[str, List[dict]]:
-    merged_workorders = apply_project_updates_to_workorders(safe_read_csv(WO_PATH))
+    merged_workorders = apply_derived_billing_fields(apply_project_updates_to_workorders(safe_read_csv(WO_PATH)))
     return {
         "workorders": df_to_records(merged_workorders),
         "penalties": df_to_records(safe_read_csv(PENALTIES_PATH)),
@@ -2012,7 +2077,7 @@ def first_existing_col(df: pd.DataFrame, candidates: List[str]) -> str:
 
 
 def load_workorders() -> pd.DataFrame:
-    wo = apply_project_updates_to_workorders(safe_read_csv(WO_PATH))
+    wo = apply_derived_billing_fields(apply_project_updates_to_workorders(safe_read_csv(WO_PATH)))
     if wo.empty:
         return wo
     link_col = first_existing_col(wo, ["Link Code"])
@@ -3725,7 +3790,7 @@ def load_ppt_workorders() -> pd.DataFrame:
     """Load the same CSV files as the dashboard, but keep it Streamlit-native.
     Includes fields needed for PPT Builder filters and reports.
     """
-    wo = safe_read_csv(WO_PATH).copy()
+    wo = apply_derived_billing_fields(apply_project_updates_to_workorders(safe_read_csv(WO_PATH))).copy()
     if wo.empty:
         return pd.DataFrame()
 
