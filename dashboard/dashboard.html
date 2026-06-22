@@ -1863,10 +1863,13 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   .wo-billing-mini-table { width:100%; border-collapse:collapse; }
   .wo-billing-mini-table th { background:#0f172a; color:#fff; position:static; font-size:11px; text-align:center; }
   .wo-billing-mini-table td { font-size:12px; text-align:center; padding:7px 6px; }
-  .wo-billing-chart { display:flex; align-items:center; justify-content:center; min-height:210px; }
-  .wo-donut { width:170px; height:170px; border-radius:50%; position:relative; background:conic-gradient(#60a5fa 0deg,#60a5fa var(--p1),#f97316 var(--p1),#f97316 var(--p2),#9ca3af var(--p2),#9ca3af var(--p3),#fbbf24 var(--p3),#fbbf24 var(--p4),#2563eb var(--p4),#2563eb 360deg); box-shadow:0 10px 24px rgba(15,23,42,.18); }
+  .wo-billing-chart { display:flex; align-items:center; justify-content:center; gap:18px; min-height:245px; flex-wrap:wrap; }
+  .wo-donut-wrap { position:relative; width:230px; height:210px; display:flex; align-items:center; justify-content:center; }
+  .wo-donut { width:170px; height:170px; border-radius:50%; position:relative; background:conic-gradient(#60a5fa 0deg,#60a5fa var(--p1),#f97316 var(--p1),#f97316 var(--p2),#9ca3af var(--p2),#9ca3af var(--p3),#fbbf24 var(--p3),#fbbf24 var(--p4),#22c55e var(--p4),#22c55e var(--p5),#a855f7 var(--p5),#a855f7 360deg); box-shadow:0 10px 24px rgba(15,23,42,.18); }
   .wo-donut::after { content:''; position:absolute; inset:42px; border-radius:50%; background:#fff; box-shadow:inset 0 0 0 1px #e5e7eb; }
   .wo-donut-center { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:1; text-align:center; font-weight:900; color:#0f172a; }
+  .wo-pct-label { position:absolute; z-index:3; background:rgba(15,23,42,.82); color:#fff; border-radius:7px; padding:3px 6px; font-size:11px; font-weight:900; box-shadow:0 4px 10px rgba(15,23,42,.20); }
+  .wo-pct-label.l1{left:8px;top:50px}.wo-pct-label.l2{right:0;top:45px}.wo-pct-label.l3{right:14px;bottom:42px}.wo-pct-label.l4{left:18px;bottom:35px}.wo-pct-label.l5{left:92px;top:6px}.wo-pct-label.l6{left:92px;bottom:4px}
   .wo-insight { display:grid; gap:10px; }
   .wo-insight-card { border-radius:12px; padding:12px; color:#fff; text-align:center; font-weight:900; }
   .wo-insight-card.blue { background:#1d4ed8; }
@@ -6588,59 +6591,100 @@ function renderWoBillingExecutiveSummary(rows) {
   if (!host) return;
   rows = rows || [];
   if (!rows.length) { host.innerHTML = ''; return; }
-  const totalWos = new Set(rows.map(r => r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO'])).filter(Boolean)).size;
-  const firstDoneRows = rows.filter(r => woBillingIsDone(executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || '')));
-  const firstInProgressRows = rows.filter(r => !woBillingIsDone(executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || '')) && woBillingIsInProgress(executiveRawValue(r, ['SOR Status.1','SOR Status'], r.sorStatus || '')));
-  const secondDoneRows = rows.filter(r => woBillingIsDone(executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
-  const pendingRows = rows.filter(r => {
-    const om = executiveRawValue(r, ['Handover O&M _Status','Handover O&M Status','Handover OM Status']);
-    const con = executiveRawValue(r, ['Handover Consultant _Status','Handover Consultant Status']);
-    return !(woBillingIsDone(om) && woBillingIsDone(con));
+
+  function norm(v){ return String(v == null ? '' : v).trim().toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' '); }
+  function isSubmitted(v){ const x=norm(v); return /submitted|done|completed|approved|accepted/.test(x) && !/not|reject|hold|pending/.test(x); }
+  function isInProgress(v){ const x=norm(v); return /in progress|inprogress|under process|progress/.test(x); }
+  function isNotStarted(v){ const x=norm(v); return /not start|not started|notstart|not create|not created/.test(x); }
+  function isUnderPrep(v){ const x=norm(v); return /under preparation|preparation|under clearing|clearing remarks|under review/.test(x); }
+  function sorCreated(v){ const x=norm(v); return /created|submitted|approved/.test(x) && !/not created|not create|not start|n\/a|na/.test(x); }
+
+  // Group by Link Code first because the requested report is Link-Code-count based.
+  const groups = new Map();
+  (rows || []).forEach(r => {
+    const link = String(r.linkCode || executiveRawValue(r, ['Link Code']) || '').trim();
+    const wo = String(r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO']) || '').trim();
+    const key = link || ('WO:' + wo);
+    if (!key || key === 'WO:') return;
+    if (!groups.has(key)) groups.set(key, {key, link, rows:[], amount:0});
+    const g = groups.get(key);
+    g.rows.push(r);
+    g.amount += effectiveCost(r) || 0;
   });
-  const amount = arr => sum((arr || []).map(r => effectiveCost(r)));
-  const totalInvoiced = amount(firstDoneRows);
-  const invoiceExposure = totalInvoiced;
-  const completionRate = totalWos ? ((firstDoneRows.length + secondDoneRows.length) / (totalWos * 2)) * 100 : 0;
-  const cats = [
-    ['1st 50% Done', firstDoneRows.length, '#60a5fa'],
-    ['1st 50% Inprogress', firstInProgressRows.length, '#f97316'],
-    ['2nd 50% Done', secondDoneRows.length, '#9ca3af'],
-    ['Pending Handover', pendingRows.length, '#fbbf24'],
-    ['Total', totalWos, '#2563eb']
+  const linkGroups = [...groups.values()];
+  const pick = (g, fields, fallback='') => {
+    for (const r of g.rows) {
+      const v = executiveRawValue(r, fields, fallback);
+      if (String(v || '').trim()) return v;
+    }
+    return fallback;
+  };
+  const groupCount = arr => arr.length;
+  const groupAmount = arr => sum((arr || []).map(g => g.amount || 0));
+
+  const firstSubmitted = linkGroups.filter(g => isSubmitted(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
+  const firstInProgress = linkGroups.filter(g => isInProgress(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
+  const firstNotStarted = linkGroups.filter(g => isNotStarted(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
+  const secondSubmitted = linkGroups.filter(g => isSubmitted(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
+  const secondNotStarted = linkGroups.filter(g => isNotStarted(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
+  const secondUnderPrep = linkGroups.filter(g => isUnderPrep(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
+  const sorCreatedGroups = linkGroups.filter(g => sorCreated(pick(g, ['SOR Status.1','SOR Status'])));
+
+  const totalSorCreatedCount = groupCount(sorCreatedGroups);
+  const totalSorCreatedAmount = groupAmount(sorCreatedGroups);
+  const chartCats = [
+    ['Total Invoiced (Submitted)', groupCount(firstSubmitted), groupAmount(firstSubmitted), '#60a5fa'],
+    ['1st 50% (In progress)', groupCount(firstInProgress), groupAmount(firstInProgress), '#f97316'],
+    ['1st 50% (Not Start)', groupCount(firstNotStarted), groupAmount(firstNotStarted), '#9ca3af'],
+    ['2nd 50% (Submitted)', groupCount(secondSubmitted), groupAmount(secondSubmitted), '#fbbf24'],
+    ['2nd 50% (Not Started)', groupCount(secondNotStarted), groupAmount(secondNotStarted), '#22c55e'],
+    ['2nd 50% (Under Preparation)', groupCount(secondUnderPrep), groupAmount(secondUnderPrep), '#a855f7']
   ];
-  const totalCat = Math.max(1, cats.reduce((a,c)=>a+Number(c[1]||0),0));
+  const totalChartCount = Math.max(1, chartCats.reduce((a,c)=>a+Number(c[1]||0),0));
   let deg = 0;
-  const stops = cats.map(c => { const start=deg; deg += (Number(c[1]||0)/totalCat)*360; return [start,deg]; });
+  const stops = chartCats.map(c => { const start=deg; deg += (Number(c[1]||0)/totalChartCount)*360; return [start,deg]; });
+  const pct = c => totalChartCount ? ((Number(c||0)/totalChartCount)*100) : 0;
+  const completionRate = totalSorCreatedCount ? (groupCount(firstSubmitted) / totalSorCreatedCount) * 100 : 0;
+
+  const tableRows = [
+    ['Total Invoiced<br>(Submitted)', groupCount(firstSubmitted), groupAmount(firstSubmitted)],
+    ['1st 50%_(In progress)', groupCount(firstInProgress), groupAmount(firstInProgress)],
+    ['1st 50%_(Not Start)', groupCount(firstNotStarted), groupAmount(firstNotStarted)],
+    ['2nd 50%_(Submitted)', groupCount(secondSubmitted), groupAmount(secondSubmitted)],
+    ['2nd 50%_(Not Started)', groupCount(secondNotStarted), groupAmount(secondNotStarted)],
+    ['2nd 50%_(Under Preparation)', groupCount(secondUnderPrep), groupAmount(secondUnderPrep)]
+  ];
+
   host.innerHTML = `<div class="wo-billing-summary">
     <div class="wo-billing-box">
       <div class="wo-billing-head">FTTH Invoicing Executive Dashboard</div>
       <div class="wo-metrics-grid">
-        <div class="wo-metric blue"><span>Total Invoiced (SAR)</span><b>${fmtMoney(totalInvoiced)}</b></div>
-        <div class="wo-metric green"><span>1st 50% Done</span><b>${fmtInt(firstDoneRows.length)}</b></div>
-        <div class="wo-metric red"><span>1st 50% Inprogress</span><b>${fmtInt(firstInProgressRows.length)}</b></div>
-        <div class="wo-metric orange"><span>2nd 50% Done</span><b>${fmtInt(secondDoneRows.length)}</b></div>
+        <div class="wo-metric blue"><span>Total Invoiced (SAR)</span><b>${fmtMoney(groupAmount(firstSubmitted))}</b></div>
+        <div class="wo-metric green"><span>1st 50% Done</span><b>${fmtInt(groupCount(firstSubmitted))}</b></div>
+        <div class="wo-metric red"><span>1st 50% Inprogress</span><b>${fmtInt(groupCount(firstInProgress))}</b></div>
+        <div class="wo-metric orange"><span>2nd 50% Done</span><b>${fmtInt(groupCount(secondSubmitted))}</b></div>
       </div>
-      <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
-        <tr><td>1st 50% Done</td><td>${fmtInt(firstDoneRows.length)}</td><td>${fmtMoney(amount(firstDoneRows))}</td></tr>
-        <tr><td>1st 50% Inprogress</td><td>${fmtInt(firstInProgressRows.length)}</td><td>${fmtMoney(amount(firstInProgressRows))}</td></tr>
-        <tr><td>2nd 50% Done</td><td>${fmtInt(secondDoneRows.length)}</td><td>${fmtMoney(amount(secondDoneRows))}</td></tr>
-        <tr><td>Pending Handover</td><td>${fmtInt(pendingRows.length)}</td><td>${fmtMoney(amount(pendingRows))}</td></tr>
-        <tr><td><b>Total</b></td><td><b>${fmtInt(totalWos)}</b></td><td><b>${fmtMoney(amount(rows))}</b></td></tr>
+      <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Link Code Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
+        ${tableRows.map(r=>`<tr><td><b>${r[0]}</b></td><td><b>${fmtInt(r[1])}</b></td><td><b>${fmtMoney(r[2])} ر.س</b></td></tr>`).join('')}
+        <tr><td style="color:#7c3aad;font-size:18px"><b>Total SOR Created</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalSorCreatedCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalSorCreatedAmount)} ر.س</b></td></tr>
       </tbody></table>
     </div>
     <div class="wo-billing-box">
       <div class="wo-billing-head">Invoicing Distribution</div>
       <div class="wo-billing-chart">
-        <div class="wo-donut" style="--p1:${stops[0][1]}deg;--p2:${stops[1][1]}deg;--p3:${stops[2][1]}deg;--p4:${stops[3][1]}deg;"><div class="wo-donut-center">${fmtInt(totalWos)}<br><span style="font-size:11px">Work Orders</span></div></div>
-        <div class="wo-legend">${cats.map(c=>`<div><i style="background:${c[2]}"></i>${escapeHtml(c[0])}: <b>${fmtInt(c[1])}</b></div>`).join('')}</div>
+        <div class="wo-donut-wrap">
+          <div class="wo-donut" style="--p1:${stops[0][1]}deg;--p2:${stops[1][1]}deg;--p3:${stops[2][1]}deg;--p4:${stops[3][1]}deg;--p5:${stops[4][1]}deg;"><div class="wo-donut-center">${fmtInt(totalSorCreatedCount || linkGroups.length)}<br><span style="font-size:11px">Link Codes</span></div></div>
+          ${chartCats.map((c,i)=> c[1] ? `<div class="wo-pct-label l${i+1}">${fmtPct(pct(c[1]))}</div>` : '').join('')}
+        </div>
+        <div class="wo-legend">${chartCats.map(c=>`<div><i style="background:${c[3]}"></i>${escapeHtml(c[0])}: <b>${fmtInt(c[1])}</b> <span style="color:#64748b">(${fmtPct(pct(c[1]))})</span></div>`).join('')}</div>
       </div>
     </div>
     <div class="wo-billing-box">
       <div class="wo-billing-head">Executive PMO Insights</div>
       <div class="wo-insight">
-        <div class="wo-insight-card blue">Total Work Orders<span class="value">${fmtInt(totalWos)}</span></div>
+        <div class="wo-insight-card blue">Total SOR Created<span class="value">${fmtInt(totalSorCreatedCount)}</span></div>
         <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
-        <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(invoiceExposure)} SAR</span></div>
+        <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(groupAmount(firstSubmitted))} SAR</span></div>
       </div>
     </div>
   </div>`;
