@@ -6521,11 +6521,11 @@ function renderWoBillingHandoverReport(rows) {
   if (!table) return;
   rows = rows || [];
   const headers = [
-    'Link Code', 'Work Order', 'Region', 'City', 'District', 'implementation update', 'SOR Status',
+    'Link Code', 'Work Order', 'Region', 'City', 'District', 'implementation update', 'SOR Status', 'SOR Reference Number',
     'First 50% status', 'Second 50% status', 'PAT Status', 'Handover O&M _Status', 'Handover Consultant _Status'
   ];
   if (!rows.length) {
-    table.innerHTML = '<thead><tr>' + headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody><tr><td colspan="12" class="empty">No records found under current filters / Smart Bulk Filter.</td></tr></tbody>';
+    table.innerHTML = '<thead><tr>' + headers.map(h => `<th>${escapeHtml(h)}</th>`).join('') + '</tr></thead><tbody><tr><td colspan="13" class="empty">No records found under current filters / Smart Bulk Filter.</td></tr></tbody>';
     return;
   }
   const htmlRows = rows.map(r => {
@@ -6537,6 +6537,7 @@ function renderWoBillingHandoverReport(rows) {
       r.district || executiveRawValue(r, ['District','WO Districts']),
       executiveImplementationUpdate(r),
       executiveRawValue(r, ['SOR Status.1','SOR Status'], r.sorStatus || ''),
+      executiveRawValue(r, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR Ref','SOR Number','SOR No','SOR ID'], r.sorReferenceNumber || ''),
       executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || ''),
       executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']),
       executiveRawValue(r, ['PAT Status']),
@@ -6560,6 +6561,7 @@ function getWoBillingHandoverExportRows() {
     'District': r.district || executiveRawValue(r, ['District','WO Districts']),
     'implementation update': executiveImplementationUpdate(r) || '',
     'SOR Status': executiveRawValue(r, ['SOR Status.1','SOR Status'], r.sorStatus || ''),
+    'SOR Reference Number': executiveRawValue(r, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR Ref','SOR Number','SOR No','SOR ID'], r.sorReferenceNumber || ''),
     'First 50% status': executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || ''),
     'Second 50% status': executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']),
     'PAT Status': executiveRawValue(r, ['PAT Status']),
