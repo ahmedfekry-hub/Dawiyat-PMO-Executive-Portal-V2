@@ -1825,6 +1825,62 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   .orange-report-title{font-size:24px;}
 }
 
+
+
+  /* V5.8.13 WO Billing Executive Summary */
+  .wo-billing-summary {
+    margin: 14px 0 16px;
+    display:grid;
+    grid-template-columns: 1.05fr 1fr .8fr;
+    gap:14px;
+    align-items:stretch;
+  }
+  .wo-billing-box {
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:linear-gradient(135deg,#ffffff 0%,#f8fbff 100%);
+    box-shadow:var(--shadow);
+    padding:14px 16px;
+    overflow:hidden;
+  }
+  .wo-billing-head {
+    background:#0f172a;
+    color:#fff;
+    font-weight:900;
+    text-align:center;
+    padding:8px 10px;
+    margin:-14px -16px 12px;
+    letter-spacing:.02em;
+  }
+  .wo-metrics-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+  .wo-metric { border-radius:12px; padding:10px; color:#fff; text-align:center; min-height:72px; }
+  .wo-metric b { display:block; font-size:20px; line-height:1.1; margin-top:5px; }
+  .wo-metric span { display:block; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.04em; }
+  .wo-metric.blue { background:#1d4ed8; }
+  .wo-metric.green { background:#16a34a; }
+  .wo-metric.red { background:#dc2626; }
+  .wo-metric.orange { background:#ea580c; }
+  .wo-billing-mini-table { width:100%; border-collapse:collapse; }
+  .wo-billing-mini-table th { background:#0f172a; color:#fff; position:static; font-size:11px; text-align:center; }
+  .wo-billing-mini-table td { font-size:12px; text-align:center; padding:7px 6px; }
+  .wo-billing-chart { display:flex; align-items:center; justify-content:center; min-height:210px; }
+  .wo-donut { width:170px; height:170px; border-radius:50%; position:relative; background:conic-gradient(#60a5fa 0deg,#60a5fa var(--p1),#f97316 var(--p1),#f97316 var(--p2),#9ca3af var(--p2),#9ca3af var(--p3),#fbbf24 var(--p3),#fbbf24 var(--p4),#2563eb var(--p4),#2563eb 360deg); box-shadow:0 10px 24px rgba(15,23,42,.18); }
+  .wo-donut::after { content:''; position:absolute; inset:42px; border-radius:50%; background:#fff; box-shadow:inset 0 0 0 1px #e5e7eb; }
+  .wo-donut-center { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; z-index:1; text-align:center; font-weight:900; color:#0f172a; }
+  .wo-insight { display:grid; gap:10px; }
+  .wo-insight-card { border-radius:12px; padding:12px; color:#fff; text-align:center; font-weight:900; }
+  .wo-insight-card.blue { background:#1d4ed8; }
+  .wo-insight-card.green { background:#16a34a; }
+  .wo-insight-card.orange { background:#ea580c; }
+  .wo-insight-card .value { font-size:22px; display:block; margin-top:4px; }
+  .wo-legend { display:grid; gap:6px; font-size:12px; color:#475569; margin-left:16px; }
+  .wo-legend i { width:10px; height:10px; display:inline-block; border-radius:3px; margin-right:6px; }
+  body.dark-ui .wo-billing-box { background:linear-gradient(180deg,#13243b 0%,#0d1829 100%) !important; border-color:#2b4265 !important; }
+  body.dark-ui .wo-donut::after { background:#0d1829; border-color:#2b4265; }
+  body.dark-ui .wo-donut-center { color:#eaf2ff; }
+  body.dark-ui .wo-legend { color:#cbd5e1; }
+  @media(max-width:1100px){ .wo-billing-summary{grid-template-columns:1fr;} .wo-metrics-grid{grid-template-columns:repeat(2,1fr);} }
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -2271,6 +2327,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
       <div class="report-section-card">
         <div class="report-title"><h3>WO Billing & Handover Status Report</h3><span class="report-tag">Filter Linked / Smart Bulk</span></div>
         <div class="subtle">This report is linked to all dashboard filters and the Smart Bulk Filter. It displays Link Code, Work Order, implementation update, SOR, invoice, PAT, and handover status fields from the uploaded work order data.</div>
+        <div id="wo-billing-executive-summary"></div>
         <div class="action-row wo-status-export-row" style="margin:10px 0 12px;"><button class="btn secondary" type="button" id="reports-wo-status-export-excel" onclick="exportWoBillingHandoverReportExcel()">Export Excel</button></div>
         <div class="table-wrap"><table id="reports-wo-billing-handover-table"></table></div>
       </div>
@@ -6516,7 +6573,81 @@ function executiveImplementationUpdate(row) {
   if (/^(0|1|0\.0|1\.0)$/i.test(String(v || '').trim())) return '';
   return v;
 }
+
+function woBillingStatusNorm(v) { return String(v || '').trim().toLowerCase(); }
+function woBillingIsDone(v) {
+  const s = woBillingStatusNorm(v);
+  return ['submitted','done','completed','complete','closed','approved','accepted','paid','created'].includes(s);
+}
+function woBillingIsInProgress(v) {
+  const s = woBillingStatusNorm(v);
+  return s.includes('progress') || s.includes('preparation') || s.includes('review') || s.includes('clearing');
+}
+function renderWoBillingExecutiveSummary(rows) {
+  const host = document.getElementById('wo-billing-executive-summary');
+  if (!host) return;
+  rows = rows || [];
+  if (!rows.length) { host.innerHTML = ''; return; }
+  const totalWos = new Set(rows.map(r => r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO'])).filter(Boolean)).size;
+  const firstDoneRows = rows.filter(r => woBillingIsDone(executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || '')));
+  const firstInProgressRows = rows.filter(r => !woBillingIsDone(executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || '')) && woBillingIsInProgress(executiveRawValue(r, ['SOR Status.1','SOR Status'], r.sorStatus || '')));
+  const secondDoneRows = rows.filter(r => woBillingIsDone(executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
+  const pendingRows = rows.filter(r => {
+    const om = executiveRawValue(r, ['Handover O&M _Status','Handover O&M Status','Handover OM Status']);
+    const con = executiveRawValue(r, ['Handover Consultant _Status','Handover Consultant Status']);
+    return !(woBillingIsDone(om) && woBillingIsDone(con));
+  });
+  const amount = arr => sum((arr || []).map(r => effectiveCost(r)));
+  const totalInvoiced = amount(firstDoneRows);
+  const invoiceExposure = totalInvoiced;
+  const completionRate = totalWos ? ((firstDoneRows.length + secondDoneRows.length) / (totalWos * 2)) * 100 : 0;
+  const cats = [
+    ['1st 50% Done', firstDoneRows.length, '#60a5fa'],
+    ['1st 50% Inprogress', firstInProgressRows.length, '#f97316'],
+    ['2nd 50% Done', secondDoneRows.length, '#9ca3af'],
+    ['Pending Handover', pendingRows.length, '#fbbf24'],
+    ['Total', totalWos, '#2563eb']
+  ];
+  const totalCat = Math.max(1, cats.reduce((a,c)=>a+Number(c[1]||0),0));
+  let deg = 0;
+  const stops = cats.map(c => { const start=deg; deg += (Number(c[1]||0)/totalCat)*360; return [start,deg]; });
+  host.innerHTML = `<div class="wo-billing-summary">
+    <div class="wo-billing-box">
+      <div class="wo-billing-head">FTTH Invoicing Executive Dashboard</div>
+      <div class="wo-metrics-grid">
+        <div class="wo-metric blue"><span>Total Invoiced (SAR)</span><b>${fmtMoney(totalInvoiced)}</b></div>
+        <div class="wo-metric green"><span>1st 50% Done</span><b>${fmtInt(firstDoneRows.length)}</b></div>
+        <div class="wo-metric red"><span>1st 50% Inprogress</span><b>${fmtInt(firstInProgressRows.length)}</b></div>
+        <div class="wo-metric orange"><span>2nd 50% Done</span><b>${fmtInt(secondDoneRows.length)}</b></div>
+      </div>
+      <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
+        <tr><td>1st 50% Done</td><td>${fmtInt(firstDoneRows.length)}</td><td>${fmtMoney(amount(firstDoneRows))}</td></tr>
+        <tr><td>1st 50% Inprogress</td><td>${fmtInt(firstInProgressRows.length)}</td><td>${fmtMoney(amount(firstInProgressRows))}</td></tr>
+        <tr><td>2nd 50% Done</td><td>${fmtInt(secondDoneRows.length)}</td><td>${fmtMoney(amount(secondDoneRows))}</td></tr>
+        <tr><td>Pending Handover</td><td>${fmtInt(pendingRows.length)}</td><td>${fmtMoney(amount(pendingRows))}</td></tr>
+        <tr><td><b>Total</b></td><td><b>${fmtInt(totalWos)}</b></td><td><b>${fmtMoney(amount(rows))}</b></td></tr>
+      </tbody></table>
+    </div>
+    <div class="wo-billing-box">
+      <div class="wo-billing-head">Invoicing Distribution</div>
+      <div class="wo-billing-chart">
+        <div class="wo-donut" style="--p1:${stops[0][1]}deg;--p2:${stops[1][1]}deg;--p3:${stops[2][1]}deg;--p4:${stops[3][1]}deg;"><div class="wo-donut-center">${fmtInt(totalWos)}<br><span style="font-size:11px">Work Orders</span></div></div>
+        <div class="wo-legend">${cats.map(c=>`<div><i style="background:${c[2]}"></i>${escapeHtml(c[0])}: <b>${fmtInt(c[1])}</b></div>`).join('')}</div>
+      </div>
+    </div>
+    <div class="wo-billing-box">
+      <div class="wo-billing-head">Executive PMO Insights</div>
+      <div class="wo-insight">
+        <div class="wo-insight-card blue">Total Work Orders<span class="value">${fmtInt(totalWos)}</span></div>
+        <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
+        <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(invoiceExposure)} SAR</span></div>
+      </div>
+    </div>
+  </div>`;
+}
+
 function renderWoBillingHandoverReport(rows) {
+  renderWoBillingExecutiveSummary(rows || []);
   const table = document.getElementById('reports-wo-billing-handover-table');
   if (!table) return;
   rows = rows || [];
