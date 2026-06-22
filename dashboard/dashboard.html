@@ -6605,7 +6605,10 @@ function renderWoBillingExecutiveSummary(rows) {
 
   const linkOf = r => String(r.linkCode || executiveRawValue(r, ['Link Code']) || '').trim();
   const woOf = r => String(r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO']) || '').trim();
-  const keyOf = r => linkOf(r) || ('WO:' + woOf(r));
+  // Executive PMO Link-Code counters must follow the same dashboard rule:
+  // one valid Link Code = one record. Work Orders are never used as Link-Code fallback here,
+  // otherwise rows without Link Code inflate totals above the dashboard total (e.g. 365).
+  const linkKeyOf = r => validText(linkOf(r)) ? linkOf(r) : '';
   const firstStatusOf = r => executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || '');
   const secondStatusOf = r => executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']);
   const invoice50AmountOf = r => parseNum(executiveRawValue(r, ['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount','1st 50% Invoice Cost Amount','First 50% Invoice Cost Amount'], 0)) || 0;
@@ -6613,7 +6616,7 @@ function renderWoBillingExecutiveSummary(rows) {
   const handoverOmOf = r => executiveRawValue(r, ['Handover O&M _Status','Handover O&M Status','Handover OM Status'], '');
   const handoverConsultOf = r => executiveRawValue(r, ['Handover Consultant _Status','Handover Consultant Status'], '');
 
-  function distinctLinkCount(arr){ return unique((arr || []).map(r => keyOf(r)).filter(Boolean)).length; }
+  function distinctLinkCount(arr){ return unique((arr || []).map(r => linkKeyOf(r)).filter(Boolean)).length; }
   function amountOf(arr){ return sum((arr || []).map(r => effectiveCost(r) || 0)); }
   function invoiceAmountOf(arr){ return sum((arr || []).map(r => invoice50AmountOf(r) || 0)); }
   function topStatusSummary(arr, fieldFn){
@@ -6623,9 +6626,47 @@ function renderWoBillingExecutiveSummary(rows) {
       if (!validText(v)) return;
       const k = v;
       if (!counts.has(k)) counts.set(k, new Set());
-      counts.get(k).add(keyOf(r));
+      const lk = linkKeyOf(r); if (lk) counts.get(k).add(lk);
     });
     const sorted = [...counts.entries()].map(([k,s])=>[k,s.size]).sort((a,b)=>b[1]-a[1]);
+    if (!sorted.length) return 'No active status';
+    return sorted.slice(0,2).map(x=>`${escapeHtml(x[0])}: ${fmtInt(x[1])}`).join(' | ');
+  }
+
+  function statusRank(v){
+    const x = norm(v);
+    if (/closed|completed|approved|accepted|submitted|done/.test(x) && !/not|reject|hold|pending/.test(x)) return 5;
+    if (/under clearing|clearing remarks|under preparation|preparation|under review/.test(x)) return 4;
+    if (/in progress|inprogress|progress/.test(x)) return 3;
+    if (/partial|pending/.test(x)) return 2;
+    if (/not start|not started|notstart|not create|not created/.test(x)) return 1;
+    return 0;
+  }
+
+  function linkLevelStatusEntries(arr, fieldFn){
+    const byLink = new Map();
+    (arr || []).forEach(r => {
+      const lk = linkKeyOf(r);
+      if (!lk) return;
+      const raw = String(fieldFn(r) || '').trim();
+      if (!validText(raw)) return;
+      const rank = statusRank(raw);
+      const prev = byLink.get(lk);
+      if (!prev || rank > prev.rank) byLink.set(lk, {status: raw, rank});
+    });
+    return [...byLink.values()];
+  }
+
+  function linkLevelStatusCount(arr, fieldFn){
+    return linkLevelStatusEntries(arr, fieldFn).length;
+  }
+
+  function topLinkLevelStatusSummary(arr, fieldFn){
+    const counts = new Map();
+    linkLevelStatusEntries(arr, fieldFn).forEach(x => {
+      counts.set(x.status, (counts.get(x.status) || 0) + 1);
+    });
+    const sorted = [...counts.entries()].sort((a,b)=>b[1]-a[1]);
     if (!sorted.length) return 'No active status';
     return sorted.slice(0,2).map(x=>`${escapeHtml(x[0])}: ${fmtInt(x[1])}`).join(' | ');
   }
@@ -6657,8 +6698,8 @@ function renderWoBillingExecutiveSummary(rows) {
   });
   const totalSorCreatedCount = sorRefs.size;
 
-  const handoverOmCount = distinctLinkCount(rows.filter(r => validText(handoverOmOf(r))));
-  const handoverConsultCount = distinctLinkCount(rows.filter(r => validText(handoverConsultOf(r))));
+  const handoverOmCount = linkLevelStatusCount(rows, handoverOmOf);
+  const handoverConsultCount = linkLevelStatusCount(rows, handoverConsultOf);
 
   const chartCats = [
     ['Total Invoiced (Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount, '#60a5fa'],
@@ -6715,8 +6756,8 @@ function renderWoBillingExecutiveSummary(rows) {
         <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
         <div class="wo-insight-card teal">Total Amount (SAR)<span class="value">${fmtMoney(totalAmountAll)} SAR</span></div>
         <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(totalSubmittedInvoiceAmount)} SAR</span></div>
-        <div class="wo-insight-card purple">Handover O&M Link Codes<span class="value">${fmtInt(handoverOmCount)}</span><small>${topStatusSummary(rows, handoverOmOf)}</small></div>
-        <div class="wo-insight-card blue">Handover Consultant Link Codes<span class="value">${fmtInt(handoverConsultCount)}</span><small>${topStatusSummary(rows, handoverConsultOf)}</small></div>
+        <div class="wo-insight-card purple">Handover O&M Link Codes<span class="value">${fmtInt(handoverOmCount)}</span><small>${topLinkLevelStatusSummary(rows, handoverOmOf)}</small></div>
+        <div class="wo-insight-card blue">Handover Consultant Link Codes<span class="value">${fmtInt(handoverConsultCount)}</span><small>${topLinkLevelStatusSummary(rows, handoverConsultOf)}</small></div>
       </div>
     </div>
   </div>`;
