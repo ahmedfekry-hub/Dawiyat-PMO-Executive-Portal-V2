@@ -588,3 +588,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Total SOR Created now counts valid SOR Reference Number values in the active filtered scope.
 - Total Amount (SAR) now sums effective WO Cost with Cost fallback from the same filtered rows.
 - Added Handover O&M and Handover Consultant Link Code counts in Executive PMO Insights.
+
+
+## V5.8.19 WO Billing LinkCode Count Logic Fixed
+- Executive PMO Insights now uses one valid Link Code = one record.
+- Work Orders are no longer used as fallback for Link Code counters.
+- Handover O&M and Handover Consultant Link Code counts are calculated at Link-Code level with one status per Link Code.
