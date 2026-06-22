@@ -1884,6 +1884,10 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   body.dark-ui .wo-legend { color:#cbd5e1; }
   @media(max-width:1100px){ .wo-billing-summary{grid-template-columns:1fr;} .wo-metrics-grid{grid-template-columns:repeat(2,1fr);} }
 
+
+.wo-insight-card.purple{background:linear-gradient(135deg,#6d28d9,#8b5cf6)!important;color:#fff!important;}
+.wo-insight-card.teal{background:linear-gradient(135deg,#0f766e,#14b8a6)!important;color:#fff!important;}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -6672,7 +6676,7 @@ function renderWoBillingExecutiveSummary(rows) {
       </div>
       <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Link Code Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
         ${tableRows.map(r=>`<tr><td><b>${r[0]}</b></td><td><b>${fmtInt(r[1])}</b></td><td><b>${fmtMoney(r[2])} ر.س</b></td></tr>`).join('')}
-        <tr><td style="color:#7c3aad;font-size:18px"><b>Total SOR Created</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalSorCreatedCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalSorCreatedAmount)} ر.س</b></td></tr>
+        <tr><td style="color:#7c3aad;font-size:18px"><b>Total Amount (SAR)</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalSorCreatedCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalSorCreatedAmount)} ر.س</b></td></tr>
       </tbody></table>
     </div>
     <div class="wo-billing-box">
@@ -6688,8 +6692,10 @@ function renderWoBillingExecutiveSummary(rows) {
     <div class="wo-billing-box">
       <div class="wo-billing-head">Executive PMO Insights</div>
       <div class="wo-insight">
-        <div class="wo-insight-card blue">Total SOR Created<span class="value">${fmtInt(totalSorCreatedCount)}</span></div>
+        <div class="wo-insight-card blue">Total SOR Created<span class="value">${fmtInt(groupCount(firstSubmitted))}</span></div>
+        <div class="wo-insight-card purple">Total Link Code Count<span class="value">${fmtInt(totalSorCreatedCount)}</span></div>
         <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
+        <div class="wo-insight-card teal">Total Amount (SAR)<span class="value">${fmtMoney(totalSorCreatedAmount)} SAR</span></div>
         <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(totalSubmittedInvoiceAmount)} SAR</span></div>
       </div>
     </div>
