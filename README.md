@@ -580,3 +580,11 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Total Link Code Count now shows the active filtered Link Code count.
 - Total Amount (SAR) now uses the active WO Cost/effective Cost fallback used across the dashboard.
 - Total Invoiced (SAR) remains the total amount for 1st 50% Submitted only.
+
+
+## V5.8.18 WO Billing Filter Logic Fixed
+- Unified FTTH Invoicing Executive Dashboard, Invoicing Distribution, Executive PMO Insights and WO Billing table calculations to use the same final filtered dataset.
+- Total Invoiced (SAR) now equals only the sum of 1st 50% Submitted invoice amount.
+- Total SOR Created now counts valid SOR Reference Number values in the active filtered scope.
+- Total Amount (SAR) now sums effective WO Cost with Cost fallback from the same filtered rows.
+- Added Handover O&M and Handover Consultant Link Code counts in Executive PMO Insights.
