@@ -6597,85 +6597,90 @@ function renderWoBillingExecutiveSummary(rows) {
   if (!rows.length) { host.innerHTML = ''; return; }
 
   function norm(v){ return String(v == null ? '' : v).trim().toLowerCase().replace(/[_-]+/g,' ').replace(/\s+/g,' '); }
+  function validText(v){ const x=norm(v); return x && !['n/a','na','none','null','-','—',''].includes(x); }
   function isSubmitted(v){ const x=norm(v); return /submitted|done|completed|approved|accepted/.test(x) && !/not|reject|hold|pending/.test(x); }
   function isInProgress(v){ const x=norm(v); return /in progress|inprogress|under process|progress/.test(x); }
   function isNotStarted(v){ const x=norm(v); return /not start|not started|notstart|not create|not created/.test(x); }
   function isUnderPrep(v){ const x=norm(v); return /under preparation|preparation|under clearing|clearing remarks|under review/.test(x); }
-  function sorCreated(v){ const x=norm(v); return /created|submitted|approved/.test(x) && !/not created|not create|not start|n\/a|na/.test(x); }
 
-  // Group by Link Code first because the requested report is Link-Code-count based.
-  const groups = new Map();
-  (rows || []).forEach(r => {
-    const link = String(r.linkCode || executiveRawValue(r, ['Link Code']) || '').trim();
-    const wo = String(r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO']) || '').trim();
-    const key = link || ('WO:' + wo);
-    if (!key || key === 'WO:') return;
-    if (!groups.has(key)) groups.set(key, {key, link, rows:[], amount:0, invoice50Amount:0});
-    const g = groups.get(key);
-    g.rows.push(r);
-    g.amount += effectiveCost(r) || 0;
-    // Invoice amount must come from the dedicated 1st 50% invoice amount field.
-    // This prevents Total Invoiced from incorrectly using the full WO/SOR amount.
-    g.invoice50Amount += parseNum(executiveRawValue(r, ['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount','1st 50% Invoice Cost Amount','First 50% Invoice Cost Amount'], 0)) || 0;
-  });
-  const linkGroups = [...groups.values()];
-  const pick = (g, fields, fallback='') => {
-    for (const r of g.rows) {
-      const v = executiveRawValue(r, fields, fallback);
-      if (String(v || '').trim()) return v;
-    }
-    return fallback;
-  };
-  const groupCount = arr => arr.length;
-  const groupAmount = arr => sum((arr || []).map(g => g.amount || 0));
-  const groupInvoice50Amount = arr => sum((arr || []).map(g => g.invoice50Amount || 0));
+  const linkOf = r => String(r.linkCode || executiveRawValue(r, ['Link Code']) || '').trim();
+  const woOf = r => String(r.workOrder || executiveRawValue(r, ['Work Order','WO ID','WO']) || '').trim();
+  const keyOf = r => linkOf(r) || ('WO:' + woOf(r));
+  const firstStatusOf = r => executiveRawValue(r, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'], r.invoice50 || '');
+  const secondStatusOf = r => executiveRawValue(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']);
+  const invoice50AmountOf = r => parseNum(executiveRawValue(r, ['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount','1st 50% Invoice Cost Amount','First 50% Invoice Cost Amount'], 0)) || 0;
+  const sorRefOf = r => executiveRawValue(r, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR No'], '');
+  const handoverOmOf = r => executiveRawValue(r, ['Handover O&M _Status','Handover O&M Status','Handover OM Status'], '');
+  const handoverConsultOf = r => executiveRawValue(r, ['Handover Consultant _Status','Handover Consultant Status'], '');
 
-  const firstSubmitted = linkGroups.filter(g => isSubmitted(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
-  const firstInProgress = linkGroups.filter(g => isInProgress(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
-  const firstNotStarted = linkGroups.filter(g => isNotStarted(pick(g, ['First 50% status','1st 50 Invoice Status','First 50 Invoice Status'])));
-  const secondSubmitted = linkGroups.filter(g => isSubmitted(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
-  const secondNotStarted = linkGroups.filter(g => isNotStarted(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
-  const secondUnderPrep = linkGroups.filter(g => isUnderPrep(pick(g, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status'])));
-  const sorCreatedGroups = linkGroups.filter(g => sorCreated(pick(g, ['SOR Status.1','SOR Status'])));
-  const sorRefGroups = linkGroups.filter(g => {
-    const ref = String(pick(g, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR No'], '') || '').trim();
-    return ref && !['n/a','na','none','null','-','—'].includes(ref.toLowerCase());
-  });
-  const sorRefSet = new Set();
-  sorRefGroups.forEach(g => {
-    const ref = String(pick(g, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR No'], '') || '').trim();
-    if (ref && !['n/a','na','none','null','-','—'].includes(ref.toLowerCase())) sorRefSet.add(ref);
-  });
+  function distinctLinkCount(arr){ return unique((arr || []).map(r => keyOf(r)).filter(Boolean)).length; }
+  function amountOf(arr){ return sum((arr || []).map(r => effectiveCost(r) || 0)); }
+  function invoiceAmountOf(arr){ return sum((arr || []).map(r => invoice50AmountOf(r) || 0)); }
+  function topStatusSummary(arr, fieldFn){
+    const counts = new Map();
+    (arr || []).forEach(r => {
+      const v = String(fieldFn(r) || '').trim();
+      if (!validText(v)) return;
+      const k = v;
+      if (!counts.has(k)) counts.set(k, new Set());
+      counts.get(k).add(keyOf(r));
+    });
+    const sorted = [...counts.entries()].map(([k,s])=>[k,s.size]).sort((a,b)=>b[1]-a[1]);
+    if (!sorted.length) return 'No active status';
+    return sorted.slice(0,2).map(x=>`${escapeHtml(x[0])}: ${fmtInt(x[1])}`).join(' | ');
+  }
 
-  // Total SOR Created = count of SOR Reference Number values.
-  // Total Link Code Count = all active Link Codes in the current filtered scope.
-  // Total Amount = active WO Cost, with the same effective cost fallback used across the dashboard.
-  const totalSorCreatedCount = sorRefSet.size || groupCount(sorRefGroups);
-  const totalLinkCodeCount = groupCount(linkGroups);
-  const totalAmountAll = groupAmount(linkGroups);
+  // Use the exact same filtered rows received from renderExecutiveReports/renderAll.
+  // Every card, table, chart and insight below is calculated from this single dataset only.
+  const totalLinkCodeCount = distinctLinkCount(rows);
+  const totalAmountAll = amountOf(rows);
+
+  const firstSubmittedRows = rows.filter(r => isSubmitted(firstStatusOf(r)));
+  const firstInProgressRows = rows.filter(r => isInProgress(firstStatusOf(r)));
+  const firstNotStartedRows = rows.filter(r => isNotStarted(firstStatusOf(r)));
+  const secondSubmittedRows = rows.filter(r => isSubmitted(secondStatusOf(r)));
+  const secondNotStartedRows = rows.filter(r => isNotStarted(secondStatusOf(r)));
+  const secondUnderPrepRows = rows.filter(r => isUnderPrep(secondStatusOf(r)));
+
+  const totalSubmittedInvoiceAmount = invoiceAmountOf(firstSubmittedRows);
+  const firstSubmittedCount = distinctLinkCount(firstSubmittedRows);
+  const firstInProgressCount = distinctLinkCount(firstInProgressRows);
+  const firstNotStartedCount = distinctLinkCount(firstNotStartedRows);
+  const secondSubmittedCount = distinctLinkCount(secondSubmittedRows);
+  const secondNotStartedCount = distinctLinkCount(secondNotStartedRows);
+  const secondUnderPrepCount = distinctLinkCount(secondUnderPrepRows);
+
+  const sorRefs = new Set();
+  rows.forEach(r => {
+    const ref = String(sorRefOf(r) || '').trim();
+    if (validText(ref)) sorRefs.add(ref);
+  });
+  const totalSorCreatedCount = sorRefs.size;
+
+  const handoverOmCount = distinctLinkCount(rows.filter(r => validText(handoverOmOf(r))));
+  const handoverConsultCount = distinctLinkCount(rows.filter(r => validText(handoverConsultOf(r))));
+
   const chartCats = [
-    ['Total Invoiced (Submitted)', groupCount(firstSubmitted), groupAmount(firstSubmitted), '#60a5fa'],
-    ['1st 50% (In progress)', groupCount(firstInProgress), groupAmount(firstInProgress), '#f97316'],
-    ['1st 50% (Not Start)', groupCount(firstNotStarted), groupAmount(firstNotStarted), '#9ca3af'],
-    ['2nd 50% (Submitted)', groupCount(secondSubmitted), groupAmount(secondSubmitted), '#fbbf24'],
-    ['2nd 50% (Not Started)', groupCount(secondNotStarted), groupAmount(secondNotStarted), '#22c55e'],
-    ['2nd 50% (Under Preparation)', groupCount(secondUnderPrep), groupAmount(secondUnderPrep), '#a855f7']
+    ['Total Invoiced (Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount, '#60a5fa'],
+    ['1st 50% (In progress)', firstInProgressCount, amountOf(firstInProgressRows), '#f97316'],
+    ['1st 50% (Not Start)', firstNotStartedCount, amountOf(firstNotStartedRows), '#9ca3af'],
+    ['2nd 50% (Submitted)', secondSubmittedCount, amountOf(secondSubmittedRows), '#fbbf24'],
+    ['2nd 50% (Not Started)', secondNotStartedCount, amountOf(secondNotStartedRows), '#22c55e'],
+    ['2nd 50% (Under Preparation)', secondUnderPrepCount, amountOf(secondUnderPrepRows), '#a855f7']
   ];
   const totalChartCount = Math.max(1, chartCats.reduce((a,c)=>a+Number(c[1]||0),0));
   let deg = 0;
   const stops = chartCats.map(c => { const start=deg; deg += (Number(c[1]||0)/totalChartCount)*360; return [start,deg]; });
   const pct = c => totalChartCount ? ((Number(c||0)/totalChartCount)*100) : 0;
-  const completionRate = totalLinkCodeCount ? (groupCount(firstSubmitted) / totalLinkCodeCount) * 100 : 0;
-
-  const totalSubmittedInvoiceAmount = groupInvoice50Amount(firstSubmitted);
+  const completionRate = totalLinkCodeCount ? (firstSubmittedCount / totalLinkCodeCount) * 100 : 0;
 
   const tableRows = [
-    ['Total Invoiced<br>(Submitted)', groupCount(firstSubmitted), totalSubmittedInvoiceAmount],
-    ['1st 50%_(In progress)', groupCount(firstInProgress), groupAmount(firstInProgress)],
-    ['1st 50%_(Not Start)', groupCount(firstNotStarted), groupAmount(firstNotStarted)],
-    ['2nd 50%_(Submitted)', groupCount(secondSubmitted), groupAmount(secondSubmitted)],
-    ['2nd 50%_(Not Started)', groupCount(secondNotStarted), groupAmount(secondNotStarted)],
-    ['2nd 50%_(Under Preparation)', groupCount(secondUnderPrep), groupAmount(secondUnderPrep)]
+    ['Total Invoiced<br>(Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount],
+    ['1st 50%_(In progress)', firstInProgressCount, amountOf(firstInProgressRows)],
+    ['1st 50%_(Not Start)', firstNotStartedCount, amountOf(firstNotStartedRows)],
+    ['2nd 50%_(Submitted)', secondSubmittedCount, amountOf(secondSubmittedRows)],
+    ['2nd 50%_(Not Started)', secondNotStartedCount, amountOf(secondNotStartedRows)],
+    ['2nd 50%_(Under Preparation)', secondUnderPrepCount, amountOf(secondUnderPrepRows)]
   ];
 
   host.innerHTML = `<div class="wo-billing-summary">
@@ -6683,9 +6688,9 @@ function renderWoBillingExecutiveSummary(rows) {
       <div class="wo-billing-head">FTTH Invoicing Executive Dashboard</div>
       <div class="wo-metrics-grid">
         <div class="wo-metric blue"><span>Total Invoiced (SAR)</span><b>${fmtMoney(totalSubmittedInvoiceAmount)}</b></div>
-        <div class="wo-metric green"><span>1st 50% Done</span><b>${fmtInt(groupCount(firstSubmitted))}</b></div>
-        <div class="wo-metric red"><span>1st 50% Inprogress</span><b>${fmtInt(groupCount(firstInProgress))}</b></div>
-        <div class="wo-metric orange"><span>2nd 50% Done</span><b>${fmtInt(groupCount(secondSubmitted))}</b></div>
+        <div class="wo-metric green"><span>1st 50% Done</span><b>${fmtInt(firstSubmittedCount)}</b></div>
+        <div class="wo-metric red"><span>1st 50% Inprogress</span><b>${fmtInt(firstInProgressCount)}</b></div>
+        <div class="wo-metric orange"><span>2nd 50% Done</span><b>${fmtInt(secondSubmittedCount)}</b></div>
       </div>
       <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Link Code Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
         ${tableRows.map(r=>`<tr><td><b>${r[0]}</b></td><td><b>${fmtInt(r[1])}</b></td><td><b>${fmtMoney(r[2])} ر.س</b></td></tr>`).join('')}
@@ -6705,11 +6710,13 @@ function renderWoBillingExecutiveSummary(rows) {
     <div class="wo-billing-box">
       <div class="wo-billing-head">Executive PMO Insights</div>
       <div class="wo-insight">
-        <div class="wo-insight-card blue">Total SOR Created<span class="value">${fmtInt(groupCount(firstSubmitted))}</span></div>
+        <div class="wo-insight-card blue">Total SOR Created<span class="value">${fmtInt(totalSorCreatedCount)}</span></div>
         <div class="wo-insight-card purple">Total Link Code Count<span class="value">${fmtInt(totalLinkCodeCount)}</span></div>
         <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
         <div class="wo-insight-card teal">Total Amount (SAR)<span class="value">${fmtMoney(totalAmountAll)} SAR</span></div>
         <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(totalSubmittedInvoiceAmount)} SAR</span></div>
+        <div class="wo-insight-card purple">Handover O&M Link Codes<span class="value">${fmtInt(handoverOmCount)}</span><small>${topStatusSummary(rows, handoverOmOf)}</small></div>
+        <div class="wo-insight-card blue">Handover Consultant Link Codes<span class="value">${fmtInt(handoverConsultCount)}</span><small>${topStatusSummary(rows, handoverConsultOf)}</small></div>
       </div>
     </div>
   </div>`;
