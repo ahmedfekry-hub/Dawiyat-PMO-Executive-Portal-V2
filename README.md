@@ -616,3 +616,9 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - Renamed the KPI card to Total Invoiced Submitted (SAR).
 - Total Invoiced Stage now uses distinct Link Code count for Submitted 1st 50 status and Total Amount based on WO Cost / Cost.
 - Added Asbuilt Final Amount comparison row under the FTTH Invoicing Executive Dashboard table.
+
+
+## V5.8.30 WO Billing Active Filter Scope Fixed
+- WO Billing FTTH Invoicing Executive Dashboard now uses the active final filtered dataset only.
+- Removed forced Created-scope calculation when SOR Status is All.
+- Selecting SOR Status=Created still works because the global filter already narrows the dataset before the summary is calculated.
