@@ -6939,12 +6939,12 @@ function renderWoBillingExecutiveSummary(rows) {
     return `${parts.join(' | ')}<br><span style="opacity:.9">Total Check: ${fmtInt(total)}</span>`;
   }
 
-  // WO Billing executive summary is intentionally based on the billing-created scope.
-  // If the active filters contain SOR Status = Created rows, use only those rows.
-  // This makes the All-scope view and SOR Status = Created view reconcile for invoice-stage metrics.
-  // If the user explicitly filters to another SOR status with no Created rows, fall back to the active rows.
-  const createdRowsForBilling = rows.filter(r => isSorCreated(r));
-  const billingRows = createdRowsForBilling.length ? createdRowsForBilling : rows;
+  // WO Billing executive summary must always use the SAME final filtered dataset
+  // that feeds the visible WO Billing table and all dashboard filters.
+  // Do NOT force Created rows when SOR Status is All; otherwise the summary stays fixed
+  // as if SOR Status=Created even when no filter is selected.
+  // When the user selects SOR Status=Created, rows is already filtered to Created.
+  const billingRows = rows || [];
 
   const totalLinkCodeCount = distinctLinkCount(billingRows);
   const totalAmountAll = amountOf(billingRows);
