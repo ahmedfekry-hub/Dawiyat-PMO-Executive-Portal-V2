@@ -6819,6 +6819,13 @@ function renderWoBillingExecutiveSummary(rows) {
   function distinctLinkCount(arr){ return unique((arr || []).map(r => linkKeyOf(r)).filter(Boolean)).length; }
   function amountOf(arr){ return sum((arr || []).map(r => effectiveCost(r) || 0)); }
   function invoiceAmountOf(arr){ return sum((arr || []).map(r => invoice50AmountOf(r) || 0)); }
+  function secondRemainingAmountOf(arr){
+    return sum((arr || []).map(r => {
+      const base = Number(effectiveCost(r) || 0);
+      const first = Number(invoice50AmountOf(r) || 0);
+      return Math.max(0, base - first);
+    }));
+  }
   function topStatusSummary(arr, fieldFn){
     const counts = new Map();
     (arr || []).forEach(r => {
@@ -6902,12 +6909,12 @@ function renderWoBillingExecutiveSummary(rows) {
   const handoverConsultCount = linkLevelStatusCount(rows, handoverConsultOf);
 
   const chartCats = [
-    ['Total Invoiced (Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount, '#60a5fa'],
-    ['1st 50% (In progress)', firstInProgressCount, amountOf(firstInProgressRows), '#f97316'],
-    ['1st 50% (Not Start)', firstNotStartedCount, amountOf(firstNotStartedRows), '#9ca3af'],
-    ['2nd 50% (Submitted)', secondSubmittedCount, amountOf(secondSubmittedRows), '#fbbf24'],
-    ['2nd 50% (Not Started)', secondNotStartedCount, amountOf(secondNotStartedRows), '#22c55e'],
-    ['2nd 50% (Under Preparation)', secondUnderPrepCount, amountOf(secondUnderPrepRows), '#a855f7']
+    ['1st 50% (Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount, '#60a5fa'],
+    ['1st 50% (In progress)', firstInProgressCount, invoiceAmountOf(firstInProgressRows), '#f97316'],
+    ['1st 50% (Not Start)', firstNotStartedCount, invoiceAmountOf(firstNotStartedRows), '#9ca3af'],
+    ['2nd 50% (Submitted)', secondSubmittedCount, secondRemainingAmountOf(secondSubmittedRows), '#fbbf24'],
+    ['2nd 50% (Not Started)', secondNotStartedCount, secondRemainingAmountOf(secondNotStartedRows), '#22c55e'],
+    ['2nd 50% (Under Preparation)', secondUnderPrepCount, secondRemainingAmountOf(secondUnderPrepRows), '#a855f7']
   ];
   const totalChartCount = Math.max(1, chartCats.reduce((a,c)=>a+Number(c[1]||0),0));
   let deg = 0;
@@ -6916,12 +6923,13 @@ function renderWoBillingExecutiveSummary(rows) {
   const completionRate = totalLinkCodeCount ? (firstSubmittedCount / totalLinkCodeCount) * 100 : 0;
 
   const tableRows = [
-    ['Total Invoiced<br>(Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount],
-    ['1st 50%_(In progress)', firstInProgressCount, amountOf(firstInProgressRows)],
-    ['1st 50%_(Not Start)', firstNotStartedCount, amountOf(firstNotStartedRows)],
-    ['2nd 50%_(Submitted)', secondSubmittedCount, amountOf(secondSubmittedRows)],
-    ['2nd 50%_(Not Started)', secondNotStartedCount, amountOf(secondNotStartedRows)],
-    ['2nd 50%_(Under Preparation)', secondUnderPrepCount, amountOf(secondUnderPrepRows)]
+    ['Total Invoiced Stage', firstSubmittedCount, amountOf(firstSubmittedRows)],
+    ['1st 50%__(Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount],
+    ['1st 50%__(In progress)', firstInProgressCount, invoiceAmountOf(firstInProgressRows)],
+    ['1st 50%__(Not Start)', firstNotStartedCount, invoiceAmountOf(firstNotStartedRows)],
+    ['2nd 50%__(Submitted)', secondSubmittedCount, secondRemainingAmountOf(secondSubmittedRows)],
+    ['2nd 50%__(Not Started)', secondNotStartedCount, secondRemainingAmountOf(secondNotStartedRows)],
+    ['2nd 50%__(Under Preparation)', secondUnderPrepCount, secondRemainingAmountOf(secondUnderPrepRows)]
   ];
 
   host.innerHTML = `<div class="wo-billing-summary">
