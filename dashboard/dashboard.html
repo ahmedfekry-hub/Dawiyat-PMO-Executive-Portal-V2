@@ -6825,6 +6825,8 @@ function renderWoBillingExecutiveSummary(rows) {
   const handoverOmOf = r => executiveRawValue(r, ['Handover O&M _Status','Handover O&M Status','Handover OM Status'], '');
   const handoverConsultOf = r => executiveRawValue(r, ['Handover Consultant _Status','Handover Consultant Status'], '');
   const asbuiltFinalAmountOf = r => parseNum(executiveRawValue(r, ['Asbuilt Final Amount','As-built Final Amount','AsBuilt Final Amount','As Built Final Amount'], 0)) || 0;
+  const sorStatusOf = r => executiveRawValue(r, ['SOR Status.1','SOR Status','SOR_Status'], r.sorStatus || '');
+  const isSorCreated = r => norm(sorStatusOf(r)) === 'created';
 
   function distinctLinkCount(arr){ return unique((arr || []).map(r => linkKeyOf(r)).filter(Boolean)).length; }
   function amountOf(arr){ return sum((arr || []).map(r => effectiveCost(r) || 0)); }
@@ -6937,21 +6939,27 @@ function renderWoBillingExecutiveSummary(rows) {
     return `${parts.join(' | ')}<br><span style="opacity:.9">Total Check: ${fmtInt(total)}</span>`;
   }
 
-  // Use the exact same filtered rows received from renderExecutiveReports/renderAll.
-  // Every card, table, chart and insight below is calculated from this single dataset only.
-  const totalLinkCodeCount = distinctLinkCount(rows);
-  const totalAmountAll = amountOf(rows);
+  // WO Billing executive summary is intentionally based on the billing-created scope.
+  // If the active filters contain SOR Status = Created rows, use only those rows.
+  // This makes the All-scope view and SOR Status = Created view reconcile for invoice-stage metrics.
+  // If the user explicitly filters to another SOR status with no Created rows, fall back to the active rows.
+  const createdRowsForBilling = rows.filter(r => isSorCreated(r));
+  const billingRows = createdRowsForBilling.length ? createdRowsForBilling : rows;
 
-  const firstSubmittedRows = rows.filter(r => isSubmitted(firstStatusOf(r)));
-  const firstInProgressRows = rows.filter(r => isInProgress(firstStatusOf(r)));
-  const firstNotStartedRows = rows.filter(r => isNotStarted(firstStatusOf(r)));
-  const secondSubmittedRows = rows.filter(r => isSubmitted(secondStatusOf(r)));
-  const secondNotStartedRows = rows.filter(r => isNotStarted(secondStatusOf(r)));
-  const secondUnderPrepRows = rows.filter(r => isUnderPrep(secondStatusOf(r)));
+  const totalLinkCodeCount = distinctLinkCount(billingRows);
+  const totalAmountAll = amountOf(billingRows);
+
+  const firstSubmittedRows = billingRows.filter(r => isSubmitted(firstStatusOf(r)));
+  const firstInProgressRows = billingRows.filter(r => isInProgress(firstStatusOf(r)));
+  const firstNotStartedRows = billingRows.filter(r => isNotStarted(firstStatusOf(r)));
+  const secondSubmittedRows = billingRows.filter(r => isSubmitted(secondStatusOf(r)));
+  const secondNotStartedRows = billingRows.filter(r => isNotStarted(secondStatusOf(r)));
+  const secondUnderPrepRows = billingRows.filter(r => isUnderPrep(secondStatusOf(r)));
 
   const totalSubmittedInvoiceAmount = invoiceAmountOf(firstSubmittedRows);
   const totalInvoicedStageAmount = amountOf(firstSubmittedRows);
-  const totalAsbuiltFinalAmount = asbuiltFinalAmountSum(rows);
+  const totalAsbuiltFinalAmount = asbuiltFinalAmountSum(billingRows);
+  const invoiceGapAmount = totalAsbuiltFinalAmount - totalInvoicedStageAmount;
   const firstSubmittedCount = distinctLinkCount(firstSubmittedRows);
   const firstInProgressCount = distinctLinkCount(firstInProgressRows);
   const firstNotStartedCount = distinctLinkCount(firstNotStartedRows);
@@ -6960,14 +6968,14 @@ function renderWoBillingExecutiveSummary(rows) {
   const secondUnderPrepCount = distinctLinkCount(secondUnderPrepRows);
 
   const sorRefs = new Set();
-  rows.forEach(r => {
+  billingRows.forEach(r => {
     const ref = String(sorRefOf(r) || '').trim();
     if (validText(ref)) sorRefs.add(ref);
   });
   const totalSorCreatedCount = sorRefs.size;
 
-  const handoverOmCount = linkLevelStatusCountComplete(rows, handoverOmOf);
-  const handoverConsultCount = linkLevelStatusCountComplete(rows, handoverConsultOf);
+  const handoverOmCount = linkLevelStatusCountComplete(billingRows, handoverOmOf);
+  const handoverConsultCount = linkLevelStatusCountComplete(billingRows, handoverConsultOf);
 
   const chartCats = [
     ['1st 50% (Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount, '#60a5fa'],
@@ -7006,9 +7014,10 @@ function renderWoBillingExecutiveSummary(rows) {
         ${tableRows.map(r=>`<tr><td><b>${r[0]}</b></td><td><b>${fmtInt(r[1])}</b></td><td><b>${fmtMoney(r[2])} ر.س</b></td></tr>`).join('')}
         <tr><td style="color:#7c3aad;font-size:18px"><b>Total Amount (SAR)</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalLinkCodeCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalAmountAll)} ر.س</b></td></tr>
       </tbody></table>
-      <div class="wo-metrics-grid" style="grid-template-columns:repeat(2,1fr);margin-top:12px">
+      <div class="wo-metrics-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
         <div class="wo-metric teal"><span>Asbuilt Final Amount</span><b>${fmtMoney(totalAsbuiltFinalAmount)} ر.س</b></div>
         <div class="wo-metric blue"><span>Total Invoiced Stage Amount</span><b>${fmtMoney(totalInvoicedStageAmount)} ر.س</b></div>
+        <div class="wo-metric orange"><span>Gap</span><b>${fmtMoney(invoiceGapAmount)} ر.س</b></div>
       </div>
     </div>
     <div class="wo-billing-box">
@@ -7029,8 +7038,8 @@ function renderWoBillingExecutiveSummary(rows) {
         <div class="wo-insight-card green">Completion Rate<span class="value">${fmtPct(completionRate)}</span></div>
         <div class="wo-insight-card teal">Total Amount (SAR)<span class="value">${fmtMoney(totalAmountAll)} SAR</span></div>
         <div class="wo-insight-card orange">Invoice Exposure<span class="value">${fmtMoney(totalSubmittedInvoiceAmount)} SAR</span></div>
-        <div class="wo-insight-card purple">Handover O&M Link Codes<span class="value">${fmtInt(handoverOmCount)}</span><small>${linkLevelStatusSummaryReconciled(rows, handoverOmOf)}</small></div>
-        <div class="wo-insight-card blue">Handover Consultant Link Codes<span class="value">${fmtInt(handoverConsultCount)}</span><small>${linkLevelStatusSummaryReconciled(rows, handoverConsultOf)}</small></div>
+        <div class="wo-insight-card purple">Handover O&M Link Codes<span class="value">${fmtInt(handoverOmCount)}</span><small>${linkLevelStatusSummaryReconciled(billingRows, handoverOmOf)}</small></div>
+        <div class="wo-insight-card blue">Handover Consultant Link Codes<span class="value">${fmtInt(handoverConsultCount)}</span><small>${linkLevelStatusSummaryReconciled(billingRows, handoverConsultOf)}</small></div>
       </div>
     </div>
   </div>`;
