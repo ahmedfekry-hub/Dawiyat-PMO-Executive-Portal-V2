@@ -611,3 +611,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 - 1st 50% rows use 1st 50 Invoice Cost Amount by status.
 - 2nd 50% rows use WO Cost/Cost minus 1st 50 Invoice Cost Amount by Second 50% status.
 - Added Total Invoiced Stage row based on submitted 1st 50 status using full WO Cost/Cost.
+
+## V5.8.27 Invoice Stage + Asbuilt Final Amount Fix
+- Renamed the KPI card to Total Invoiced Submitted (SAR).
+- Total Invoiced Stage now uses distinct Link Code count for Submitted 1st 50 status and Total Amount based on WO Cost / Cost.
+- Added Asbuilt Final Amount comparison row under the FTTH Invoicing Executive Dashboard table.
