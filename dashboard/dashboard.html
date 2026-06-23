@@ -6967,10 +6967,10 @@ function renderWoBillingExecutiveSummary(rows) {
   // as if SOR Status=Created even when no filter is selected.
   // When the user selects SOR Status=Created, rows is already filtered to Created.
   const activeRows = rows || [];
-  // Invoice billing summary is an SOR-created billing pipeline by definition.
-  // It should apply all active dashboard filters, then internally restrict to SOR Status = Created.
-  // This keeps Total Invoiced Submitted aligned with the SOR Summary Submitted card.
-  const billingRows = activeRows.filter(r => isSorCreated(r));
+  // WO Billing must follow the active final dashboard scope exactly.
+  // Do not internally force SOR Status = Created when the user has not selected it;
+  // if SOR Status=Created is selected, rows is already filtered by the global filter engine.
+  const billingRows = activeRows;
 
   const totalLinkCodeCount = distinctLinkCount(billingRows);
   const totalAmountAll = amountOf(billingRows);
