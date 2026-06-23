@@ -599,3 +599,8 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 ## V5.8.20 First 50 Formula + Asbuilt Final Amount
 - 1st 50 Invoice Cost Amount is derived per row when Scope Target = Implementation: 50% of WO Cost, falling back to Cost when WO Cost is blank.
 - Added Asbuilt Final Amount to Project Updates Center for final value updates.
+
+
+## V5.8.22 Grouped Filters Layout
+- Rebuilt global dashboard filters into executive visual groups: Destination, Implementation, Financial, Audit, and Search.
+- Existing cascading/filter linkage logic is preserved; all cards, tables, exports, and pages continue using the same state.filters object.
