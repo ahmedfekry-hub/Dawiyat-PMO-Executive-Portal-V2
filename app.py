@@ -2693,6 +2693,55 @@ def project_updates_center_page() -> None:
     project_col = first_existing_col(df, ["Project"])
     stage_col = first_existing_col(df, ["Stage"])
 
+    st.markdown("#### 🎛️ Dashboard Filters for Project Updates")
+    st.caption("Use the same dashboard filters used by the Executive PPT Builder. Filters are applied first, then Smart Bulk / Link Code / Work Order search narrows the editable grid further.")
+
+    def _pu_options(source_df: pd.DataFrame, aliases: List[str]) -> List[str]:
+        col = first_existing_col(source_df, aliases)
+        if not col or col not in source_df.columns:
+            return []
+        vals = []
+        for v in source_df[col].dropna().astype(str).tolist():
+            t = str(v).strip()
+            if t and t.lower() not in {"nan", "none"}:
+                vals.append(t)
+        return sorted(list(dict.fromkeys(vals)))
+
+    def _pu_apply(source_df: pd.DataFrame, aliases: List[str], selected: List[str]) -> pd.DataFrame:
+        col = first_existing_col(source_df, aliases)
+        selected = [str(x).strip() for x in (selected or []) if str(x).strip()]
+        if not col or not selected:
+            return source_df
+        return source_df[source_df[col].astype(str).str.strip().isin(selected)]
+
+    with st.expander("🎛️ Advanced Dashboard Filters", expanded=False):
+        f1, f2, f3 = st.columns(3)
+        with f1:
+            pu_region = st.multiselect("Region", _pu_options(df, ["Region", "Updated Region"]), key="pu_filter_region")
+            city_base = _pu_apply(df, ["Region", "Updated Region"], pu_region)
+            pu_city = st.multiselect("City", _pu_options(city_base, ["City", "Updated City"]), key="pu_filter_city")
+            district_base = _pu_apply(city_base, ["City", "Updated City"], pu_city)
+            pu_district = st.multiselect("District", _pu_options(district_base, ["District", "WO Districts", "Updated District"]), key="pu_filter_district")
+            pu_project = st.multiselect("Project", _pu_options(df, ["Project"]), key="pu_filter_project")
+        with f2:
+            pu_stage = st.multiselect("Stage", _pu_options(df, ["Stage"]), key="pu_filter_stage")
+            pu_subclass = st.multiselect("Subclass", _pu_options(df, ["Subclass", "Sub Class"]), key="pu_filter_subclass")
+            pu_year = st.multiselect("Year", _pu_options(df, ["Year"]), key="pu_filter_year")
+            pu_wo_status = st.multiselect("Work Order Status", _pu_options(df, ["Work Order Status", "FULL WO STATUS"]), key="pu_filter_wo_status")
+            pu_second50 = st.multiselect("Second 50% status", _pu_options(df, ["Second 50% status", "2nd 50 Invoice Status", "Second 50 Invoice Status"]), key="pu_filter_second50")
+        with f3:
+            pu_sor = st.multiselect("SOR Status", _pu_options(df, ["SOR Status", "SOR Status.1"]), key="pu_filter_sor")
+            pu_sor_ref = st.multiselect("SOR Reference Number", _pu_options(df, ["SOR Reference Number", "SOR Ref Number", "SOR Reference"]), key="pu_filter_sor_ref")
+            pu_type = st.multiselect("Type", _pu_options(df, ["Type"]), key="pu_filter_type")
+            pu_class = st.multiselect("Class", _pu_options(df, ["Class"]), key="pu_filter_class")
+            pu_scope = st.multiselect("Scope Target", _pu_options(df, ["Scope Target"]), key="pu_filter_scope")
+            pu_invoice50 = st.multiselect("1st 50 Invoice Status", _pu_options(df, ["1st 50 Invoice Status", "First 50 Invoice Status"]), key="pu_filter_invoice50")
+
+        if st.button("Clear Advanced Filters", use_container_width=True, key="pu_clear_advanced_filters"):
+            for k in ["pu_filter_region","pu_filter_city","pu_filter_district","pu_filter_project","pu_filter_stage","pu_filter_subclass","pu_filter_year","pu_filter_wo_status","pu_filter_second50","pu_filter_sor","pu_filter_sor_ref","pu_filter_type","pu_filter_class","pu_filter_scope","pu_filter_invoice50"]:
+                st.session_state[k] = []
+            st.rerun()
+
     st.markdown("#### 🔎 Direct Search Filters")
     st.caption("Same search-and-add style used in the main dashboard filters. Select one or many Link Codes / Work Orders to narrow the editable grid.")
     c1, c2, c3 = st.columns([1.1, 1.1, 0.7])
@@ -2728,6 +2777,28 @@ def project_updates_center_page() -> None:
             st.rerun()
 
     view = df.copy()
+
+    # Apply Project Updates advanced filters using the same concepts as Executive PPT Builder.
+    # These filters use AND logic and remain linked with Smart Bulk and direct search filters below.
+    _advanced_filters = [
+        (["Region", "Updated Region"], st.session_state.get("pu_filter_region", [])),
+        (["City", "Updated City"], st.session_state.get("pu_filter_city", [])),
+        (["District", "WO Districts", "Updated District"], st.session_state.get("pu_filter_district", [])),
+        (["Project"], st.session_state.get("pu_filter_project", [])),
+        (["Stage"], st.session_state.get("pu_filter_stage", [])),
+        (["Subclass", "Sub Class"], st.session_state.get("pu_filter_subclass", [])),
+        (["Year"], st.session_state.get("pu_filter_year", [])),
+        (["Work Order Status", "FULL WO STATUS"], st.session_state.get("pu_filter_wo_status", [])),
+        (["Second 50% status", "2nd 50 Invoice Status", "Second 50 Invoice Status"], st.session_state.get("pu_filter_second50", [])),
+        (["SOR Status", "SOR Status.1"], st.session_state.get("pu_filter_sor", [])),
+        (["SOR Reference Number", "SOR Ref Number", "SOR Reference"], st.session_state.get("pu_filter_sor_ref", [])),
+        (["Type"], st.session_state.get("pu_filter_type", [])),
+        (["Class"], st.session_state.get("pu_filter_class", [])),
+        (["Scope Target"], st.session_state.get("pu_filter_scope", [])),
+        (["1st 50 Invoice Status", "First 50 Invoice Status"], st.session_state.get("pu_filter_invoice50", [])),
+    ]
+    for aliases, selected in _advanced_filters:
+        view = _pu_apply(view, aliases, selected)
 
     smart_links = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_link_codes", [])))
     smart_wos = set(_clean_smart_filter_values(st.session_state.get("smart_bulk_work_orders", [])))
