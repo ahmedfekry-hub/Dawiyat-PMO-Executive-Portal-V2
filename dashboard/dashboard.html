@@ -2381,6 +2381,7 @@ const FILTERS = [
   ['closureStatus', 'Closure Status'],
   ['sorStatus', 'SOR Status'],
   ['invoice50', '1st 50 Invoice Status'],
+  ['second50', 'Second 50% status'],
   ['sorReferenceNumber', 'SOR Reference Number'],
   ['scopeTarget', 'Scope Target'],
   ['linkCode', 'Link Code'],
@@ -3330,6 +3331,7 @@ function buildData(raw) {
       closureStatus,
       sorStatus: rawSorStatus,
       invoice50: derivedInvoice50Status,
+      second50: String(getRawField(r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']) || '').trim(),
       sorReferenceNumber: String(getRawField(r, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR Ref','SOR Number','SOR No','SOR ID']) || '').trim(),
       documentLink: String(getRawField(r, ['Document_Link','Document Link','Documents Link','Folder Link','Drive Link']) || '').trim(),
       scopeTarget: getScopeTargetValue(r),
@@ -3411,6 +3413,7 @@ function filterComparableValue(row, key) {
   }
   if (key === 'sorStatus') return row.sorStatus || pmoSORStatus(row) || getRawField(row.raw || row, ['SOR Status']) || '';
   if (key === 'invoice50') return row.invoice50 || pmoInvoice50Status(row) || '';
+  if (key === 'second50') return row.second50 || String(getFieldValue(row.raw || row, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']) || '').trim();
   if (key === 'scopeTarget') return getScopeTargetValue(row);
   if (key === 'sorReferenceNumber') return row.sorReferenceNumber || String(getFieldValue(row.raw || row, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR Ref','SOR Number','SOR No','SOR ID']) || '').trim();
   return row[key] ?? '';
@@ -5501,7 +5504,7 @@ function pmoAuditRowsBase(){
   return pmoAuditRowsBuild(base)
 }
 function pmoAuditRowsAll(){return pmoAuditRowsBuild(state.data?.workorders||[])}
-const PMO_FILTERS=[['region','Updated Region'],['city','Updated City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['invoice50','1st 50 Invoice Status'],['sorReferenceNumber','SOR Reference Number'],['scopeTarget','Scope Target']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
+const PMO_FILTERS=[['region','Updated Region'],['city','Updated City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['invoice50','1st 50 Invoice Status'],['second50','Second 50% status'],['sorReferenceNumber','SOR Reference Number'],['scopeTarget','Scope Target']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
 if(!state.pmo.sorExposureMode)state.pmo.sorExposureMode='gt80';
 if(state.pmo.sorCriticalGlobalActive===undefined)state.pmo.sorCriticalGlobalActive=false;
 function pmoIssueType(r){if(r.pmoStatus==='PM REVIEW'||r.pmoCompletedBelow100)return 'PM Review';if(r.pmoStatus==='MISSING MET'||(r.pmoReasons||[]).some(x=>String(x).toLowerCase().includes('no internal met')||String(x).toLowerCase().includes('updated > 7')))return 'Missing MET Actual';return 'Sheet Synced'}
@@ -5513,6 +5516,7 @@ function pmoFieldValue(r,key){
   if(key==='issueType')return pmoIssueType(r);
   if(key==='linkCode')return r.linkCode||'';
   if(key==='invoice50')return pmoInvoice50Status(r);
+  if(key==='second50')return String(getRawField(r.raw || r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']) || r.second50 || '').trim();
   if(key==='targetMonth')return pmoTargetMonth(r);
   if(key==='sorReferenceNumber')return sorReferenceNumberValue(r);
   if(key==='scopeTarget')return getScopeTargetValue(r);
@@ -5529,7 +5533,7 @@ function pmoRowsMatchingFiltersFromAll(){
 }
 function pmoSyncFiltersToGlobal(){
   if(!state?.pmo?.filters||!state.filters)return;
-  const map={region:'region',city:'city',district:'district',project:'project',type:'type',subclass:'subclass',stage:'stage',sorStatus:'sorStatus',invoice50:'invoice50',sorReferenceNumber:'sorReferenceNumber',scopeTarget:'scopeTarget'};
+  const map={region:'region',city:'city',district:'district',project:'project',type:'type',subclass:'subclass',stage:'stage',sorStatus:'sorStatus',invoice50:'invoice50',second50:'second50',sorReferenceNumber:'sorReferenceNumber',scopeTarget:'scopeTarget'};
   Object.entries(map).forEach(([pmoKey,globalKey])=>{
     const v=state.pmo.filters[pmoKey];
     state.filters[globalKey]=(v&&v!=='All')?String(v):'All';
@@ -5556,6 +5560,7 @@ function pmoSyncGlobalToFilters(){
     stage:'stage',
     sorStatus:'sorStatus',
     invoice50:'invoice50',
+    second50:'second50',
     sorReferenceNumber:'sorReferenceNumber',
     scopeTarget:'scopeTarget'
   };
