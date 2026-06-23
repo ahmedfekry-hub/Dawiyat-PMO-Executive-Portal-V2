@@ -5951,16 +5951,27 @@ function renderPmoCost(rows){
   });
 
   function linkInvoiceStatus(linkItem){
-    const counts=linkItem.invoiceStatuses||{};
-    const keys=Object.keys(counts);
-    const has=(re)=>keys.find(k=>re.test(String(k).toLowerCase()));
-    return has(/submitted|submit|invoiced|paid|approved/) ||
-           has(/in\s*progress|progress/) ||
-           has(/under\s*review|review/) ||
-           has(/not\s*start|not\s*started/) ||
-           has(/sor\s*not|not\s*create|not\s*created/) ||
-           keys.sort((a,b)=>(counts[b]||0)-(counts[a]||0))[0] ||
-           'N/A';
+    // SOR summary status rule:
+    // 1) If the Link Code has SOR Created rows, classify it ONLY by the explicit
+    //    1st 50 Invoice Status inside those Created rows.
+    // 2) If it has no Created rows, classify it as SOR not Create or N/A.
+    // This prevents a Created-but-Not-Start SOR reference from being counted as Submitted.
+    const createdRows=(linkItem.rows||[]).filter(r=>{
+      const ss=String(pmoSORStatus(r)||'').toLowerCase();
+      return ss.includes('created') && !ss.includes('not');
+    });
+    if(createdRows.length){
+      const statuses=createdRows.map(r=>String(pmoInvoice50Status(r)||'').trim()).filter(Boolean);
+      const has=(re)=>statuses.find(k=>re.test(String(k).toLowerCase()));
+      return has(/^submitted$|^submit$|invoiced|paid/) ||
+             has(/in\s*progress|progress/) ||
+             has(/under\s*review|review/) ||
+             has(/not\s*start|not\s*started/) ||
+             statuses[0] || 'N/A';
+    }
+    const anyStatus=(linkItem.rows||[]).map(r=>String(pmoSORStatus(r)||'').trim()).filter(Boolean).join(' ');
+    if(/not\s*create|not\s*created|sor\s*not/i.test(anyStatus)) return 'SOR not Create';
+    return 'N/A';
   }
 
   const sorMap=new Map();
@@ -6013,8 +6024,19 @@ function normalizeInvoiceStatusLabel(status){
     const s=normalizeInvoiceStatusLabel(linkInvoiceStatus(l));
     totalStatusCounts[s]=(totalStatusCounts[s]||0)+1;
     if(!totalStatusFinancials[s]) totalStatusFinancials[s]={invoice:0,cost:0};
-    totalStatusFinancials[s].invoice += Number(l.invoice||0);
-    totalStatusFinancials[s].cost += Number(l.cost||0);
+
+    const createdRows=(l.rows||[]).filter(r=>{
+      const ss=String(pmoSORStatus(r)||'').toLowerCase();
+      return ss.includes('created') && !ss.includes('not');
+    });
+    if(createdRows.length){
+      const rowsForStatus=createdRows.filter(r=>normalizeInvoiceStatusLabel(pmoInvoice50Status(r))===s);
+      totalStatusFinancials[s].invoice += sum(rowsForStatus.map(r=>pmoInvoiceAmount(r)));
+      totalStatusFinancials[s].cost += sum(rowsForStatus.map(r=>effectiveCost(r)));
+    } else {
+      totalStatusFinancials[s].invoice += Number(l.invoice||0);
+      totalStatusFinancials[s].cost += Number(l.cost||0);
+    }
   });
 
   const invoiceSummary = {
@@ -6944,7 +6966,11 @@ function renderWoBillingExecutiveSummary(rows) {
   // Do NOT force Created rows when SOR Status is All; otherwise the summary stays fixed
   // as if SOR Status=Created even when no filter is selected.
   // When the user selects SOR Status=Created, rows is already filtered to Created.
-  const billingRows = rows || [];
+  const activeRows = rows || [];
+  // Invoice billing summary is an SOR-created billing pipeline by definition.
+  // It should apply all active dashboard filters, then internally restrict to SOR Status = Created.
+  // This keeps Total Invoiced Submitted aligned with the SOR Summary Submitted card.
+  const billingRows = activeRows.filter(r => isSorCreated(r));
 
   const totalLinkCodeCount = distinctLinkCount(billingRows);
   const totalAmountAll = amountOf(billingRows);
