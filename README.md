@@ -604,3 +604,10 @@ Only `ahmedfekry` should have `Admin Board = Yes` in `User_Page_Access`. Other u
 ## V5.8.22 Grouped Filters Layout
 - Rebuilt global dashboard filters into executive visual groups: Destination, Implementation, Financial, Audit, and Search.
 - Existing cascading/filter linkage logic is preserved; all cards, tables, exports, and pages continue using the same state.filters object.
+
+
+## V5.8.24 Invoice Summary Logic Fixed
+- Corrected FTTH Invoicing Executive Dashboard calculations.
+- 1st 50% rows use 1st 50 Invoice Cost Amount by status.
+- 2nd 50% rows use WO Cost/Cost minus 1st 50 Invoice Cost Amount by Second 50% status.
+- Added Total Invoiced Stage row based on submitted 1st 50 status using full WO Cost/Cost.
