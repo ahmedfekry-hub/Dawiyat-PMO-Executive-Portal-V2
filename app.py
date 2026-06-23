@@ -3877,6 +3877,7 @@ def load_ppt_workorders() -> pd.DataFrame:
         "Class": wo[first_existing_col(wo, ["Class"])].astype(str) if first_existing_col(wo, ["Class"]) else "",
         "Scope Target": wo[first_existing_col(wo, ["Scope Target"])].astype(str) if first_existing_col(wo, ["Scope Target"]) else "",
         "1st 50 Invoice Status": wo[first_existing_col(wo, ["1st 50 Invoice Status"])].astype(str) if first_existing_col(wo, ["1st 50 Invoice Status"]) else "",
+        "Second 50% status": wo[first_existing_col(wo, ["Second 50% status", "2nd 50 Invoice Status", "Second 50 Invoice Status"])].astype(str) if first_existing_col(wo, ["Second 50% status", "2nd 50 Invoice Status", "Second 50 Invoice Status"]) else "",
         "Missing MET Actual / PM Review": wo[first_existing_col(wo, ["Missing MET Actual / PM Review", "Missing MET Actual", "PM Review", "PM Review Status"])].astype(str) if first_existing_col(wo, ["Missing MET Actual / PM Review", "Missing MET Actual", "PM Review", "PM Review Status"]) else "",
     })
 
@@ -3906,7 +3907,7 @@ def load_ppt_workorders() -> pd.DataFrame:
                 out["District"] = out["District_map"].where(out["District_map"].astype(str).str.strip().ne(""), out["District"])
             out = out.drop(columns=[c for c in ["Region_map", "City_map", "District_map"] if c in out.columns])
 
-    for c in ["Region", "City", "District", "Project", "Stage", "SOR Status", "SOR Reference Number", "Year", "Work Order Status", "Type", "Class", "Scope Target", "Subclass", "1st 50 Invoice Status", "Missing MET Actual / PM Review"]:
+    for c in ["Region", "City", "District", "Project", "Stage", "SOR Status", "SOR Reference Number", "Year", "Work Order Status", "Type", "Class", "Scope Target", "Subclass", "1st 50 Invoice Status", "Second 50% status", "Missing MET Actual / PM Review"]:
         out[c] = out[c].fillna("").astype(str).str.strip()
         out[c] = out[c].replace({"": "N/A", "nan": "N/A", "NaN": "N/A", "None": "N/A"})
     out["Status"] = out["Progress"].apply(_status_from_progress)
@@ -5314,6 +5315,7 @@ def executive_ppt_builder_page() -> None:
         with extra1:
             scope_sel = st.multiselect("Scope Target", _opt_values(all_rows, "Scope Target"), default=[])
             invoice50_sel = st.multiselect("1st 50 Invoice Status", _opt_values(all_rows, "1st 50 Invoice Status"), default=[])
+            second50_sel = st.multiselect("Second 50% status", _opt_values(all_rows, "Second 50% status"), default=[])
         with extra2:
             missing_met_sel = st.multiselect("Missing MET Actual / PM Review", _opt_values(all_rows, "Missing MET Actual / PM Review"), default=[])
 
@@ -5332,6 +5334,7 @@ def executive_ppt_builder_page() -> None:
             "Class": class_sel,
             "Scope Target": scope_sel,
             "1st 50 Invoice Status": invoice50_sel,
+            "Second 50% status": second50_sel,
             "Missing MET Actual / PM Review": missing_met_sel,
         })
         link_sel = st.multiselect("Link Code", _opt_values(link_base, "Link Code")[:1000], default=[])
@@ -5351,6 +5354,7 @@ def executive_ppt_builder_page() -> None:
         "Class": class_sel,
         "Scope Target": scope_sel,
         "1st 50 Invoice Status": invoice50_sel,
+        "Second 50% status": second50_sel,
         "Missing MET Actual / PM Review": missing_met_sel,
         "Link Code": link_sel,
     }
