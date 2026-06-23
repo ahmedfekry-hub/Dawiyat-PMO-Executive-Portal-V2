@@ -61,6 +61,88 @@
   .filter select {
     width:100%; border:none; outline:none; background:transparent; color:var(--text); font-size:15px; padding:6px 0;
   }
+
+  /* Executive grouped filter layout */
+  .filters.grouped-filters {
+    display:grid;
+    grid-template-columns: repeat(4, minmax(220px, 1fr));
+    gap:14px;
+    align-items:start;
+    margin-bottom:16px;
+  }
+  .filter-group {
+    position:relative;
+    border:1px solid rgba(217,227,239,.9);
+    border-radius:24px;
+    padding:16px 14px 14px;
+    box-shadow:0 14px 34px rgba(15,23,42,.07);
+    overflow:hidden;
+    min-height:100%;
+  }
+  .filter-group::before {
+    content:"";
+    position:absolute;
+    inset:0;
+    opacity:.72;
+    pointer-events:none;
+  }
+  .filter-group > * { position:relative; z-index:1; }
+  .filter-group.destination::before { background:linear-gradient(135deg,#eff6ff 0%,#ffffff 56%); }
+  .filter-group.implementation::before { background:linear-gradient(135deg,#ecfdf5 0%,#ffffff 58%); }
+  .filter-group.financial::before { background:linear-gradient(135deg,#fff7ed 0%,#ffffff 58%); }
+  .filter-group.audit::before { background:linear-gradient(135deg,#f5f3ff 0%,#ffffff 58%); }
+  .filter-group.search::before { background:linear-gradient(135deg,#f8fafc 0%,#eef6ff 100%); }
+  .filter-group.destination { border-top:5px solid #3b82f6; }
+  .filter-group.implementation { border-top:5px solid #10b981; }
+  .filter-group.financial { border-top:5px solid #f97316; }
+  .filter-group.audit { border-top:5px solid #8b5cf6; }
+  .filter-group.search { border-top:5px solid #0ea5e9; grid-column:1 / -1; }
+  .filter-group-title {
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:10px;
+    margin:0 0 12px;
+    color:#071427;
+    font-weight:950;
+    font-size:24px;
+    letter-spacing:.01em;
+    text-align:center;
+  }
+  .filter-group-title .group-icon {
+    width:38px;
+    height:38px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:14px;
+    background:#fff;
+    box-shadow:0 8px 22px rgba(15,23,42,.10);
+    font-size:21px;
+  }
+  .filter-stack { display:grid; grid-template-columns:1fr; gap:10px; }
+  .filter-group.search .filter-stack {
+    grid-template-columns:repeat(2, minmax(260px, 360px));
+    justify-content:center;
+    gap:16px;
+  }
+  .filter-group .filter {
+    margin:0;
+    box-shadow:0 8px 22px rgba(15,23,42,.045);
+    background:rgba(255,255,255,.86);
+    backdrop-filter: blur(8px);
+  }
+  .filter-group.search .filter { min-height:116px; }
+  @media(max-width:1320px){
+    .filters.grouped-filters { grid-template-columns:repeat(2,minmax(220px,1fr)); }
+    .filter-group.search .filter-stack { grid-template-columns:repeat(2,minmax(220px,1fr)); }
+  }
+  @media(max-width:760px){
+    .filters.grouped-filters { grid-template-columns:1fr; }
+    .filter-group.search .filter-stack { grid-template-columns:1fr; }
+    .filter-group-title { font-size:20px; }
+  }
+
   .panel {
     background:#fff; border:1px solid var(--line); border-radius:22px; box-shadow:var(--shadow); padding:16px; margin-bottom:16px;
   }
@@ -2388,6 +2470,15 @@ const FILTERS = [
   ['workOrder', 'Work Order']
 ];
 
+const FILTER_GROUPS = [
+  {id:'destination', title:'Destination', icon:'🌍', keys:['region','city','district']},
+  {id:'implementation', title:'Implementation', icon:'🚧', keys:['stage','project','subclass','type','className','closureStatus']},
+  {id:'financial', title:'Financial', icon:'💰', keys:['sorStatus','invoice50','second50','sorReferenceNumber']},
+  {id:'audit', title:'Audit', icon:'🛡️', keys:['scopeTarget','year','performance']},
+  {id:'search', title:'Search', icon:'🔎', keys:['linkCode','workOrder']}
+];
+const FILTER_MAP = Object.fromEntries(FILTERS.map(f => [f[0], f[1]]));
+
 const state = {
   tab: 'overview',
   files: {},
@@ -3617,8 +3708,11 @@ function renderTokenMultiFilter(div, key, label, options) {
 }
 function renderFilters() {
   const host = document.getElementById('filters');
+  if (!host) return;
   host.innerHTML = '';
-  FILTERS.forEach(([key, label]) => {
+  host.classList.add('grouped-filters');
+
+  const buildFilterControl = (key, label) => {
     let basis = state.data.workorders.slice();
     FILTERS.forEach(([k2]) => {
       const val = state.filters[k2];
@@ -3631,13 +3725,11 @@ function renderFilters() {
     div.className = 'filter';
     if (key === 'linkCode' || key === 'workOrder') {
       renderTokenMultiFilter(div, key, label, options);
-      host.appendChild(div);
-      return;
+      return div;
     }
     const isActive = state.filters[key] && state.filters[key] !== 'All';
     const header = `<div class="filter-head"><label>${escapeHtml(label)}</label><button class="clear-filter" type="button" title="Clear ${escapeHtml(label)} filter" ${isActive ? '' : 'disabled'}>CLEAR</button></div>`;
     div.innerHTML = `${header}<select id="filter-${key}"><option value="All">All</option>${options.map(o => `<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
-    host.appendChild(div);
     const select = div.querySelector('select');
     const clearBtn = div.querySelector('.clear-filter');
     clearBtn.addEventListener('click', () => {
@@ -3659,6 +3751,19 @@ function renderFilters() {
       pmoSyncGlobalToFilters();
       renderAll();
     });
+    return div;
+  };
+
+  FILTER_GROUPS.forEach(group => {
+    const section = document.createElement('section');
+    section.className = `filter-group ${group.id}`;
+    section.innerHTML = `<div class="filter-group-title"><span class="group-icon">${group.icon}</span><span>${escapeHtml(group.title)}</span></div><div class="filter-stack"></div>`;
+    const stack = section.querySelector('.filter-stack');
+    group.keys.forEach(key => {
+      const label = FILTER_MAP[key] || key;
+      stack.appendChild(buildFilterControl(key, label));
+    });
+    host.appendChild(section);
   });
 }
 function colorForStatus(status) {
