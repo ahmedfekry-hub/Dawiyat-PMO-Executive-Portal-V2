@@ -6823,10 +6823,12 @@ function renderWoBillingExecutiveSummary(rows) {
   const sorRefOf = r => executiveRawValue(r, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR No'], '');
   const handoverOmOf = r => executiveRawValue(r, ['Handover O&M _Status','Handover O&M Status','Handover OM Status'], '');
   const handoverConsultOf = r => executiveRawValue(r, ['Handover Consultant _Status','Handover Consultant Status'], '');
+  const asbuiltFinalAmountOf = r => parseNum(executiveRawValue(r, ['Asbuilt Final Amount','As-built Final Amount','AsBuilt Final Amount','As Built Final Amount'], 0)) || 0;
 
   function distinctLinkCount(arr){ return unique((arr || []).map(r => linkKeyOf(r)).filter(Boolean)).length; }
   function amountOf(arr){ return sum((arr || []).map(r => effectiveCost(r) || 0)); }
   function invoiceAmountOf(arr){ return sum((arr || []).map(r => invoice50AmountOf(r) || 0)); }
+  function asbuiltFinalAmountSum(arr){ return sum((arr || []).map(r => asbuiltFinalAmountOf(r) || 0)); }
   function secondRemainingAmountOf(arr){
     return sum((arr || []).map(r => {
       const base = Number(effectiveCost(r) || 0);
@@ -6947,6 +6949,8 @@ function renderWoBillingExecutiveSummary(rows) {
   const secondUnderPrepRows = rows.filter(r => isUnderPrep(secondStatusOf(r)));
 
   const totalSubmittedInvoiceAmount = invoiceAmountOf(firstSubmittedRows);
+  const totalInvoicedStageAmount = amountOf(firstSubmittedRows);
+  const totalAsbuiltFinalAmount = asbuiltFinalAmountSum(rows);
   const firstSubmittedCount = distinctLinkCount(firstSubmittedRows);
   const firstInProgressCount = distinctLinkCount(firstInProgressRows);
   const firstNotStartedCount = distinctLinkCount(firstNotStartedRows);
@@ -6979,7 +6983,7 @@ function renderWoBillingExecutiveSummary(rows) {
   const completionRate = totalLinkCodeCount ? (firstSubmittedCount / totalLinkCodeCount) * 100 : 0;
 
   const tableRows = [
-    ['Total Invoiced Stage', firstSubmittedCount, totalSubmittedInvoiceAmount],
+    ['Total Invoiced Stage', firstSubmittedCount, totalInvoicedStageAmount],
     ['1st 50%__(Submitted)', firstSubmittedCount, totalSubmittedInvoiceAmount],
     ['1st 50%__(In progress)', firstInProgressCount, invoiceAmountOf(firstInProgressRows)],
     ['1st 50%__(Not Start)', firstNotStartedCount, invoiceAmountOf(firstNotStartedRows)],
@@ -6992,7 +6996,7 @@ function renderWoBillingExecutiveSummary(rows) {
     <div class="wo-billing-box">
       <div class="wo-billing-head">FTTH Invoicing Executive Dashboard</div>
       <div class="wo-metrics-grid">
-        <div class="wo-metric blue"><span>Total Invoiced (SAR)</span><b>${fmtMoney(totalSubmittedInvoiceAmount)}</b></div>
+        <div class="wo-metric blue"><span>Total Invoiced Submitted (SAR)</span><b>${fmtMoney(totalSubmittedInvoiceAmount)}</b></div>
         <div class="wo-metric green"><span>1st 50% Done</span><b>${fmtInt(firstSubmittedCount)}</b></div>
         <div class="wo-metric red"><span>1st 50% Inprogress</span><b>${fmtInt(firstInProgressCount)}</b></div>
         <div class="wo-metric orange"><span>2nd 50% Done</span><b>${fmtInt(secondSubmittedCount)}</b></div>
@@ -7000,6 +7004,7 @@ function renderWoBillingExecutiveSummary(rows) {
       <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Link Code Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
         ${tableRows.map(r=>`<tr><td><b>${r[0]}</b></td><td><b>${fmtInt(r[1])}</b></td><td><b>${fmtMoney(r[2])} ر.س</b></td></tr>`).join('')}
         <tr><td style="color:#7c3aad;font-size:18px"><b>Total Amount (SAR)</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalLinkCodeCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalAmountAll)} ر.س</b></td></tr>
+        <tr><td style="color:#0f766e;font-size:16px"><b>Asbuilt Final Amount</b></td><td style="color:#0f766e;font-size:14px"><b>vs Total Invoiced Stage</b></td><td style="color:#0f766e;font-size:16px"><b>${fmtMoney(totalAsbuiltFinalAmount)} ر.س // ${fmtMoney(totalInvoicedStageAmount)} ر.س</b></td></tr>
       </tbody></table>
     </div>
     <div class="wo-billing-box">
