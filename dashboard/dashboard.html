@@ -1970,6 +1970,19 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
 .wo-insight-card.purple{background:linear-gradient(135deg,#6d28d9,#8b5cf6)!important;color:#fff!important;}
 .wo-insight-card.teal{background:linear-gradient(135deg,#0f766e,#14b8a6)!important;color:#fff!important;}
 
+
+/* PMO Audit grouped filter layout */
+.pmo-filters.grouped-filters{display:grid;grid-template-columns:repeat(4,minmax(220px,1fr));gap:14px;align-items:stretch}
+.pmo-filters.grouped-filters .filter-group{min-height:100%;}
+.pmo-filters.grouped-filters .filter-group .filter-stack{display:grid;grid-template-columns:1fr;gap:10px;}
+.pmo-filters.grouped-filters .filter-group.search .filter-stack{grid-template-columns:repeat(2,minmax(220px,1fr));max-width:720px;margin:0 auto;}
+.pmo-filters.grouped-filters .filter-group .pmo-filter{min-height:72px;}
+.pmo-filters.grouped-filters .filter-group.search{grid-column:1/-1;}
+.pmo-filters.grouped-filters .filter-group.search .pmo-filter{min-height:116px;}
+@media(max-width:1200px){.pmo-filters.grouped-filters{grid-template-columns:repeat(2,minmax(220px,1fr));}.pmo-filters.grouped-filters .filter-group.search .filter-stack{grid-template-columns:repeat(2,minmax(220px,1fr));}}
+@media(max-width:760px){.pmo-filters.grouped-filters{grid-template-columns:1fr;}.pmo-filters.grouped-filters .filter-group.search .filter-stack{grid-template-columns:1fr;}}
+body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;border-color:#2d3d58;}
+
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -5609,7 +5622,16 @@ function pmoAuditRowsBase(){
   return pmoAuditRowsBuild(base)
 }
 function pmoAuditRowsAll(){return pmoAuditRowsBuild(state.data?.workorders||[])}
-const PMO_FILTERS=[['region','Updated Region'],['city','Updated City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['invoice50','1st 50 Invoice Status'],['second50','Second 50% status'],['sorReferenceNumber','SOR Reference Number'],['scopeTarget','Scope Target']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
+const PMO_FILTERS=[['region','Updated Region'],['city','Updated City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing MET Actual / PM Review'],['linkCode','Link Code'],['workOrder','Work Order'],['invoice50','1st 50 Invoice Status'],['second50','Second 50% status'],['sorReferenceNumber','SOR Reference Number'],['scopeTarget','Scope Target'],['year','Year'],['performance','Performance']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
+
+const PMO_FILTER_GROUPS=[
+  {id:'destination', title:'Destination', icon:'🌍', keys:['region','city','district']},
+  {id:'implementation', title:'Implementation', icon:'🚧', keys:['stage','project','subclass','type','workOrderStatus']},
+  {id:'financial', title:'Financial', icon:'💰', keys:['sorStatus','invoice50','second50','sorReferenceNumber']},
+  {id:'audit', title:'Audit', icon:'🛡️', keys:['scopeTarget','year','performance','issueType']},
+  {id:'search', title:'Search', icon:'🔎', keys:['linkCode','workOrder']}
+];
+const PMO_FILTER_LABELS=Object.fromEntries(PMO_FILTERS.map(f=>[f[0],f[1]]));
 if(!state.pmo.sorExposureMode)state.pmo.sorExposureMode='gt80';
 if(state.pmo.sorCriticalGlobalActive===undefined)state.pmo.sorCriticalGlobalActive=false;
 function pmoIssueType(r){if(r.pmoStatus==='PM REVIEW'||r.pmoCompletedBelow100)return 'PM Review';if(r.pmoStatus==='MISSING MET'||(r.pmoReasons||[]).some(x=>String(x).toLowerCase().includes('no internal met')||String(x).toLowerCase().includes('updated > 7')))return 'Missing MET Actual';return 'Sheet Synced'}
@@ -5620,6 +5642,9 @@ function pmoFieldValue(r,key){
   if(key==='sorStatus')return pmoSORStatus(r);
   if(key==='issueType')return pmoIssueType(r);
   if(key==='linkCode')return r.linkCode||'';
+  if(key==='workOrder')return r.workOrder||'';
+  if(key==='year')return r.year||getRawField(r.raw,['Year'])||'';
+  if(key==='performance')return r.status||r.performanceStatus||'';
   if(key==='invoice50')return pmoInvoice50Status(r);
   if(key==='second50')return String(getRawField(r.raw || r, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']) || r.second50 || '').trim();
   if(key==='targetMonth')return pmoTargetMonth(r);
@@ -5638,7 +5663,7 @@ function pmoRowsMatchingFiltersFromAll(){
 }
 function pmoSyncFiltersToGlobal(){
   if(!state?.pmo?.filters||!state.filters)return;
-  const map={region:'region',city:'city',district:'district',project:'project',type:'type',subclass:'subclass',stage:'stage',sorStatus:'sorStatus',invoice50:'invoice50',second50:'second50',sorReferenceNumber:'sorReferenceNumber',scopeTarget:'scopeTarget'};
+  const map={region:'region',city:'city',district:'district',project:'project',type:'type',subclass:'subclass',stage:'stage',sorStatus:'sorStatus',invoice50:'invoice50',second50:'second50',sorReferenceNumber:'sorReferenceNumber',scopeTarget:'scopeTarget',year:'year',performance:'performance'};
   Object.entries(map).forEach(([pmoKey,globalKey])=>{
     const v=state.pmo.filters[pmoKey];
     state.filters[globalKey]=(v&&v!=='All')?String(v):'All';
@@ -5649,6 +5674,8 @@ function pmoSyncFiltersToGlobal(){
   // the global Link Code list because this creates hidden cross-page filtering inconsistencies.
   const linkVal=state.pmo.filters.linkCode;
   state.filters.linkCode=(linkVal&&linkVal!=='All')?[String(linkVal)]:'All';
+  const woVal=state.pmo.filters.workOrder;
+  state.filters.workOrder=(woVal&&woVal!=='All')?[String(woVal)]:'All';
   state.sorReferenceFilter = state.filters.sorReferenceNumber || 'All';
 }
 
@@ -5667,7 +5694,9 @@ function pmoSyncGlobalToFilters(){
     invoice50:'invoice50',
     second50:'second50',
     sorReferenceNumber:'sorReferenceNumber',
-    scopeTarget:'scopeTarget'
+    scopeTarget:'scopeTarget',
+    year:'year',
+    performance:'performance'
   };
 
   Object.entries(map).forEach(([pmoKey, globalKey]) => {
@@ -5681,6 +5710,12 @@ function pmoSyncGlobalToFilters(){
   } else if(!linkVal || linkVal === 'All' || (Array.isArray(linkVal) && linkVal.length !== 1)){
     state.pmo.filters.linkCode = 'All';
   }
+  const woVal = state.filters.workOrder;
+  if(Array.isArray(woVal) && woVal.length === 1){
+    state.pmo.filters.workOrder = String(woVal[0]);
+  } else if(!woVal || woVal === 'All' || (Array.isArray(woVal) && woVal.length !== 1)){
+    state.pmo.filters.workOrder = 'All';
+  }
   state.sorReferenceFilter = state.filters.sorReferenceNumber || 'All';
 }
 
@@ -5689,21 +5724,63 @@ function renderPmoFilters(){
   if(!host)return;
   const baseRows=pmoAuditRowsBuild(state.data?.workorders||[]);
   host.innerHTML='';
-  PMO_FILTERS.forEach(([key,label])=>{
-    // Dynamic cascading options: every PMO filter option is calculated from all other active PMO filters.
-    // This prevents Scope Target or any other filter from showing values that no longer exist in the current scope.
+  host.classList.add('grouped-filters');
+
+  const buildPmoControl=([key,label])=>{
+    // Dynamic cascading options: each PMO filter option is calculated from all other active PMO filters.
     let basis=baseRows.slice();
     PMO_FILTERS.forEach(([other])=>{
       if(other===key)return;
       const val=state.pmo.filters[other];
       if(val&&val!=='All')basis=basis.filter(r=>String(pmoFieldValue(r,other)||'')===String(val));
     });
-    const opts=unique(basis.map(r=>pmoFieldValue(r,key)).filter(v=>String(v||'').trim())).sort((a,b)=>String(a).localeCompare(String(b)));
+    const opts=unique(basis.map(r=>pmoFieldValue(r,key)).filter(v=>String(v||'').trim())).sort((a,b)=>String(a).localeCompare(String(b),undefined,{numeric:true,sensitivity:'base'}));
     const div=document.createElement('div');
-    div.className='pmo-filter';
+    div.className='pmo-filter filter';
+
+    // Search fields use the same search & add UX as the main dashboard while preserving PMO cascading logic.
+    if(key==='linkCode' || key==='workOrder'){
+      const globalKey=key;
+      const current=(state.pmo.filters[key]&&state.pmo.filters[key]!=='All')?[state.pmo.filters[key]]:(Array.isArray(state.filters[globalKey])?state.filters[globalKey]:[]);
+      const isActive=current.length>0;
+      const listId=`pmo-list-${key}`;
+      div.innerHTML=`<div class="filter-head pmo-filter-head"><label>${escapeHtml(label)} (search & add)</label><button class="clear-filter pmo-clear-filter" type="button" title="Clear ${escapeHtml(label)} filter" ${isActive?'':'disabled'}>CLEAR</button></div>
+        <div class="token-box" id="pmo-token-box-${key}">
+          ${current.map(v=>`<span class="token-chip" title="${escapeHtml(v)}">${escapeHtml(v)} <button type="button" data-remove="${escapeHtml(v)}">×</button></span>`).join('')}
+          <input class="token-input" id="pmo-filter-${key}" list="${listId}" placeholder="Search / paste / press Enter" autocomplete="off" />
+          <datalist id="${listId}">${opts.slice(0,5000).map(o=>`<option value="${escapeHtml(o)}"></option>`).join('')}</datalist>
+        </div>
+        <div class="token-help">Paste multiple values separated by comma, space, semicolon, or new line.</div>`;
+      const input=div.querySelector(`#pmo-filter-${key}`);
+      const clearBtn=div.querySelector('.pmo-clear-filter');
+      const addValues=(raw)=>{
+        const values=String(raw||'').split(/[\n,;\t]+/).map(x=>x.trim()).filter(Boolean);
+        if(!values.length)return;
+        const first=values[0];
+        state.pmo.filters[key]=first;
+        state.filters[globalKey]=[first];
+        pmoSyncFiltersToGlobal();
+        renderAll();
+      };
+      input.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key==='Tab'||e.key===','){e.preventDefault();addValues(input.value);}});
+      input.addEventListener('change',()=>addValues(input.value));
+      div.querySelectorAll('[data-remove]').forEach(btn=>btn.addEventListener('click',()=>{
+        state.pmo.filters[key]='All';
+        state.filters[globalKey]='All';
+        pmoSyncFiltersToGlobal();
+        renderAll();
+      }));
+      clearBtn.addEventListener('click',()=>{
+        state.pmo.filters[key]='All';
+        state.filters[globalKey]='All';
+        pmoSyncFiltersToGlobal();
+        renderAll();
+      });
+      return div;
+    }
+
     const activeVal=state.pmo.filters[key]&&state.pmo.filters[key]!=='All';
     div.innerHTML=`<div class="pmo-filter-head"><label>${escapeHtml(label)}</label><button class="pmo-clear-filter" type="button" title="Clear ${escapeHtml(label)} filter" ${activeVal?'':'disabled'}>CLEAR</button></div><select id="pmo-filter-${key}"><option value="All">All</option>${opts.map(o=>`<option value="${escapeHtml(o)}">${escapeHtml(o)}</option>`).join('')}</select>`;
-    host.appendChild(div);
     const sel=div.querySelector('select');
     const clear=div.querySelector('.pmo-clear-filter');
     sel.value=opts.includes(state.pmo.filters[key])?state.pmo.filters[key]:'All';
@@ -5721,6 +5798,19 @@ function renderPmoFilters(){
       pmoSyncFiltersToGlobal();
       renderAll();
     });
+    return div;
+  };
+
+  PMO_FILTER_GROUPS.forEach(group=>{
+    const section=document.createElement('section');
+    section.className=`filter-group ${group.id}`;
+    section.innerHTML=`<div class="filter-group-title"><span class="group-icon">${group.icon}</span><span>${escapeHtml(group.title)}</span></div><div class="filter-stack"></div>`;
+    const stack=section.querySelector('.filter-stack');
+    group.keys.forEach(key=>{
+      const pair=PMO_FILTERS.find(f=>f[0]===key);
+      if(pair) stack.appendChild(buildPmoControl(pair));
+    });
+    host.appendChild(section);
   });
 }
 function pmoStatusChip(s){const cls=s==='SHEET SYNCED'?'green':'red';return`<span class="pmo-chip ${cls}">${escapeHtml(s)}</span>`}function renderPmoKpis(rows){const host=document.getElementById('pmo-kpis');if(!host)return;const issues=rows.filter(r=>r.pmoReasons.length),links=new Set(rows.map(r=>r.linkCode)),issueLinks=new Set(issues.map(r=>r.linkCode)),pmReviews=rows.filter(r=>r.pmoCompletedBelow100).length,cost=sum(rows.map(r=>effectiveCost(r))),sorRefs=new Set(rows.map(r=>sorReferenceNumberValue(r)).filter(Boolean));const selectedSorRef=(state.filters?.sorReferenceNumber&&state.filters.sorReferenceNumber!=='All')?state.filters.sorReferenceNumber:'All';host.innerHTML=[['Audited WOs',rows.length,`${links.size} Link Codes`],['SOR Reference Number',selectedSorRef==='All'?sorRefs.size:selectedSorRef,selectedSorRef==='All'?'Available references in current scope':'Selected reference filter'],['PM Review',pmReviews,'Completed status but progress < 100%'],['Filtered Cost',fmtMoney(cost),'WO Cost / Cost']].map(x=>`<div class="pmo-kpi"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="hint">${x[2]}</div></div>`).join('');const pill=document.getElementById('pmo-issue-pill');if(pill)pill.textContent=`${issueLinks.size} ISSUES FOUND`;const sub=document.getElementById('pmo-alert-sub');if(sub)sub.textContent=`${issueLinks.size} LINK CODES REQUIRE URGENT SITE STATUS UPDATES`}
