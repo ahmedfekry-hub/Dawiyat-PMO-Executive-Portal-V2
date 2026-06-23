@@ -1942,6 +1942,7 @@ body.dark-ui .doc-status-text{color:#9fb0c7!important;}
   .wo-metric.green { background:#16a34a; }
   .wo-metric.red { background:#dc2626; }
   .wo-metric.orange { background:#ea580c; }
+  .wo-metric.teal { background:#0f766e; }
   .wo-billing-mini-table { width:100%; border-collapse:collapse; }
   .wo-billing-mini-table th { background:#0f172a; color:#fff; position:static; font-size:11px; text-align:center; }
   .wo-billing-mini-table td { font-size:12px; text-align:center; padding:7px 6px; }
@@ -7004,8 +7005,11 @@ function renderWoBillingExecutiveSummary(rows) {
       <table class="wo-billing-mini-table" style="margin-top:12px"><thead><tr><th>Status</th><th>Link Code Count</th><th>Total Amount (SAR)</th></tr></thead><tbody>
         ${tableRows.map(r=>`<tr><td><b>${r[0]}</b></td><td><b>${fmtInt(r[1])}</b></td><td><b>${fmtMoney(r[2])} ر.س</b></td></tr>`).join('')}
         <tr><td style="color:#7c3aad;font-size:18px"><b>Total Amount (SAR)</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtInt(totalLinkCodeCount)}</b></td><td style="color:#7c3aad;font-size:18px"><b>${fmtMoney(totalAmountAll)} ر.س</b></td></tr>
-        <tr><td style="color:#0f766e;font-size:16px"><b>Asbuilt Final Amount</b></td><td style="color:#0f766e;font-size:14px"><b>vs Total Invoiced Stage</b></td><td style="color:#0f766e;font-size:16px"><b>${fmtMoney(totalAsbuiltFinalAmount)} ر.س // ${fmtMoney(totalInvoicedStageAmount)} ر.س</b></td></tr>
       </tbody></table>
+      <div class="wo-metrics-grid" style="grid-template-columns:repeat(2,1fr);margin-top:12px">
+        <div class="wo-metric teal"><span>Asbuilt Final Amount</span><b>${fmtMoney(totalAsbuiltFinalAmount)} ر.س</b></div>
+        <div class="wo-metric blue"><span>Total Invoiced Stage Amount</span><b>${fmtMoney(totalInvoicedStageAmount)} ر.س</b></div>
+      </div>
     </div>
     <div class="wo-billing-box">
       <div class="wo-billing-head">Invoicing Distribution</div>
