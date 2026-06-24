@@ -3411,7 +3411,11 @@ function buildData(raw) {
     const invoice50Amount = parseNum(getRawField(r, ['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount']));
     const rawSorLower = rawSorStatus.toLowerCase();
     const sorIsCreated = rawSorLower.includes('create') && !rawSorLower.includes('not');
-    const derivedInvoice50Status = rawInvoice50Status || (invoice50Amount > 0 ? 'Submitted' : (sorIsCreated ? 'In Progress' : 'SOR not Create'));
+    const rawInvoice50Lower = rawInvoice50Status.toLowerCase();
+    let derivedInvoice50Status = rawInvoice50Status || (invoice50Amount > 0 ? 'Submitted' : (sorIsCreated ? 'Not Start' : 'SOR not Create'));
+    if(sorIsCreated && (/sor\s*not|not\s*create|not\s*created/.test(rawInvoice50Lower) || rawInvoice50Lower === 'n/a' || rawInvoice50Lower === 'na' || rawInvoice50Lower === 'none' || rawInvoice50Lower === '')){
+      derivedInvoice50Status = invoice50Amount > 0 ? 'Submitted' : 'Not Start';
+    }
     return {
       id: idx + 1,
       raw: r,
@@ -5545,15 +5549,22 @@ function renderPerformanceEndVisuals(rows) {
 function getRawField(row,names){if(!row)return '';for(const n of names){if(row[n]!==undefined&&row[n]!==null&&String(row[n]).trim()!=='')return row[n];}const keys=Object.keys(row);for(const n of names){const target=String(n).toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'');const k=keys.find(x=>String(x).toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'')===target);if(k&&row[k]!==undefined&&row[k]!==null&&String(row[k]).trim()!=='')return row[k];}return '';}
 function pmoNorm(v){return String(v??'').trim().toUpperCase().replace(/\s+/g,' ')}function pmoKey(l,w,t){return `${pmoNorm(l)}||${pmoNorm(w)}||${pmoNorm(t)}`}function pmoShortKey(l,w){return `${pmoNorm(l)}||${pmoNorm(w)}`}function pmoStatusText(r){const parts=['Fiber Status','Civil Status','FULL WO STATUS','Full WO Status','WO Status'].map(k=>getRawField(r,[k])).filter(v=>String(v??'').trim()!==''&&String(v??'').trim()!=='0');return parts.join(' / ').toLowerCase()}function pmoIsCompletedStatus(r){return /completed|complete|تم|مكتمل/i.test(pmoStatusText(r))}function pmoIsNotStartValue(v){const x=pmoNorm(v);return x===''||x==='0'||x==='NOT START'||x==='NOT STARTED'||x==='NOTSTART'}function pmoNotStartedNoProgress(raw,targetRaw,targetProgress){const full=getRawField(raw,['FULL WO STATUS','Full WO Status','WO Status']);const civil=getRawField(raw,['Civil Status']);const fiber=getRawField(raw,['Fiber Status']);const targetBlank=String(targetRaw??'').trim()==='';const targetZero=targetBlank||Number(targetProgress||0)===0;return targetZero&&pmoIsNotStartValue(full)&&pmoIsNotStartValue(civil)&&pmoIsNotStartValue(fiber)}function pmoRawForWO(w){return w.raw||{}}function pmoTargetMonth(w){return String(getRawField(pmoRawForWO(w),['Target Date ( MONTH )','Target Date Month','Target Month'])||'').trim()}function pmoUpdatedScope(w){return String(getRawField(pmoRawForWO(w),['Updated Scope'])||'').trim()}function pmoInvoice50(w){return String(getRawField(pmoRawForWO(w),['1st 50 Invoice Status','First 50 Invoice Status'])||'').trim()}function pmoSORStatus(w){return String(getRawField(pmoRawForWO(w),['SOR Status'])||'').trim()}function pmoInvoiceAmount(w){return parseNum(getRawField(pmoRawForWO(w),['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount']))}
 function pmoInvoice50Status(w){
-  /* Preserve the exact source value from column "1st 50 Invoice Status".
-     Do not normalize operational statuses such as In Progress, Not Start, or SOR not Create. */
+  /* Billing/SOR alignment rule:
+     - If SOR Status is Created, a stale source value like "SOR not Create" is no longer valid
+       for invoice distribution. Treat it as Not Start unless an amount proves Submitted.
+     - This keeps Executive SOR Summary aligned with WO Billing after Project Updates Center saves. */
   const rawStatus = String(pmoInvoice50(w)||'').trim();
-  if(rawStatus) return rawStatus;
   const amount = pmoInvoiceAmount(w);
   const sor = String(pmoSORStatus(w)||'').toLowerCase();
   const sorCreated = sor.includes('create') && !sor.includes('not');
+  const rawLower = rawStatus.toLowerCase();
+  if(sorCreated && (/sor\s*not|not\s*create|not\s*created/.test(rawLower) || rawLower === 'n/a' || rawLower === 'na' || rawLower === 'none' || rawLower === '')){
+    if(amount > 0) return 'Submitted';
+    return 'Not Start';
+  }
+  if(rawStatus) return rawStatus;
   if(amount > 0) return 'Submitted';
-  if(sorCreated) return 'In Progress';
+  if(sorCreated) return 'Not Start';
   return 'SOR not Create';
 }
 function pmoInvoice50Chip(status){
