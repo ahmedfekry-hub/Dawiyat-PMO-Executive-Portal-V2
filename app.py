@@ -2859,15 +2859,101 @@ def render_back_to_dashboard_button(key_suffix: str = "") -> None:
             st.rerun()
 
 
+def _unique_keep_order(items: List[str]) -> List[str]:
+    out: List[str] = []
+    for item in items:
+        if item and item not in out:
+            out.append(item)
+    return out
+
+
+def _component_enabled_for_current_user(component_name: str) -> bool:
+    """Return True when the component is explicitly Show=Yes in permissions.xlsx.
+
+    This keeps Project Updates controlled by the User_Component_Access sheet instead
+    of only the display Role text.
+    """
+    target = str(component_name or "").strip().lower()
+    if not target:
+        return False
+    try:
+        policy = user_policy()
+        shown = [str(x).strip().lower() for x in _as_list(policy.get("show_tables"))]
+        return target in shown
+    except Exception:
+        return False
+
+
+def _explicit_editable_columns_from_permissions() -> List[str]:
+    """Optional future-proof column-level permissions.
+
+    If Admin Board contains rows like:
+      Page = Project Updates Center
+      Component / Table = Editable Column: SOR Status
+      Show = Yes
+    then only those explicit columns are added in addition to role defaults.
+    """
+    explicit: List[str] = []
+    try:
+        policy = user_policy()
+        for comp in _as_list(policy.get("show_tables")):
+            txt = str(comp or "").strip()
+            low = txt.lower()
+            if low.startswith("editable column:"):
+                col = txt.split(":", 1)[1].strip()
+                if col in PROJECT_UPDATE_EDITABLE_COLUMNS:
+                    explicit.append(col)
+            elif low in {"save updates", "bulk update", "editable columns"}:
+                # Control components; not columns themselves. Kept for permission UI clarity.
+                continue
+    except Exception:
+        pass
+    return _unique_keep_order(explicit)
+
+
 def current_user_update_columns() -> List[str]:
     username = str(st.session_state.get("username", "")).strip().lower()
     role = str(st.session_state.get("role", "")).strip().lower()
+
+    # Page + component gate. A user must have the Project Updates page and the
+    # Project Updates Editable Grid component enabled. Ahmed remains full admin.
     if username == "ahmedfekry" or role in {"admin", "pmo"}:
         return PROJECT_UPDATE_EDITABLE_COLUMNS.copy()
-    if "finance" in role:
-        return PROJECT_UPDATE_FINANCE_COLUMNS.copy()
-    if any(k in role for k in ["project", "manager", "operation", "pm"]):
-        return PROJECT_UPDATE_PM_COLUMNS.copy()
+
+    if not can("project_updates"):
+        return []
+
+    has_grid = _component_enabled_for_current_user("Project Updates Editable Grid")
+    if not has_grid:
+        return []
+
+    explicit_cols = _explicit_editable_columns_from_permissions()
+
+    # Finance / invoicing / document controller users.
+    # Fixes mohamed_syed: his display role is "Invoicing & Document Controller",
+    # so checking only for the word "finance" made him view-only.
+    if (
+        username in {"mohamed_syed", "mohamed_sayed"}
+        or any(k in role for k in ["finance", "invoice", "invoicing", "document", "commercial", "billing"])
+    ):
+        return _unique_keep_order(
+            PROJECT_UPDATE_FINANCE_COLUMNS
+            + ["DCR_Status", "RFS Certificate", "As-built BOQ", "Redline", "Handover O&M _Status", "Handover Consultant _Status", "Asbuilt Final Amount"]
+            + explicit_cols
+        )
+
+    # Project users can update implementation/closure fields. SOR Status is included
+    # because the PMO workflow requires project managers to update the same row-level
+    # status set without being blocked on this specific column.
+    if username == "adham_ismail" or any(k in role for k in ["project", "manager", "operation", "operations", "pm", "coordinator"]):
+        return _unique_keep_order(PROJECT_UPDATE_PM_COLUMNS + ["SOR Status"] + explicit_cols)
+
+    # Fallback: if Admin grants explicit editable columns, use them even if the role
+    # label is not recognized. This prevents valid users from becoming view-only just
+    # because the display Role text changed.
+    if explicit_cols:
+        return explicit_cols
+
     return []
 
 def project_updates_center_page() -> None:
