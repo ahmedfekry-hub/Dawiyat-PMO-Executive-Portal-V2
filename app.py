@@ -36,6 +36,10 @@ NOTIFICATIONS_PATH = DATA_DIR / "notifications.csv"
 NOTIFICATION_ACCESS_PATH = DATA_DIR / "notification_access.csv"
 DAILY_DIGEST_PATH = DATA_DIR / "daily_digest.csv"
 WHATSAPP_OUTBOX_PATH = DATA_DIR / "whatsapp_outbox.csv"
+MASTER_OPERATIONAL_PATH = DATA_DIR / "master_operational_data.csv"
+CHANGE_IMPACT_PATH = DATA_DIR / "change_impact.csv"
+KPI_IMPACT_PATH = DATA_DIR / "kpi_impact.csv"
+SNAPSHOT_DIR = DATA_DIR / "snapshots"
 PENALTIES_PATH = DATA_DIR / "Penalties.csv"
 DOC_STATUS_CACHE_PATH = DATA_DIR / "Dawiyat_Document_Status.csv"
 DISTRICT_PATH = DATA_DIR / "District.csv"
@@ -49,6 +53,9 @@ DATA_FILES = {
     "notification_access.csv": NOTIFICATION_ACCESS_PATH,
     "daily_digest.csv": DAILY_DIGEST_PATH,
     "whatsapp_outbox.csv": WHATSAPP_OUTBOX_PATH,
+    "master_operational_data.csv": MASTER_OPERATIONAL_PATH,
+    "change_impact.csv": CHANGE_IMPACT_PATH,
+    "kpi_impact.csv": KPI_IMPACT_PATH,
     "Penalties.csv": PENALTIES_PATH,
     "District.csv": DISTRICT_PATH,
 }
@@ -1408,15 +1415,208 @@ def df_to_records(df: pd.DataFrame) -> List[dict]:
 
 
 
+
+# -----------------------------
+# V5.9 Governance / PMO Intelligence helpers
+# -----------------------------
+def _normalize_text(v: Any) -> str:
+    return str(v if v is not None else "").strip()
+
+
+def _normalize_status(v: Any) -> str:
+    return _normalize_text(v).lower().replace("_", " ").replace("-", " ").strip()
+
+
+POSITIVE_STATUSES = {
+    "approved", "accepted", "submitted", "completed", "closed", "created", "done", "issued",
+    "ready", "rfs approved", "under clearing remarks", "scheduled",
+}
+NEGATIVE_STATUSES = {
+    "rejected", "failed", "not approved", "returned", "missing documents", "not started", "not start",
+    "sor not create", "not create", "cancelled", "canceled",
+}
+NEUTRAL_STATUSES = {"in progress", "under preparation", "under review", "requested", "scheduled"}
+
+
+def classify_change_impact(field: str, old_value: Any, new_value: Any) -> str:
+    """Simple rule engine used by Change Detection Agent and Digest."""
+    old_s = _normalize_status(old_value)
+    new_s = _normalize_status(new_value)
+    if not new_s or old_s == new_s:
+        return "Neutral"
+    if new_s in POSITIVE_STATUSES and old_s not in POSITIVE_STATUSES:
+        return "Positive"
+    if new_s in NEGATIVE_STATUSES and old_s not in NEGATIVE_STATUSES:
+        return "Negative"
+    if new_s in NEUTRAL_STATUSES:
+        return "Neutral"
+    if any(x in new_s for x in ["approved", "accepted", "submitted", "completed", "closed", "created"]):
+        return "Positive"
+    if any(x in new_s for x in ["reject", "fail", "missing", "not start", "not create"]):
+        return "Negative"
+    return "Neutral"
+
+
+def category_for_change(field: str, impact: str = "") -> str:
+    f = _normalize_status(field)
+    if "invoice" in f or "sor" in f or "amount" in f:
+        return "Financial"
+    if "handover" in f:
+        return "Handover"
+    if "pat" in f:
+        return "PAT"
+    if "asbuilt" in f or "as built" in f or "rfs" in f or "redline" in f or "boq" in f or "dcr" in f:
+        return "Documents"
+    if "civil" in f or "fiber" in f or "full wo" in f:
+        return "Implementation"
+    if str(impact).lower() == "negative":
+        return "Critical"
+    return "Project Update"
+
+
+def notification_access_enabled(username: str, category: str) -> bool:
+    """Admin-controlled notification distribution matrix.
+    Supports rows like Username=ahmedfekry, Category=ALL, Enabled=Yes.
+    """
+    ensure_governance_files()
+    df = safe_read_csv(NOTIFICATION_ACCESS_PATH)
+    if df.empty or "Username" not in df.columns:
+        return True
+    u = str(username).strip().lower()
+    cat = str(category).strip().lower()
+    rows = df[df["Username"].astype(str).str.strip().str.lower().isin([u, "all", "*"])].copy()
+    if rows.empty:
+        return True
+    if "Enabled" not in rows.columns:
+        return True
+    if "Category" not in rows.columns:
+        return rows["Enabled"].astype(str).str.lower().isin(["yes", "true", "1", "on"]).any()
+    exact = rows[rows["Category"].astype(str).str.strip().str.lower().isin([cat, "all", "*"])]
+    if exact.empty:
+        return False
+    return exact["Enabled"].astype(str).str.lower().isin(["yes", "true", "1", "on"]).any()
+
+
+def build_effective_operational_data() -> pd.DataFrame:
+    """Single source of truth used for snapshots and downloads: Master + latest project updates + derived fields."""
+    base = safe_read_csv(WO_PATH).copy()
+    if base.empty:
+        return base
+    return apply_derived_billing_fields(apply_project_updates_to_workorders(base)).copy()
+
+
+def write_master_operational_snapshot(reason: str = "manual") -> Path | None:
+    """Persist the current effective master and a dated snapshot for version control.
+    Note: on Streamlit Cloud this persists while the app filesystem persists; download snapshots regularly or connect a GitHub write token for permanent storage.
+    """
+    ensure_governance_files()
+    SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+    df = build_effective_operational_data()
+    if df.empty:
+        return None
+    df.to_csv(MASTER_OPERATIONAL_PATH, index=False, encoding="utf-8-sig")
+    stamp = ksa_now().strftime("%Y%m%d_%H%M%S")
+    snap = SNAPSHOT_DIR / f"master_operational_data_{stamp}_{reason}.csv"
+    df.to_csv(snap, index=False, encoding="utf-8-sig")
+    return snap
+
+
+def append_change_impacts(change_rows: List[dict]) -> None:
+    if not change_rows:
+        return
+    now = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
+    impact_rows = []
+    kpi_rows = []
+    for ch in change_rows:
+        impact = classify_change_impact(ch.get("Field", ""), ch.get("Old Value", ""), ch.get("New Value", ""))
+        category = category_for_change(ch.get("Field", ""), impact)
+        impact_rows.append({
+            "Impact ID": hashlib.md5(f"{ch.get('Change ID','')}-{impact}-{now}".encode()).hexdigest()[:12],
+            "Created At": now,
+            "Change ID": ch.get("Change ID", ""),
+            "Updated By": ch.get("Updated By", ""),
+            "Link Code": ch.get("Link Code", ""),
+            "Work Order": ch.get("Work Order", ""),
+            "Field": ch.get("Field", ""),
+            "Old Value": ch.get("Old Value", ""),
+            "New Value": ch.get("New Value", ""),
+            "Impact": impact,
+            "Category": category,
+            "Impact Note": f"{category} change classified as {impact}.",
+        })
+        if impact in ["Positive", "Negative"]:
+            kpi_rows.append({
+                "KPI Impact ID": hashlib.md5(f"kpi-{ch.get('Change ID','')}-{now}".encode()).hexdigest()[:12],
+                "Created At": now,
+                "Updated By": ch.get("Updated By", ""),
+                "Link Code": ch.get("Link Code", ""),
+                "Work Order": ch.get("Work Order", ""),
+                "Field": ch.get("Field", ""),
+                "Impact": impact,
+                "KPI Area": category,
+                "Message": f"{category} KPI impact: {ch.get('Field','')} changed from {ch.get('Old Value','')} to {ch.get('New Value','')}.",
+            })
+    _append_csv_rows(CHANGE_IMPACT_PATH, impact_rows)
+    _append_csv_rows(KPI_IMPACT_PATH, kpi_rows)
+
+
+def create_digest_for_date(date_text: str | None = None, audience: str = "Executive") -> str:
+    ensure_governance_files()
+    date_text = date_text or ksa_now().strftime("%Y-%m-%d")
+    log = safe_read_csv(CHANGE_LOG_PATH)
+    impacts = safe_read_csv(CHANGE_IMPACT_PATH)
+    if not log.empty and "Updated At" in log.columns:
+        daily_log = log[log["Updated At"].astype(str).str.startswith(date_text)].copy()
+    else:
+        daily_log = pd.DataFrame()
+    if not impacts.empty and "Created At" in impacts.columns:
+        daily_impacts = impacts[impacts["Created At"].astype(str).str.startswith(date_text)].copy()
+    else:
+        daily_impacts = pd.DataFrame()
+    lines = [f"Executive Daily Digest - {date_text}", "", f"Total changes: {len(daily_log):,}"]
+    if not daily_log.empty:
+        lines.append(f"Updated Link Codes: {daily_log.get('Link Code', pd.Series(dtype=str)).astype(str).replace('', pd.NA).dropna().nunique():,}")
+        lines.append(f"Updated Work Orders: {daily_log.get('Work Order', pd.Series(dtype=str)).astype(str).replace('', pd.NA).dropna().nunique():,}")
+        top_users = daily_log.groupby("Updated By").size().sort_values(ascending=False).head(5)
+        if not top_users.empty:
+            lines += ["", "Top Contributors:"] + [f"- {u}: {c} changes" for u, c in top_users.items()]
+        top_fields = daily_log.groupby("Field").size().sort_values(ascending=False).head(8)
+        if not top_fields.empty:
+            lines += ["", "Most Updated Fields:"] + [f"- {f}: {c}" for f, c in top_fields.items()]
+    if not daily_impacts.empty and "Impact" in daily_impacts.columns:
+        impact_counts = daily_impacts.groupby("Impact").size().to_dict()
+        lines += ["", "Impact Summary:"] + [f"- {k}: {v}" for k, v in impact_counts.items()]
+        negatives = daily_impacts[daily_impacts["Impact"].astype(str).str.lower() == "negative"].head(10)
+        if not negatives.empty:
+            lines += ["", "Critical / Negative Changes:"]
+            for _, r in negatives.iterrows():
+                lines.append(f"- {r.get('Link Code','')} | {r.get('Work Order','')} | {r.get('Field','')}: {r.get('Old Value','')} → {r.get('New Value','')}")
+    return "\n".join(lines)
+
+
+def create_system_notification(to_user: str, title: str, message: str, category: str = "System", link_code: str = "", work_order: str = "") -> None:
+    if not notification_access_enabled(to_user, category):
+        return
+    now = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
+    _append_csv_rows(NOTIFICATIONS_PATH, [{
+        "Notification ID": hashlib.md5(f"{now}-{to_user}-{category}-{title}".encode()).hexdigest()[:12],
+        "Created At": now, "To User": to_user, "Category": category, "Title": title,
+        "Message": message, "Is Read": "No", "Related Link Code": link_code, "Related Work Order": work_order,
+    }])
+
+
 def ensure_governance_files() -> None:
     DATA_DIR.mkdir(exist_ok=True)
     defaults = {
         PROJECT_UPDATES_PATH: ["Link Code", "Work Order", *PROJECT_UPDATE_EDITABLE_COLUMNS, "Updated By", "Updated At"],
         CHANGE_LOG_PATH: ["Change ID", "Updated At", "Updated By", "Link Code", "Work Order", "Field", "Old Value", "New Value", "Source"],
         NOTIFICATIONS_PATH: ["Notification ID", "Created At", "To User", "Category", "Title", "Message", "Is Read", "Related Link Code", "Related Work Order"],
-        NOTIFICATION_ACCESS_PATH: ["Username", "Category", "Enabled"],
+        NOTIFICATION_ACCESS_PATH: ["Username", "Category", "Enabled", "WhatsApp", "Daily Digest", "Critical Only"],
+        CHANGE_IMPACT_PATH: ["Impact ID", "Created At", "Change ID", "Updated By", "Link Code", "Work Order", "Field", "Old Value", "New Value", "Impact", "Category", "Impact Note"],
+        KPI_IMPACT_PATH: ["KPI Impact ID", "Created At", "Updated By", "Link Code", "Work Order", "Field", "Impact", "KPI Area", "Message"],
         DAILY_DIGEST_PATH: ["Digest ID", "Created At", "Created By", "Audience", "Digest Text"],
         WHATSAPP_OUTBOX_PATH: ["Message ID", "Created At", "To User", "To WhatsApp", "Message", "Status", "Sent At"],
+        MASTER_OPERATIONAL_PATH: [],
     }
     for path, cols in defaults.items():
         if not path.exists():
@@ -1478,23 +1678,27 @@ def create_update_notifications(changes: List[dict]) -> None:
     now = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
     rows = []
     for ch in changes:
-        title = f"{ch.get('Field','')} updated"
-        msg = f"{ch.get('Updated By','')} changed {ch.get('Field','')} for WO {ch.get('Work Order','')} from '{ch.get('Old Value','')}' to '{ch.get('New Value','')}'."
+        impact = classify_change_impact(ch.get("Field", ""), ch.get("Old Value", ""), ch.get("New Value", ""))
+        category = category_for_change(ch.get("Field", ""), impact)
+        title = f"{category}: {ch.get('Field','')} updated"
+        msg = f"{ch.get('Updated By','')} changed {ch.get('Field','')} for Link Code {ch.get('Link Code','')} / WO {ch.get('Work Order','')} from '{ch.get('Old Value','')}' to '{ch.get('New Value','')}'. Impact: {impact}."
         for user in users:
-            # Do not notify the person who made the change.
             if str(user).strip().lower() == str(ch.get('Updated By','')).strip().lower():
+                continue
+            if not notification_access_enabled(user, category):
                 continue
             rows.append({
                 "Notification ID": hashlib.md5(f"{now}-{user}-{title}-{len(rows)}".encode()).hexdigest()[:12],
                 "Created At": now,
                 "To User": user,
-                "Category": "Project Update",
+                "Category": category,
                 "Title": title,
                 "Message": msg,
                 "Is Read": "No",
                 "Related Link Code": ch.get("Link Code", ""),
                 "Related Work Order": ch.get("Work Order", ""),
             })
+    append_change_impacts(changes)
     _append_csv_rows(NOTIFICATIONS_PATH, rows)
 
 
@@ -2901,8 +3105,14 @@ def project_updates_center_page() -> None:
             _append_csv_rows(PROJECT_UPDATES_PATH, update_rows)
             _append_csv_rows(CHANGE_LOG_PATH, change_rows)
             create_update_notifications(change_rows)
+            snapshot_path = write_master_operational_snapshot("project_update")
+        else:
+            snapshot_path = None
         st.cache_data.clear()
-        st.success(f"Saved {len(change_rows):,} changed cells by {username}. Master u_osp_work_order.csv was not modified. Refresh Dashboard to see updates.")
+        if snapshot_path:
+            st.success(f"Saved {len(change_rows):,} changed cells by {username}. Master operational data and snapshot were updated. Snapshot: {snapshot_path.name}")
+        else:
+            st.info("No data changes detected.")
 
 
 def backup_file(path: Path) -> Path:
@@ -2917,20 +3127,29 @@ def backup_file(path: Path) -> Path:
 def data_update_agent_page() -> None:
     render_back_to_dashboard_button("data_update_agent")
     st.title("🧠 Data Update Agent")
-    st.caption("Governed data layers: Master data is Admin-only, while project status updates are saved separately and audited.")
+    st.caption("Governed data layers, update persistence, snapshots, notification access, change impact, and digest controls.")
     ensure_governance_files()
-    tab1, tab2, tab3, tab4 = st.tabs(["Data Layers", "Master Data Admin", "User Notification Access", "Change Detection Agent"])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
+        "Data Layers", "Master Data Admin", "User Notification Access", "Change Detection Agent", "Data Version Center", "KPI Impact Engine"
+    ])
     with tab1:
         st.subheader("Dashboard Data Layers")
         st.markdown("""
-        **Layer 1 — Master Data (Admin only):** `u_osp_work_order.csv`, `District.csv`, `Penalties.csv`  
-        **Layer 2 — Project Updates:** `project_updates.csv`  
-        **Layer 3 — Dashboard Engine:** Master data + updates + District + Penalties
+        **Layer 1 — Protected Master:** `u_osp_work_order.csv`, `District.csv`, `Penalties.csv`  
+        **Layer 2 — Incremental Updates:** `project_updates.csv`  
+        **Layer 3 — Operational Master:** `master_operational_data.csv` = Master + latest updates + derived fields  
+        **Layer 4 — Audit & Intelligence:** `change_log.csv`, `change_impact.csv`, `kpi_impact.csv`, `notifications.csv`
         """)
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         c1.metric("Project Updates", len(safe_read_csv(PROJECT_UPDATES_PATH)))
         c2.metric("Change Log Rows", len(safe_read_csv(CHANGE_LOG_PATH)))
         c3.metric("Unread Notifications", unread_notifications_count(st.session_state.get("username", "")))
+        op = safe_read_csv(MASTER_OPERATIONAL_PATH)
+        c4.metric("Operational Rows", len(op))
+        if st.button("🔄 Rebuild Operational Master + Snapshot", use_container_width=True):
+            snap = write_master_operational_snapshot("manual_rebuild")
+            st.cache_data.clear()
+            st.success(f"Operational master rebuilt. Snapshot: {snap.name if snap else 'N/A'}")
     with tab2:
         st.subheader("Admin-only Master Data")
         if not _is_admin_board_owner():
@@ -2944,26 +3163,69 @@ def data_update_agent_page() -> None:
                 if uploaded is not None and st.button(f"💾 Save {label}", key=f"save_master_{label}"):
                     backup_file(path)
                     path.write_bytes(uploaded.getvalue())
+                    write_master_operational_snapshot(f"replace_{path.stem}")
                     st.cache_data.clear()
-                    st.success(f"{label} replaced successfully.")
+                    st.success(f"{label} replaced successfully and operational snapshot refreshed.")
     with tab3:
         st.subheader("User Notification Access")
+        st.caption("Controls who receives Project Update, Financial, Documents, PAT, Handover, Implementation, Critical, Daily Digest, and WhatsApp queue notifications.")
+        users = list(get_users().keys())
+        categories = ["ALL", "Project Update", "Financial", "Documents", "PAT", "Handover", "Implementation", "Critical", "Daily Digest", "KPI Impact", "System"]
         access = safe_read_csv(NOTIFICATION_ACCESS_PATH)
-        if access.empty:
-            access = pd.DataFrame({"Username": list(get_users().keys()), "Category": "Project Update", "Enabled": "Yes"})
+        if access.empty or "Username" not in access.columns:
+            rows = []
+            for u in users:
+                for cat in categories:
+                    rows.append({"Username": u, "Category": cat, "Enabled": "Yes" if u.lower()=="ahmedfekry" or cat not in ["WhatsApp"] else "No", "WhatsApp": "No", "Daily Digest": "Yes", "Critical Only": "No"})
+            access = pd.DataFrame(rows)
         edited = st.data_editor(access, use_container_width=True, hide_index=True, num_rows="dynamic", key="notification_access_editor")
         if st.button("💾 Save Notification Access", use_container_width=True):
             edited.fillna("").to_csv(NOTIFICATION_ACCESS_PATH, index=False, encoding="utf-8-sig")
             st.cache_data.clear()
-            st.success("Notification access saved.")
+            st.success("Notification access saved. New notifications will follow this matrix.")
     with tab4:
         st.subheader("Change Detection Agent")
         log = safe_read_csv(CHANGE_LOG_PATH)
-        if log.empty:
-            st.info("No changes recorded yet.")
+        impacts = safe_read_csv(CHANGE_IMPACT_PATH)
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Raw Changes", len(log))
+        c2.metric("Impact Rows", len(impacts))
+        neg = impacts[impacts.get("Impact", "").astype(str).str.lower()=="negative"] if not impacts.empty and "Impact" in impacts.columns else pd.DataFrame()
+        c3.metric("Negative/Critical", len(neg))
+        if impacts.empty:
+            st.info("No change impacts recorded yet.")
         else:
-            st.dataframe(log.sort_values("Updated At", ascending=False), use_container_width=True, hide_index=True)
-            st.download_button("⬇️ Download Change Log", log.to_csv(index=False).encode("utf-8-sig"), "change_log.csv", "text/csv")
+            st.dataframe(impacts.sort_values("Created At", ascending=False), use_container_width=True, hide_index=True)
+            st.download_button("⬇️ Download Change Impact", impacts.to_csv(index=False).encode("utf-8-sig"), "change_impact.csv", "text/csv")
+        if not log.empty:
+            with st.expander("Raw Change Log"):
+                st.dataframe(log.sort_values("Updated At", ascending=False), use_container_width=True, hide_index=True)
+                st.download_button("⬇️ Download Change Log", log.to_csv(index=False).encode("utf-8-sig"), "change_log.csv", "text/csv")
+    with tab5:
+        st.subheader("Data Version Center")
+        st.caption("Download the latest operational master or any saved snapshot. Use this before/after major updates.")
+        if MASTER_OPERATIONAL_PATH.exists():
+            st.download_button("⬇️ Download Current Operational Master", MASTER_OPERATIONAL_PATH.read_bytes(), "master_operational_data.csv", "text/csv", use_container_width=True)
+        else:
+            st.info("No operational master yet. Click Rebuild Operational Master in Data Layers.")
+        SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        snapshots = sorted(SNAPSHOT_DIR.glob("master_operational_data_*.csv"), reverse=True)
+        st.metric("Snapshots", len(snapshots))
+        if snapshots:
+            snap_df = pd.DataFrame([{"Snapshot": x.name, "Modified": datetime.fromtimestamp(x.stat().st_mtime, KSA_TZ).strftime("%Y-%m-%d %H:%M:%S"), "Size KB": round(x.stat().st_size/1024, 1)} for x in snapshots])
+            st.dataframe(snap_df, use_container_width=True, hide_index=True)
+            selected = st.selectbox("Select snapshot to download", [x.name for x in snapshots])
+            snap_path = next((x for x in snapshots if x.name == selected), None)
+            if snap_path:
+                st.download_button("⬇️ Download Selected Snapshot", snap_path.read_bytes(), snap_path.name, "text/csv", use_container_width=True)
+    with tab6:
+        st.subheader("KPI Impact Engine")
+        kpi = safe_read_csv(KPI_IMPACT_PATH)
+        if kpi.empty:
+            st.info("No KPI impacts yet. Positive/Negative changes will appear here after project updates.")
+        else:
+            st.dataframe(kpi.sort_values("Created At", ascending=False), use_container_width=True, hide_index=True)
+            st.download_button("⬇️ Download KPI Impact", kpi.to_csv(index=False).encode("utf-8-sig"), "kpi_impact.csv", "text/csv")
 
 
 def notification_center_page() -> None:
@@ -2976,13 +3238,28 @@ def notification_center_page() -> None:
         st.info("No notifications yet.")
         return
     user_df = df[df["To User"].astype(str).str.lower() == str(username).lower()].copy()
-    unread = user_df[user_df.get("Is Read", "No").astype(str).str.lower() != "yes"] if not user_df.empty else pd.DataFrame()
-    st.metric("Unread Notifications", len(unread))
-    if st.button("Mark all as read", use_container_width=True):
-        df.loc[df["To User"].astype(str).str.lower() == str(username).lower(), "Is Read"] = "Yes"
-        df.to_csv(NOTIFICATIONS_PATH, index=False, encoding="utf-8-sig")
-        st.cache_data.clear()
-        st.rerun()
+    if user_df.empty:
+        st.info("No notifications assigned to you.")
+        return
+    unread = user_df[user_df.get("Is Read", "No").astype(str).str.lower() != "yes"].copy()
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Unread Notifications", len(unread))
+    c2.metric("Total Notifications", len(user_df))
+    cats = sorted([x for x in user_df.get("Category", pd.Series(dtype=str)).astype(str).unique() if x])
+    selected_cat = c3.selectbox("Category", ["All"] + cats)
+    if selected_cat != "All":
+        user_df = user_df[user_df["Category"].astype(str).eq(selected_cat)]
+    f1, f2 = st.columns(2)
+    with f1:
+        unread_only = st.checkbox("Unread only", value=False)
+    with f2:
+        if st.button("Mark all as read", use_container_width=True):
+            df.loc[df["To User"].astype(str).str.lower() == str(username).lower(), "Is Read"] = "Yes"
+            df.to_csv(NOTIFICATIONS_PATH, index=False, encoding="utf-8-sig")
+            st.cache_data.clear()
+            st.rerun()
+    if unread_only:
+        user_df = user_df[user_df.get("Is Read", "No").astype(str).str.lower() != "yes"]
     st.dataframe(user_df.sort_values("Created At", ascending=False), use_container_width=True, hide_index=True)
 
 
@@ -2990,19 +3267,37 @@ def executive_daily_digest_page() -> None:
     render_back_to_dashboard_button("executive_daily_digest")
     st.title("📩 Executive Daily Digest")
     ensure_governance_files()
-    log = safe_read_csv(CHANGE_LOG_PATH)
-    today = ksa_now().strftime("%Y-%m-%d")
-    todays = log[log.get("Updated At", "").astype(str).str.startswith(today)] if not log.empty and "Updated At" in log.columns else pd.DataFrame()
-    digest = f"Executive Daily Digest - {today}\n\nTotal changes today: {len(todays)}\n"
-    if not todays.empty:
-        by_user = todays.groupby("Updated By").size().reset_index(name="Changes").to_string(index=False)
-        by_field = todays.groupby("Field").size().reset_index(name="Changes").to_string(index=False)
-        digest += f"\nBy User:\n{by_user}\n\nBy Field:\n{by_field}\n"
-    st.text_area("Digest Preview", digest, height=320)
-    if st.button("💾 Save Digest", use_container_width=True):
-        row = {"Digest ID": hashlib.md5(digest.encode()).hexdigest()[:12], "Created At": ksa_now().strftime("%Y-%m-%d %H:%M:%S"), "Created By": st.session_state.get("username", ""), "Audience": "Executive", "Digest Text": digest}
-        _append_csv_rows(DAILY_DIGEST_PATH, [row])
-        st.success("Digest saved.")
+    date_text = st.date_input("Digest Date", value=ksa_now().date()).strftime("%Y-%m-%d")
+    digest = create_digest_for_date(date_text)
+    st.text_area("Digest Preview", digest, height=420)
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("💾 Save Digest", use_container_width=True):
+            row = {"Digest ID": hashlib.md5(f"{date_text}-{digest}".encode()).hexdigest()[:12], "Created At": ksa_now().strftime("%Y-%m-%d %H:%M:%S"), "Created By": st.session_state.get("username", ""), "Audience": "Executive", "Digest Text": digest}
+            _append_csv_rows(DAILY_DIGEST_PATH, [row])
+            for u in get_users().keys():
+                if notification_access_enabled(u, "Daily Digest"):
+                    create_system_notification(u, "Executive Daily Digest", digest[:900], "Daily Digest")
+            st.success("Digest saved and notifications created for enabled users.")
+    with c2:
+        if st.button("🟢 Queue WhatsApp Digest", use_container_width=True):
+            rows = []
+            now = ksa_now().strftime("%Y-%m-%d %H:%M:%S")
+            access = safe_read_csv(NOTIFICATION_ACCESS_PATH)
+            users = list(get_users().keys())
+            for u in users:
+                whats_enabled = False
+                if not access.empty and "Username" in access.columns and "WhatsApp" in access.columns:
+                    m = access[access["Username"].astype(str).str.lower().eq(str(u).lower())]
+                    whats_enabled = m["WhatsApp"].astype(str).str.lower().isin(["yes","true","1","on"]).any()
+                if whats_enabled or str(u).lower() == "ahmedfekry":
+                    rows.append({"Message ID": hashlib.md5(f"{now}-{u}-digest".encode()).hexdigest()[:12], "Created At": now, "To User": u, "To WhatsApp": "", "Message": digest, "Status": "Queued", "Sent At": ""})
+            _append_csv_rows(WHATSAPP_OUTBOX_PATH, rows)
+            st.success(f"Queued {len(rows)} WhatsApp digest messages.")
+    saved = safe_read_csv(DAILY_DIGEST_PATH)
+    if not saved.empty:
+        st.subheader("Saved Digests")
+        st.dataframe(saved.sort_values("Created At", ascending=False), use_container_width=True, hide_index=True)
 
 
 def whatsapp_agent_page() -> None:
