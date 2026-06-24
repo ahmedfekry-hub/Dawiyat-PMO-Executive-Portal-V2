@@ -5962,11 +5962,11 @@ function renderPmoCost(rows){
   });
 
   function linkInvoiceStatus(linkItem){
-    // SOR summary status rule:
-    // 1) If the Link Code has SOR Created rows, classify it ONLY by the explicit
-    //    1st 50 Invoice Status inside those Created rows.
-    // 2) If it has no Created rows, classify it as SOR not Create or N/A.
-    // This prevents a Created-but-Not-Start SOR reference from being counted as Submitted.
+    // FINAL SOR billing alignment rule:
+    // Executive SOR Summary cards are driven by SOR Status + 1st 50 Invoice Status.
+    // If SOR Status is Created, the Link Code must NOT be considered Submitted unless
+    // 1st 50 Invoice Status is explicitly Submitted. Values such as "SOR not Create",
+    // "Not Created", blank, N/A, or missing invoice status are treated as Not Start.
     const createdRows=(linkItem.rows||[]).filter(r=>{
       const ss=String(pmoSORStatus(r)||'').toLowerCase();
       return ss.includes('created') && !ss.includes('not');
@@ -5974,11 +5974,11 @@ function renderPmoCost(rows){
     if(createdRows.length){
       const statuses=createdRows.map(r=>String(pmoInvoice50Status(r)||'').trim()).filter(Boolean);
       const has=(re)=>statuses.find(k=>re.test(String(k).toLowerCase()));
-      return has(/^submitted$|^submit$|invoiced|paid/) ||
-             has(/in\s*progress|progress/) ||
-             has(/under\s*review|review/) ||
-             has(/not\s*start|not\s*started/) ||
-             statuses[0] || 'N/A';
+      if(has(/^submitted$|^submit$|^invoiced$|^paid$/)) return 'Submitted';
+      if(has(/in\s*progress|progress/)) return 'In Progress';
+      if(has(/under\s*review|review/)) return 'Under Review';
+      if(has(/not\s*start|not\s*started|notstart|sor\s*not|not\s*create|not\s*created/)) return 'Not Start';
+      return 'Not Start';
     }
     const anyStatus=(linkItem.rows||[]).map(r=>String(pmoSORStatus(r)||'').trim()).filter(Boolean).join(' ');
     if(/not\s*create|not\s*created|sor\s*not/i.test(anyStatus)) return 'SOR not Create';
@@ -6013,11 +6013,11 @@ function normalizeInvoiceStatusLabel(status){
     const s=String(status||'').trim();
     const x=s.toLowerCase();
     if(!s||x==='n/a'||x==='na') return 'N/A';
-    if(/submitted|submit|invoiced|paid|approved/.test(x)) return 'Submitted';
+    if(/sor\s*not|not\s*create|not\s*created/.test(x)) return 'SOR not Create';
+    if(/not\s*start|not\s*started|notstart/.test(x)) return 'Not Start';
     if(/in\s*progress|progress/.test(x)) return 'In Progress';
     if(/under\s*review|review/.test(x)) return 'Under Review';
-    if(/not\s*start|not\s*started/.test(x)) return 'Not Start';
-    if(/sor\s*not|not\s*create|not\s*created/.test(x)) return 'SOR not Create';
+    if(/^submitted$|^submit$|^invoiced$|^paid$/.test(x)) return 'Submitted';
     return s;
   }
   const statusColorMap={
