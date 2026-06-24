@@ -3409,13 +3409,11 @@ function buildData(raw) {
     const rawSorStatus = String(getRawField(r, ['SOR Status']) || '').trim();
     const rawInvoice50Status = String(getRawField(r, ['1st 50 Invoice Status','First 50 Invoice Status']) || '').trim();
     const invoice50Amount = parseNum(getRawField(r, ['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount']));
-    const rawSorLower = rawSorStatus.toLowerCase();
-    const sorIsCreated = rawSorLower.includes('create') && !rawSorLower.includes('not');
-    const rawInvoice50Lower = rawInvoice50Status.toLowerCase();
-    let derivedInvoice50Status = rawInvoice50Status || (invoice50Amount > 0 ? 'Submitted' : (sorIsCreated ? 'Not Start' : 'SOR not Create'));
-    if(sorIsCreated && (/sor\s*not|not\s*create|not\s*created/.test(rawInvoice50Lower) || rawInvoice50Lower === 'n/a' || rawInvoice50Lower === 'na' || rawInvoice50Lower === 'none' || rawInvoice50Lower === '')){
-      derivedInvoice50Status = invoice50Amount > 0 ? 'Submitted' : 'Not Start';
-    }
+    // Keep the exact current value selected by the user / stored in u_osp_work_order.
+    // Do not derive 1st 50 Invoice Status from SOR Status or invoice amount.
+    // Executive SOR Summary must display these source values as-is:
+    // In Progress / Not Start / SOR not Create / Submitted / N/A / blank.
+    let derivedInvoice50Status = rawInvoice50Status;
     return {
       id: idx + 1,
       raw: r,
@@ -5549,23 +5547,15 @@ function renderPerformanceEndVisuals(rows) {
 function getRawField(row,names){if(!row)return '';for(const n of names){if(row[n]!==undefined&&row[n]!==null&&String(row[n]).trim()!=='')return row[n];}const keys=Object.keys(row);for(const n of names){const target=String(n).toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'');const k=keys.find(x=>String(x).toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'')===target);if(k&&row[k]!==undefined&&row[k]!==null&&String(row[k]).trim()!=='')return row[k];}return '';}
 function pmoNorm(v){return String(v??'').trim().toUpperCase().replace(/\s+/g,' ')}function pmoKey(l,w,t){return `${pmoNorm(l)}||${pmoNorm(w)}||${pmoNorm(t)}`}function pmoShortKey(l,w){return `${pmoNorm(l)}||${pmoNorm(w)}`}function pmoStatusText(r){const parts=['Fiber Status','Civil Status','FULL WO STATUS','Full WO Status','WO Status'].map(k=>getRawField(r,[k])).filter(v=>String(v??'').trim()!==''&&String(v??'').trim()!=='0');return parts.join(' / ').toLowerCase()}function pmoIsCompletedStatus(r){return /completed|complete|تم|مكتمل/i.test(pmoStatusText(r))}function pmoIsNotStartValue(v){const x=pmoNorm(v);return x===''||x==='0'||x==='NOT START'||x==='NOT STARTED'||x==='NOTSTART'}function pmoNotStartedNoProgress(raw,targetRaw,targetProgress){const full=getRawField(raw,['FULL WO STATUS','Full WO Status','WO Status']);const civil=getRawField(raw,['Civil Status']);const fiber=getRawField(raw,['Fiber Status']);const targetBlank=String(targetRaw??'').trim()==='';const targetZero=targetBlank||Number(targetProgress||0)===0;return targetZero&&pmoIsNotStartValue(full)&&pmoIsNotStartValue(civil)&&pmoIsNotStartValue(fiber)}function pmoRawForWO(w){return w.raw||{}}function pmoTargetMonth(w){return String(getRawField(pmoRawForWO(w),['Target Date ( MONTH )','Target Date Month','Target Month'])||'').trim()}function pmoUpdatedScope(w){return String(getRawField(pmoRawForWO(w),['Updated Scope'])||'').trim()}function pmoInvoice50(w){return String(getRawField(pmoRawForWO(w),['1st 50 Invoice Status','First 50 Invoice Status'])||'').trim()}function pmoSORStatus(w){return String(getRawField(pmoRawForWO(w),['SOR Status'])||'').trim()}function pmoInvoiceAmount(w){return parseNum(getRawField(pmoRawForWO(w),['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount']))}
 function pmoInvoice50Status(w){
-  /* Billing/SOR alignment rule:
-     - If SOR Status is Created, a stale source value like "SOR not Create" is no longer valid
-       for invoice distribution. Treat it as Not Start unless an amount proves Submitted.
-     - This keeps Executive SOR Summary aligned with WO Billing after Project Updates Center saves. */
+  /* SOURCE-VALUE DISPLAY RULE:
+     Executive SOR Summary & Revenue Exposure displays the actual current
+     1st 50 Invoice Status value exactly as stored/selected by the user.
+     It must not convert SOR not Create to Not Start or Submitted just because
+     SOR Status = Created or because there is an invoice amount.
+     Allowed source values include:
+     In Progress / Not Start / SOR not Create / Submitted / N/A / blank. */
   const rawStatus = String(pmoInvoice50(w)||'').trim();
-  const amount = pmoInvoiceAmount(w);
-  const sor = String(pmoSORStatus(w)||'').toLowerCase();
-  const sorCreated = sor.includes('create') && !sor.includes('not');
-  const rawLower = rawStatus.toLowerCase();
-  if(sorCreated && (/sor\s*not|not\s*create|not\s*created/.test(rawLower) || rawLower === 'n/a' || rawLower === 'na' || rawLower === 'none' || rawLower === '')){
-    if(amount > 0) return 'Submitted';
-    return 'Not Start';
-  }
-  if(rawStatus) return rawStatus;
-  if(amount > 0) return 'Submitted';
-  if(sorCreated) return 'Not Start';
-  return 'SOR not Create';
+  return rawStatus || 'N/A';
 }
 function pmoInvoice50Chip(status){
   const st = String(status||'SOR not Create').trim();
@@ -5962,27 +5952,14 @@ function renderPmoCost(rows){
   });
 
   function linkInvoiceStatus(linkItem){
-    // FINAL SOR billing alignment rule:
-    // Executive SOR Summary cards are driven by SOR Status + 1st 50 Invoice Status.
-    // If SOR Status is Created, the Link Code must NOT be considered Submitted unless
-    // 1st 50 Invoice Status is explicitly Submitted. Values such as "SOR not Create",
-    // "Not Created", blank, N/A, or missing invoice status are treated as Not Start.
-    const createdRows=(linkItem.rows||[]).filter(r=>{
-      const ss=String(pmoSORStatus(r)||'').toLowerCase();
-      return ss.includes('created') && !ss.includes('not');
-    });
-    if(createdRows.length){
-      const statuses=createdRows.map(r=>String(pmoInvoice50Status(r)||'').trim()).filter(Boolean);
-      const has=(re)=>statuses.find(k=>re.test(String(k).toLowerCase()));
-      if(has(/^submitted$|^submit$|^invoiced$|^paid$/)) return 'Submitted';
-      if(has(/in\s*progress|progress/)) return 'In Progress';
-      if(has(/under\s*review|review/)) return 'Under Review';
-      if(has(/not\s*start|not\s*started|notstart|sor\s*not|not\s*create|not\s*created/)) return 'Not Start';
-      return 'Not Start';
-    }
-    const anyStatus=(linkItem.rows||[]).map(r=>String(pmoSORStatus(r)||'').trim()).filter(Boolean).join(' ');
-    if(/not\s*create|not\s*created|sor\s*not/i.test(anyStatus)) return 'SOR not Create';
-    return 'N/A';
+    // Executive SOR Summary shows the 1st 50 Invoice Status source value,
+    // independent from SOR Status. If a Link Code has multiple WO rows,
+    // choose a deterministic display status by business priority, but never
+    // convert one status into another.
+    const statuses=(linkItem.rows||[]).map(r=>normalizeInvoiceStatusLabel(pmoInvoice50Status(r))).filter(Boolean);
+    const priority=['Submitted','In Progress','Under Review','Not Start','SOR not Create','N/A'];
+    for(const p of priority){ if(statuses.includes(p)) return p; }
+    return statuses[0] || 'N/A';
   }
 
   const sorMap=new Map();
@@ -7401,4 +7378,4 @@ document.addEventListener('click', function(e){
 </body>
 </html>
 
-<!-- SOR_1ST_50_INVOICE_STATUS_SOURCE_VALUES_FIXED: SOR Details and PMO filters preserve exact source values such as In Progress, Not Start, SOR not Create, Submitted. -->
+<!-- V5_9_4_SOURCE_1ST50_STATUS_DISPLAY_FIXED: Executive SOR Summary preserves exact 1st 50 Invoice Status source values and does not derive them from SOR Status. -->
