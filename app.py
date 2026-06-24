@@ -3191,12 +3191,21 @@ def project_updates_center_page() -> None:
             _append_csv_rows(PROJECT_UPDATES_PATH, update_rows)
             _append_csv_rows(CHANGE_LOG_PATH, change_rows)
             create_update_notifications(change_rows)
+            # Persist the effective operational layer back to the local master CSV as well.
+            # This makes Project Updates survive a normal Streamlit app process reboot and keeps
+            # dashboard.html injection aligned for every user after refresh/login.
+            try:
+                effective_after_save = apply_derived_billing_fields(apply_project_updates_to_workorders(base_full)).copy()
+                backup_file(WO_PATH)
+                effective_after_save.to_csv(WO_PATH, index=False, encoding="utf-8-sig")
+            except Exception as e:
+                st.warning(f"Updates were saved, but master CSV persistence failed: {e}")
             snapshot_path = write_master_operational_snapshot("project_update")
         else:
             snapshot_path = None
         st.cache_data.clear()
         if snapshot_path:
-            st.success(f"Saved {len(change_rows):,} changed cells by {username}. Master operational data and snapshot were updated. Snapshot: {snapshot_path.name}")
+            st.success(f"Saved {len(change_rows):,} changed cells by {username}. Master operational data, project_updates.csv, and snapshot were updated. Snapshot: {snapshot_path.name}")
         else:
             st.info("No data changes detected.")
 

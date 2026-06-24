@@ -1,5 +1,8 @@
-# Dawiyat PMO Executive Portal V5.9.2
+# Dawiyat PMO Executive Portal V5.9.3
 
-Patch: Project Updates SOR Status alignment.
+Fixes included:
+- Executive SOR Summary now classifies SOR Status = Created + 1st 50 Invoice Status = SOR not Create / Not Created / blank as Not Start, not Submitted.
+- Submitted is counted only when 1st 50 Invoice Status is explicitly Submitted.
+- Project Updates save now persists to project_updates.csv, change_log.csv, master operational snapshot, and local u_osp_work_order.csv for process reboot continuity.
 
-When a user updates SOR Status to Created but the old 1st 50 Invoice Status still contains `SOR not Create`, the dashboard now treats the invoice stage as `Not Start` for SOR/Billing calculations instead of incorrectly keeping it under SOR Not Create. This keeps Executive SOR Summary, WO Billing & Handover, filters, and cross-user updates aligned after refresh/login.
+Important: for permanent persistence across Streamlit Cloud redeploys, commit the updated data files/snapshots to GitHub or download them from Snapshot Center.
