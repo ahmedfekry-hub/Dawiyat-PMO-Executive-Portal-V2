@@ -2801,8 +2801,6 @@ def render_dashboard() -> None:
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
 
-    render_smart_bulk_filter_panel(raw)
-
     # Hidden action/governance pages: shown as compact buttons on Dashboard according to permissions.
     all_allowed = allowed_pages_for_current_user()
     quick_actions = []
@@ -2840,6 +2838,10 @@ def render_dashboard() -> None:
                     if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
                         st.session_state["active_hidden_page"] = target_page
                         st.rerun()
+
+    # Keep Smart Bulk Filter available after Quick Actions with a clear visual separator.
+    st.markdown("<hr style='margin:18px 0;border:0;border-top:1px dashed #cbd5e1;'>", unsafe_allow_html=True)
+    render_smart_bulk_filter_panel(raw)
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)

@@ -1,15 +1,6 @@
-# Dawiyat PMO Executive Portal V5.9.7
+# Dawiyat PMO Executive Portal V5.9.8
 
-Navigation/UI fix:
-- Restored the elegant left sidebar navigation with no toggle button.
-- Quick Actions & Governance Agents panel is visible again according to permissions.
-- Dashboard iframe is rendered without its own scroll to reduce confusion and keep the main page as the primary scroll.
-
-# Dawiyat PMO Executive Portal V5.9.3
-
-Fixes included:
-- Executive SOR Summary now classifies SOR Status = Created + 1st 50 Invoice Status = SOR not Create / Not Created / blank as Not Start, not Submitted.
-- Submitted is counted only when 1st 50 Invoice Status is explicitly Submitted.
-- Project Updates save now persists to project_updates.csv, change_log.csv, master operational snapshot, and local u_osp_work_order.csv for process reboot continuity.
-
-Important: for permanent persistence across Streamlit Cloud redeploys, commit the updated data files/snapshots to GitHub or download them from Snapshot Center.
+Changes:
+- Left PMO navigation is hidden by default and opens only when the ☰ button is clicked.
+- Navigation no longer opens on mouse hover.
+- Smart Bulk Filter is moved below Quick Actions with a dashed separator line.
