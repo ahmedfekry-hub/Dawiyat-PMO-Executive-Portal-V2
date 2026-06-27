@@ -242,6 +242,8 @@ def _canonical_hidden_page_name(page_name: str) -> str:
         "executive daily digest": "Executive Daily Digest",
         "whatsapp agent": "WhatsApp Agent",
         "admin board": "Admin Board",
+        "__toggle_smart_bulk_filter__": "__toggle_smart_bulk_filter__",
+        "toggle_smart_bulk_filter": "__toggle_smart_bulk_filter__",
     }
     return mapping.get(clean, text)
 
@@ -250,9 +252,16 @@ PORTAL_CSS = """
 <style>
 .block-container {
     padding-top: 0.6rem;
-    padding-left: 0.7rem;
-    padding-right: 0.7rem;
-    max-width: 100%;
+    padding-left: 0.7rem !important;
+    padding-right: 0.7rem !important;
+    max-width: 100vw !important;
+    width: 100% !important;
+}
+[data-testid="stAppViewContainer"] > .main,
+[data-testid="stAppViewContainer"] main,
+section.main,
+.main .block-container {
+    margin-left: 0 !important;
 }
 header, footer {visibility: hidden;}
 /* Best-effort hide Streamlit Cloud developer toolbar/Manage App from the portal UI.
@@ -2976,6 +2985,8 @@ def render_dashboard() -> None:
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
+
+    # V6.0.2: governance actions are visible in the HTML sidebar; access remains enforced by Streamlit page permissions.
 
     components.html(dashboard_html, height=9200, scrolling=False)
 
@@ -6274,6 +6285,14 @@ def main() -> None:
         return
     validate_current_authenticated_user()
 
+    # V6.0.2: handle navigation requests coming from the professional HTML sidebar
+    # rendered inside dashboard.html. The request is permission-checked later against
+    # hidden_allowed_pages before opening any governance/action page.
+    try:
+        _nav_action_qp = str(st.query_params.get("nav_action", "") or "").strip()
+    except Exception:
+        _nav_action_qp = ""
+
     # No timed auto-refresh: permissions update only on browser refresh, rerun, or Logout/Login.
 
     role = st.session_state.get("role", "user")
@@ -6308,6 +6327,20 @@ def main() -> None:
 
         # Hidden action pages are intentionally excluded from the main navigation list.
         # They are available in the Governance Actions section below based on permissions.
+        if _nav_action_qp:
+            _nav_canon = _canonical_hidden_page_name(_nav_action_qp)
+            if _nav_canon == "__toggle_smart_bulk_filter__":
+                st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
+            elif _nav_canon in hidden_allowed_pages:
+                if _nav_canon != "Admin Board" or _is_admin_board_owner():
+                    st.session_state["active_hidden_page"] = _nav_canon
+            # Clear nav_action from the URL while preserving auth query parameters.
+            try:
+                if "nav_action" in st.query_params:
+                    del st.query_params["nav_action"]
+            except Exception:
+                pass
+
         active_hidden = st.session_state.get("active_hidden_page")
         if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
