@@ -47,30 +47,49 @@
   }
   .tab.active { background:var(--navy); color:#fff; border-color:var(--navy); }
 
-  /* V5.9.5 Executive Left Navigation - replaces the top tab strip with an elegant fixed left menu */
+  /* V5.9.6 Button-controlled Executive Left Navigation - no hover auto-open */
   .tabs { display:none !important; }
-  .executive-side-nav {
+  .side-menu-toggle {
     position:fixed;
     left:18px;
     top:18px;
+    z-index:1001;
+    width:54px;
+    height:54px;
+    border:0;
+    border-radius:18px;
+    cursor:pointer;
+    color:#ffffff;
+    font-size:23px;
+    font-weight:900;
+    background:linear-gradient(135deg,#0f172a,#1d4ed8,#0f766e);
+    box-shadow:0 18px 40px rgba(15,23,42,.24);
+  }
+  .side-menu-toggle:hover { transform:translateY(-1px); }
+  .executive-side-nav {
+    position:fixed;
+    left:18px;
+    top:86px;
     bottom:18px;
-    width:82px;
-    z-index:999;
+    width:272px;
+    z-index:1000;
     border-radius:28px;
     padding:14px 10px;
     background:
       radial-gradient(circle at top, rgba(20,184,166,.25), transparent 32%),
       linear-gradient(180deg,#071427 0%,#102a4d 48%,#0f766e 100%);
-    box-shadow:0 24px 60px rgba(15,23,42,.26);
+    box-shadow:0 28px 70px rgba(15,23,42,.34);
     border:1px solid rgba(255,255,255,.14);
     overflow:hidden;
-    transition:width .28s ease, box-shadow .28s ease;
+    transform:translateX(-125%);
+    opacity:0;
+    pointer-events:none;
+    transition:transform .24s ease, opacity .24s ease;
   }
-  .executive-side-nav:hover { width:272px; box-shadow:0 28px 70px rgba(15,23,42,.34); }
+  .executive-side-nav.open { transform:translateX(0); opacity:1; pointer-events:auto; }
   .side-brand { display:flex; align-items:center; gap:12px; padding:8px 8px 14px; border-bottom:1px solid rgba(255,255,255,.14); margin-bottom:12px; white-space:nowrap; }
   .side-brand-mark { width:46px;height:46px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);color:#fff;font-size:23px;flex:0 0 46px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
-  .side-brand-text { opacity:0; transform:translateX(-8px); transition:.24s ease; color:#fff; line-height:1.1; }
-  .executive-side-nav:hover .side-brand-text { opacity:1; transform:translateX(0); }
+  .side-brand-text { color:#fff; line-height:1.1; }
   .side-brand-title { font-size:14px; font-weight:900; letter-spacing:.04em; }
   .side-brand-sub { font-size:11px; color:#b9e8ff; margin-top:4px; font-weight:700; }
   .side-nav-items { display:grid; gap:8px; }
@@ -79,13 +98,11 @@
   .side-tab.active { background:linear-gradient(135deg,#ffffff 0%,#eaf4ff 100%); color:#0f2746; box-shadow:0 12px 26px rgba(0,0,0,.20); }
   .side-icon { width:42px;height:42px;border-radius:15px;display:flex;align-items:center;justify-content:center;flex:0 0 42px;background:rgba(255,255,255,.12);font-size:20px; }
   .side-tab.active .side-icon { background:#e8f2ff; }
-  .side-label { opacity:0; transform:translateX(-8px); transition:.24s ease; }
-  .executive-side-nav:hover .side-label { opacity:1; transform:translateX(0); }
+  .side-label { opacity:1; transform:none; }
   .side-footer { position:absolute;left:10px;right:10px;bottom:12px;color:#b9e8ff;font-size:10px;font-weight:800;text-align:center;opacity:.85;border-top:1px solid rgba(255,255,255,.12);padding-top:10px;white-space:nowrap; }
-  .app { margin-left:92px; transition:margin-left .28s ease; }
-  .executive-side-nav:hover ~ .app { margin-left:282px; }
-  @media(max-width:900px){ body{padding:12px;} .executive-side-nav{position:sticky;top:8px;bottom:auto;left:auto;width:100%;border-radius:22px;margin-bottom:12px;display:flex;gap:10px;overflow:auto;} .executive-side-nav:hover{width:100%;} .side-brand,.side-footer{display:none;} .side-nav-items{display:flex;gap:8px;min-width:max-content;} .side-label{opacity:1;transform:none;font-size:12px;} .side-tab{width:auto;min-height:46px;padding:6px 10px;} .side-icon{width:34px;height:34px;flex-basis:34px;} .app,.executive-side-nav:hover ~ .app{margin-left:0;} }
-  @media print{.executive-side-nav{display:none!important}.app{margin-left:0!important}.tabs{display:none!important}}
+  .app { margin-left:0 !important; transition:none; padding-top:54px; }
+  @media(max-width:900px){ body{padding:12px;} .side-menu-toggle{left:14px;top:14px;width:50px;height:50px;} .executive-side-nav{left:12px;right:12px;top:74px;bottom:auto;width:auto;max-height:74vh;overflow:auto;} .side-footer{display:none;} .app{padding-top:56px;} }
+  @media print{.executive-side-nav,.side-menu-toggle{display:none!important}.app{margin-left:0!important;padding-top:0!important}.tabs{display:none!important}}
   .filters {
     display:grid; grid-template-columns: repeat(5, minmax(180px,1fr)); gap:12px; margin-bottom:16px;
   }
@@ -2055,7 +2072,8 @@ body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;borde
 
 <!-- KPI_FORMULA_SYNC_WITH_BOARD_PMO_2026_05_13: computeProgressComponents, computeWeightedKpi, renderWeightedKpiEvaluation copied from Dawiyat_Executive_Board_Dashboard_PMO(8).html while preserving SOR Full Width layout. -->
 
-<nav class="executive-side-nav" aria-label="Executive Dashboard Navigation">
+<button id="side-menu-toggle" class="side-menu-toggle" type="button" aria-label="Open PMO menu">☰</button>
+<nav id="executive-side-nav" class="executive-side-nav" aria-label="Executive Dashboard Navigation">
   <div class="side-brand"><div class="side-brand-mark">📊</div><div class="side-brand-text"><div class="side-brand-title">PMO Portal</div><div class="side-brand-sub">Executive Dashboard</div></div></div>
   <div class="side-nav-items">
     <button class="side-tab active" data-tab="overview" type="button"><span class="side-icon">🏠</span><span class="side-label">Executive Overview</span></button>
@@ -7281,7 +7299,21 @@ function setTab(tabName) {
   if (globalFilters) globalFilters.style.display = tabName === 'pmo' ? 'none' : '';
   if (tabName === 'pmo') { bindPmoInputs(); renderPmoAll(); }
 }
-document.querySelectorAll('.tab, .side-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
+document.querySelectorAll('.tab, .side-tab').forEach(btn => btn.addEventListener('click', () => {
+  setTab(btn.dataset.tab);
+  const nav = document.getElementById('executive-side-nav');
+  const toggle = document.getElementById('side-menu-toggle');
+  if (nav) nav.classList.remove('open');
+  if (toggle) toggle.textContent = '☰';
+}));
+const sideMenuToggle = document.getElementById('side-menu-toggle');
+const executiveSideNav = document.getElementById('executive-side-nav');
+if (sideMenuToggle && executiveSideNav) {
+  sideMenuToggle.addEventListener('click', () => {
+    executiveSideNav.classList.toggle('open');
+    sideMenuToggle.textContent = executiveSideNav.classList.contains('open') ? '×' : '☰';
+  });
+}
 document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 // Robust PMO sub-view switching, including when the PMO section is re-rendered.
 document.addEventListener('click', (e) => {
