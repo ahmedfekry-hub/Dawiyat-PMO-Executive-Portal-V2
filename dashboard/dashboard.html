@@ -93,6 +93,13 @@
   .side-brand-title { font-size:14px; font-weight:900; letter-spacing:.04em; }
   .side-brand-sub { font-size:11px; color:#b9e8ff; margin-top:4px; font-weight:700; }
   .side-nav-items { display:grid; gap:8px; }
+  .side-separator { height:1px; margin:14px 2px; background:linear-gradient(90deg, transparent, rgba(226,232,240,.35), transparent); }
+  .side-section-title { margin:8px 4px 6px; color:#bae6fd; font-size:10px; text-transform:uppercase; letter-spacing:.10em; font-weight:900; }
+  .side-action { width:100%;display:flex;align-items:center;gap:12px;min-height:44px;border:1px solid rgba(226,232,240,.14);border-radius:15px;background:rgba(255,255,255,.07);color:#eef6ff;cursor:pointer;padding:8px 10px;text-align:left;font-weight:900;white-space:nowrap;transition:background .18s ease, transform .18s ease; }
+  .side-action:hover { background:rgba(255,255,255,.14); transform:translateX(2px); color:#fff; }
+  .side-action .side-icon { width:34px;height:34px;border-radius:12px;font-size:17px; }
+  .side-action.smart { background:linear-gradient(135deg,rgba(20,184,166,.25),rgba(37,99,235,.18)); border-color:rgba(125,211,252,.38); }
+  .side-action.admin { background:rgba(239,68,68,.20); border-color:rgba(252,165,165,.32); }
   .side-tab { width:100%;display:flex;align-items:center;gap:13px;min-height:50px;border:0;border-radius:18px;background:transparent;color:#dbeafe;cursor:pointer;padding:8px 10px;text-align:left;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, color .18s ease, transform .18s ease; }
   .side-tab:hover { background:rgba(255,255,255,.10); transform:translateX(2px); color:#fff; }
   .side-tab.active { background:linear-gradient(135deg,#ffffff 0%,#eaf4ff 100%); color:#0f2746; box-shadow:0 12px 26px rgba(0,0,0,.20); }
@@ -2086,6 +2093,20 @@ body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;borde
     <button class="side-tab" data-tab="perf-explanation" type="button"><span class="side-icon">💡</span><span class="side-label">Performance Explanation</span></button>
     <button class="side-tab" data-tab="decision" type="button"><span class="side-icon">🤖</span><span class="side-label">PMO Report Assistant</span></button>
     <button class="side-tab" data-tab="reports" type="button"><span class="side-icon">📈</span><span class="side-label">Executive Reports</span></button>
+  </div>
+  <div class="side-separator"></div>
+  <button class="side-action smart" data-nav-action="__toggle_smart_bulk_filter__" type="button"><span class="side-icon">🎯</span><span class="side-label">Show Smart Bulk Filter</span></button>
+  <div class="side-separator"></div>
+  <div class="side-section-title">Governance Actions</div>
+  <div class="side-nav-items side-actions-list">
+    <button class="side-action" data-nav-action="Project Updates Center" type="button"><span class="side-icon">📝</span><span class="side-label">Project Updates Center</span></button>
+    <button class="side-action" data-nav-action="Data Update Agent" type="button"><span class="side-icon">🧠</span><span class="side-label">Data Update Agent</span></button>
+    <button class="side-action" data-nav-action="Notification Center 🔔" type="button"><span class="side-icon">🔔</span><span class="side-label">Notification Center</span></button>
+    <button class="side-action" data-nav-action="Executive Daily Digest" type="button"><span class="side-icon">📩</span><span class="side-label">Executive Daily Digest</span></button>
+    <button class="side-action" data-nav-action="WhatsApp Agent" type="button"><span class="side-icon">🟢</span><span class="side-label">WhatsApp Outbox</span></button>
+    <button class="side-action" data-nav-action="📤 Document Upload Center" type="button"><span class="side-icon">📤</span><span class="side-label">Document Upload Center</span></button>
+    <button class="side-action" data-nav-action="📊 Executive PPT Builder" type="button"><span class="side-icon">📊</span><span class="side-label">Executive PPT Builder</span></button>
+    <button class="side-action admin" data-nav-action="Admin Board" type="button"><span class="side-icon">⚙️</span><span class="side-label">Admin Board</span></button>
   </div>
   <div class="side-footer">PMO Navigation</div>
 </nav>
@@ -7315,6 +7336,22 @@ function setSideNavOpen(isOpen){
 }
 if (sideNavToggle) sideNavToggle.addEventListener('click', () => setSideNavOpen(!sideNav.classList.contains('open')));
 if (sideNavBackdrop) sideNavBackdrop.addEventListener('click', () => setSideNavOpen(false));
+
+function openStreamlitAction(actionName){
+  if (!actionName) return;
+  try {
+    const parentUrl = new URL(window.parent.location.href);
+    parentUrl.searchParams.set('nav_action', actionName);
+    window.parent.location.href = parentUrl.toString();
+  } catch (err) {
+    const q = encodeURIComponent(actionName);
+    try { window.top.location.href = '?nav_action=' + q; } catch(e) { window.location.href = '?nav_action=' + q; }
+  }
+}
+document.querySelectorAll('.side-action').forEach(btn => btn.addEventListener('click', (e) => {
+  e.preventDefault();
+  openStreamlitAction(btn.dataset.navAction || '');
+}));
 
 document.querySelectorAll('.tab, .side-tab').forEach(btn => btn.addEventListener('click', () => {
   setTab(btn.dataset.tab);
