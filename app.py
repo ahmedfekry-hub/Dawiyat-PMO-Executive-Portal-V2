@@ -217,10 +217,33 @@ st.set_page_config(
 # Streamlit pages that must stay hidden from sidebar navigation.
 # They are opened only through controlled action buttons on the Dashboard.
 HIDDEN_ACTION_PAGES = {
-    "📤 Document Upload Center", "📊 Executive PPT Builder", "Admin Board",
-    "Project Updates Center", "Data Update Agent", "Notification Center 🔔",
+    # Support both display names and permission-sheet names.
+    "📤 Document Upload Center", "Document Upload Center",
+    "📊 Executive PPT Builder", "Executive PPT Builder",
+    "Admin Board",
+    "Project Updates Center", "Data Update Agent", "Notification Center 🔔", "Notification Center",
     "Executive Daily Digest", "WhatsApp Agent",
 }
+
+
+def _canonical_hidden_page_name(page_name: str) -> str:
+    """Normalize hidden/action page names coming from permissions.xlsx or sidebar buttons."""
+    text = str(page_name or "").strip()
+    clean = _excel_clean(text).lower() if '_excel_clean' in globals() else text.lower()
+    mapping = {
+        "document upload center": "📤 Document Upload Center",
+        "📤 document upload center": "📤 Document Upload Center",
+        "executive ppt builder": "📊 Executive PPT Builder",
+        "📊 executive ppt builder": "📊 Executive PPT Builder",
+        "notification center": "Notification Center 🔔",
+        "notification center 🔔": "Notification Center 🔔",
+        "project updates center": "Project Updates Center",
+        "data update agent": "Data Update Agent",
+        "executive daily digest": "Executive Daily Digest",
+        "whatsapp agent": "WhatsApp Agent",
+        "admin board": "Admin Board",
+    }
+    return mapping.get(clean, text)
 
 
 PORTAL_CSS = """
@@ -596,6 +619,46 @@ body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
 }
 /* Hide old top Quick Actions block in V6.0 if any stale HTML is cached. */
 .quick-actions-panel { display: none !important; }
+
+/* V6.0.1: make the native Streamlit sidebar behave like an overlay drawer,
+   so opening it does not reserve a large empty column on the left. */
+section[data-testid="stSidebar"] {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    height: 100vh !important;
+    z-index: 100000 !important;
+    box-shadow: 16px 0 40px rgba(15,23,42,.22) !important;
+}
+section[data-testid="stSidebar"] > div {
+    height: 100vh !important;
+    overflow-y: auto !important;
+}
+section[data-testid="stMain"],
+[data-testid="stAppViewContainer"] main,
+.main {
+    margin-left: 0 !important;
+    padding-left: 0 !important;
+}
+[data-testid="stAppViewContainer"] {
+    margin-left: 0 !important;
+}
+.v6-sidebar-caption {
+    color: rgba(226,232,240,.86);
+    font-size: 12px;
+    font-weight: 800;
+    margin: -4px 4px 10px;
+}
+.v6-sidebar-note {
+    border:1px dashed rgba(226,232,240,.25);
+    border-radius:14px;
+    padding:8px 10px;
+    color:rgba(226,232,240,.78);
+    font-size:11px;
+    line-height:1.45;
+    margin-top:8px;
+}
+
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -6228,11 +6291,18 @@ def main() -> None:
             """,
             unsafe_allow_html=True,
         )
-        st.caption(f"👤 {st.session_state.get('username','')}  |  👔 {st.session_state.get('role','')}")
+        st.markdown(f"<div class='v6-sidebar-caption'>👤 {st.session_state.get('username','')}<br>👔 {st.session_state.get('role','')}</div>", unsafe_allow_html=True)
 
         all_allowed_pages = allowed_pages_for_current_user()
-        hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
-        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
+        hidden_allowed_pages = []
+        pages = []
+        for _p in all_allowed_pages:
+            if _p in HIDDEN_ACTION_PAGES or _canonical_hidden_page_name(_p) in HIDDEN_ACTION_PAGES:
+                _canon = _canonical_hidden_page_name(_p)
+                if _canon not in hidden_allowed_pages:
+                    hidden_allowed_pages.append(_canon)
+            else:
+                pages.append(_p)
         if not pages:
             pages = ["No Access"]
 
@@ -6266,7 +6336,7 @@ def main() -> None:
             label_visibility="collapsed",
         )
 
-        st.markdown("<div class='v6-separator'></div>", unsafe_allow_html=True)
+        st.markdown("<div class='v6-separator'></div><div class='v6-section-title'>Smart Scope</div>", unsafe_allow_html=True)
         sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
         if st.button(sidebar_smart_label, use_container_width=True, key="sidebar_toggle_smart_bulk_filter"):
             st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
@@ -6304,7 +6374,9 @@ def main() -> None:
             st.rerun()
     render_session_bar()
 
-    active_hidden_page = st.session_state.get("active_hidden_page")
+    active_hidden_page = _canonical_hidden_page_name(st.session_state.get("active_hidden_page")) if st.session_state.get("active_hidden_page") else None
+    if active_hidden_page:
+        st.session_state["active_hidden_page"] = active_hidden_page
     if active_hidden_page == "📤 Document Upload Center":
         document_upload_page()
         return
