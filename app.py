@@ -2824,22 +2824,33 @@ def render_dashboard() -> None:
         quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
 
     if quick_actions:
-        st.markdown(
-            """
-            <div class="quick-actions-panel">
-                <div class="quick-actions-title">Quick Actions & Governance Agents</div>
-                <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        for i in range(0, len(quick_actions), 4):
-            action_cols = st.columns(min(4, len(quick_actions) - i))
-            for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
-                with col:
-                    if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
-                        st.session_state["active_hidden_page"] = target_page
-                        st.rerun()
+        if "show_quick_actions" not in st.session_state:
+            st.session_state["show_quick_actions"] = False
+
+        qa_label = "🔒 Hide Governance Actions" if st.session_state.get("show_quick_actions") else "☰ Open Governance Actions"
+        qa_col, qa_spacer = st.columns([1.7, 5])
+        with qa_col:
+            if st.button(qa_label, use_container_width=True, key="toggle_quick_actions_panel"):
+                st.session_state["show_quick_actions"] = not st.session_state.get("show_quick_actions", False)
+                st.rerun()
+
+        if st.session_state.get("show_quick_actions"):
+            st.markdown(
+                """
+                <div class="quick-actions-panel">
+                    <div class="quick-actions-title">Quick Actions & Governance Agents</div>
+                    <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            for i in range(0, len(quick_actions), 4):
+                action_cols = st.columns(min(4, len(quick_actions) - i))
+                for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
+                    with col:
+                        if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
+                            st.session_state["active_hidden_page"] = target_page
+                            st.rerun()
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
