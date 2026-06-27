@@ -2646,7 +2646,7 @@ def _current_smart_bulk_filter_payload() -> Dict[str, Any]:
     }
 
 
-def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
+def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]], show_toggle: bool = True) -> None:
     """Streamlit-native Smart Bulk Filter panel above the dashboard iframe.
     It supports Excel/CSV upload, searchable multi-select chips for Link Code and Work Order,
     and manual paste for large WO lists. Reset Filters in dashboard clears the iframe state;
@@ -2657,22 +2657,36 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
     is_active = bool(st.session_state.get("smart_bulk_link_codes") or st.session_state.get("smart_bulk_work_orders"))
     show_filter = st.session_state.get("show_smart_bulk_filter", False)
 
-    top_cols = st.columns([1.2, 3, 1])
-    with top_cols[0]:
-        if st.button(("🙈 Hide Smart Bulk Filter" if show_filter else "🎯 Show Smart Bulk Filter"), use_container_width=True, key="toggle_smart_bulk_filter"):
-            st.session_state["show_smart_bulk_filter"] = not show_filter
-            st.rerun()
-    with top_cols[1]:
+    if show_toggle:
+        top_cols = st.columns([1.2, 3, 1])
+        with top_cols[0]:
+            if st.button(("🙈 Hide Smart Bulk Filter" if show_filter else "🎯 Show Smart Bulk Filter"), use_container_width=True, key="toggle_smart_bulk_filter"):
+                st.session_state["show_smart_bulk_filter"] = not show_filter
+                st.rerun()
+        with top_cols[1]:
+            if is_active:
+                st.success(f"Smart Bulk Filter active: {len(st.session_state.get('smart_bulk_link_codes', []))} Link Codes, {len(st.session_state.get('smart_bulk_work_orders', []))} Work Orders.")
+        with top_cols[2]:
+            if is_active and st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear"):
+                for k in [
+                    "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
+                    "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
+                ]:
+                    st.session_state.pop(k, None)
+                st.rerun()
+    else:
         if is_active:
-            st.success(f"Smart Bulk Filter active: {len(st.session_state.get('smart_bulk_link_codes', []))} Link Codes, {len(st.session_state.get('smart_bulk_work_orders', []))} Work Orders.")
-    with top_cols[2]:
-        if is_active and st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear"):
-            for k in [
-                "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
-                "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
-            ]:
-                st.session_state.pop(k, None)
-            st.rerun()
+            smart_cols = st.columns([4, 1])
+            with smart_cols[0]:
+                st.success(f"Smart Bulk Filter active: {len(st.session_state.get('smart_bulk_link_codes', []))} Link Codes, {len(st.session_state.get('smart_bulk_work_orders', []))} Work Orders.")
+            with smart_cols[1]:
+                if st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear_sidebar_mode"):
+                    for k in [
+                        "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
+                        "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
+                    ]:
+                        st.session_state.pop(k, None)
+                    st.rerun()
 
     if not st.session_state.get("show_smart_bulk_filter", False):
         return
@@ -2839,9 +2853,8 @@ def render_dashboard() -> None:
                         st.session_state["active_hidden_page"] = target_page
                         st.rerun()
 
-    # Keep Smart Bulk Filter available after Quick Actions with a clear visual separator.
-    st.markdown("<hr style='margin:18px 0;border:0;border-top:1px dashed #cbd5e1;'>", unsafe_allow_html=True)
-    render_smart_bulk_filter_panel(raw)
+    # Smart Bulk Filter is toggled from the left navigation sidebar; panel opens here when enabled.
+    render_smart_bulk_filter_panel(raw, show_toggle=False)
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
@@ -4019,7 +4032,6 @@ def document_upload_page() -> None:
     with top_left:
         st.title("📂 Document Upload Center")
         st.caption("Manual Google Drive upload workflow for every Link Code. Open the Link Code folder, upload files directly into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial, then refresh status.")
-        st.info("Manual upload mode: upload files in Google Drive, then click Refresh Document Status. Created/Uploaded Date and Modified Date are scanned from Google Drive for all 7 stages.")
     with top_right:
         st.write("")
         st.write("")
@@ -4051,8 +4063,8 @@ def document_upload_page() -> None:
     except Exception as exc:
         service = None
         drive_connected = False
-        st.error(str(exc))
-        st.info("Check Streamlit Secrets, enable Google Drive API, and share the Link Codes Google Drive folder with the service account email as Viewer/Editor so the dashboard can scan files.")
+        drive_connected = False
+        st.info("Google Drive scan is not available for this session. Please check the Drive folder ID / permissions if document status scanning is required.")
 
     st.markdown("### Executive Documents Dashboard")
     with st.container(border=True):
@@ -4060,7 +4072,7 @@ def document_upload_page() -> None:
         with scan_col1:
             scan_scope = st.multiselect("Scan Link Codes", links, default=links[:min(10, len(links))], help="Scanning all Link Codes may take time because each scan checks Google Drive folders.")
         with scan_col2:
-            max_scan = st.number_input("Max Scan", min_value=1, max_value=500, value=min(50, len(links)), step=10)
+            max_scan = st.number_input("Max Scan", min_value=1, max_value=500, value=min(400, len(links)), step=10)
         with scan_col3:
             st.metric("Drive", "Connected" if drive_connected else "Not Connected")
         if drive_connected and st.button("Refresh Document Status", use_container_width=True, type="secondary"):
@@ -4122,13 +4134,12 @@ def document_upload_page() -> None:
                 doc_status = document_status_for_link(service, link_folder_id)
             else:
                 st.warning("No existing Google Drive folder found for this Link Code. Create it manually under the Link Codes root folder, or add Document_Link to the CSV.")
-        except Exception as exc:
-            # This usually means root_folder_id is missing AND the selected Link Code has no Document_Link.
-            st.warning(str(exc))
+        except Exception:
+            # Hide raw Google API errors from end users; keep the page clean and actionable.
             if current_folder_url:
-                st.info("This Link Code has an existing Document_Link, but the folder ID could not be read. Check the link format.")
+                st.info("Document folder could not be scanned for this Link Code. Please check the folder link or Drive access.")
             else:
-                st.info("Select a Link Code that already has Documents = Open, or create a folder with the exact Link Code name under the Link Codes root folder. The dashboard will find it on the next refresh.")
+                st.info("No linked Google Drive folder was found for this Link Code. Create the folder or add Document_Link, then refresh document status.")
 
     with st.container(border=True):
         h1, h2 = st.columns([1, .35])
@@ -6187,6 +6198,12 @@ def main() -> None:
             key="main_nav",
             label_visibility="collapsed",
         )
+
+        st.markdown("<hr style='margin:18px 0;border:0;border-top:1px dashed rgba(203,213,225,.55);'>", unsafe_allow_html=True)
+        sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
+        if st.button(sidebar_smart_label, use_container_width=True, key="sidebar_toggle_smart_bulk_filter"):
+            st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
+            st.rerun()
 
     render_session_bar()
 
