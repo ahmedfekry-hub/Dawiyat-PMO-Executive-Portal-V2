@@ -506,6 +506,96 @@ div[data-testid="stButton"] button {
 body.dark-ui .quick-actions-panel { background:#111f34 !important; border-color:#2b3d5a !important; }
 body.dark-ui .quick-actions-title { color:#eaf2ff !important; }
 body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
+
+/* V6.0 Professional Sidebar */
+[data-testid="stSidebar"] {
+    width: 305px !important;
+    min-width: 305px !important;
+    background: linear-gradient(180deg,#062f34 0%,#09283c 62%,#071f34 100%) !important;
+    border-right: 1px solid rgba(148,163,184,.35);
+    box-shadow: 12px 0 28px rgba(15,23,42,.12);
+}
+[data-testid="stSidebar"] > div:first-child {
+    padding-top: 1.25rem;
+}
+.v6-sidebar-brand {
+    display:flex;
+    align-items:center;
+    gap:12px;
+    padding: 10px 10px 16px;
+    margin-bottom: 10px;
+    border-bottom: 1px solid rgba(226,232,240,.22);
+}
+.v6-brand-icon {
+    width:46px;
+    height:46px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    border-radius:15px;
+    background: rgba(255,255,255,.12);
+    border: 1px solid rgba(255,255,255,.14);
+    font-size: 24px;
+}
+.v6-brand-title {
+    font-size: 18px;
+    font-weight: 900;
+    color: #fff;
+    line-height: 1.05;
+}
+.v6-brand-subtitle {
+    font-size: 11px;
+    font-weight: 700;
+    color: rgba(226,232,240,.86);
+    margin-top: 2px;
+}
+.v6-section-title {
+    margin: 14px 4px 8px;
+    color: #bae6fd;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: .11em;
+    font-weight: 900;
+}
+.v6-separator {
+    height: 1px;
+    margin: 16px 2px;
+    background: linear-gradient(90deg, transparent, rgba(226,232,240,.42), transparent);
+}
+[data-testid="stSidebar"] .stRadio > div {
+    gap: 7px;
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"] {
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(255,255,255,.08);
+    border-radius: 16px;
+    padding: 9px 12px;
+    min-height: 44px;
+    transition: all .16s ease;
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
+    background: rgba(255,255,255,.14);
+    transform: translateX(2px);
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"] span {
+    color: #f8fafc !important;
+    font-weight: 850;
+}
+[data-testid="stSidebar"] button {
+    border-radius: 16px !important;
+    min-height: 43px !important;
+    font-weight: 850 !important;
+    border: 1px solid rgba(226,232,240,.24) !important;
+    background: rgba(255,255,255,.08) !important;
+    color: #f8fafc !important;
+}
+[data-testid="stSidebar"] button:hover {
+    background: rgba(255,255,255,.16) !important;
+    border-color: rgba(226,232,240,.42) !important;
+    transform: translateX(2px);
+}
+/* Hide old top Quick Actions block in V6.0 if any stale HTML is cached. */
+.quick-actions-panel { display: none !important; }
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -2815,43 +2905,8 @@ def render_dashboard() -> None:
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
 
-    # Hidden action/governance pages: shown as compact buttons on Dashboard according to permissions.
-    all_allowed = allowed_pages_for_current_user()
-    quick_actions = []
-    if "Project Updates Center" in all_allowed:
-        quick_actions.append(("📝 Open Project Updates Center", "Project Updates Center", "secondary"))
-    if "Data Update Agent" in all_allowed:
-        quick_actions.append(("🧠 Open Data Update Agent", "Data Update Agent", "secondary"))
-    if "Notification Center 🔔" in all_allowed:
-        quick_actions.append((f"🔔 Open Notification Center ({unread_notifications_count(st.session_state.get('username',''))})", "Notification Center 🔔", "secondary"))
-    if "Executive Daily Digest" in all_allowed:
-        quick_actions.append(("📩 Open Executive Daily Digest", "Executive Daily Digest", "secondary"))
-    if "WhatsApp Agent" in all_allowed:
-        quick_actions.append(("🟢 Open WhatsApp Agent Outbox", "WhatsApp Agent", "secondary"))
-    if "📤 Document Upload Center" in all_allowed:
-        quick_actions.append(("📤 Open Document Upload Center", "📤 Document Upload Center", "secondary"))
-    if "📊 Executive PPT Builder" in all_allowed:
-        quick_actions.append(("📊 Open Executive PPT Builder", "📊 Executive PPT Builder", "secondary"))
-    if "Admin Board" in all_allowed and _is_admin_board_owner():
-        quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
-
-    if quick_actions:
-        st.markdown(
-            """
-            <div class="quick-actions-panel">
-                <div class="quick-actions-title">Quick Actions & Governance Agents</div>
-                <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        for i in range(0, len(quick_actions), 4):
-            action_cols = st.columns(min(4, len(quick_actions) - i))
-            for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
-                with col:
-                    if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
-                        st.session_state["active_hidden_page"] = target_page
-                        st.rerun()
+    # V6.0: Quick/Governance actions are now available from the professional left sidebar only.
+    # This keeps the dashboard canvas clean and prevents duplicated navigation blocks.
 
     # Smart Bulk Filter is toggled from the left navigation sidebar; panel opens here when enabled.
     render_smart_bulk_filter_panel(raw, show_toggle=False)
@@ -6161,8 +6216,19 @@ def main() -> None:
     role = st.session_state.get("role", "user")
 
     with st.sidebar:
-        st.markdown("### Dawiyat PMO Portal V3")
-        st.caption(f"User: {st.session_state.get('username','')}")
+        st.markdown(
+            """
+            <div class="v6-sidebar-brand">
+                <div class="v6-brand-icon">📊</div>
+                <div>
+                    <div class="v6-brand-title">PMO Portal</div>
+                    <div class="v6-brand-subtitle">Executive Dashboard</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        st.caption(f"👤 {st.session_state.get('username','')}  |  👔 {st.session_state.get('role','')}")
 
         all_allowed_pages = allowed_pages_for_current_user()
         hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
@@ -6170,8 +6236,8 @@ def main() -> None:
         if not pages:
             pages = ["No Access"]
 
-        # Hidden action pages are intentionally excluded from the sidebar. They remain
-        # accessible only through Dashboard action buttons and only when the user has permission.
+        # Hidden action pages are intentionally excluded from the main navigation list.
+        # They are available in the Governance Actions section below based on permissions.
         active_hidden = st.session_state.get("active_hidden_page")
         if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
@@ -6192,6 +6258,7 @@ def main() -> None:
         if st.session_state.get("main_nav") not in pages:
             st.session_state["main_nav"] = pages[0] if pages else "No Access"
 
+        st.markdown("<div class='v6-section-title'>Dashboard Pages</div>", unsafe_allow_html=True)
         page = st.radio(
             "Navigation",
             pages,
@@ -6199,12 +6266,42 @@ def main() -> None:
             label_visibility="collapsed",
         )
 
-        st.markdown("<hr style='margin:18px 0;border:0;border-top:1px dashed rgba(203,213,225,.55);'>", unsafe_allow_html=True)
+        st.markdown("<div class='v6-separator'></div>", unsafe_allow_html=True)
         sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
         if st.button(sidebar_smart_label, use_container_width=True, key="sidebar_toggle_smart_bulk_filter"):
             st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
             st.rerun()
 
+        action_items = []
+        if "Project Updates Center" in hidden_allowed_pages:
+            action_items.append(("📝 Project Updates Center", "Project Updates Center"))
+        if "Data Update Agent" in hidden_allowed_pages:
+            action_items.append(("🧠 Data Update Agent", "Data Update Agent"))
+        if "Notification Center 🔔" in hidden_allowed_pages:
+            action_items.append((f"🔔 Notification Center ({unread_notifications_count(st.session_state.get('username',''))})", "Notification Center 🔔"))
+        if "Executive Daily Digest" in hidden_allowed_pages:
+            action_items.append(("📩 Executive Daily Digest", "Executive Daily Digest"))
+        if "WhatsApp Agent" in hidden_allowed_pages:
+            action_items.append(("🟢 WhatsApp Outbox", "WhatsApp Agent"))
+        if "📤 Document Upload Center" in hidden_allowed_pages:
+            action_items.append(("📤 Document Upload Center", "📤 Document Upload Center"))
+        if "📊 Executive PPT Builder" in hidden_allowed_pages:
+            action_items.append(("📊 Executive PPT Builder", "📊 Executive PPT Builder"))
+        if "Admin Board" in hidden_allowed_pages and _is_admin_board_owner():
+            action_items.append(("⚙️ Admin Board", "Admin Board"))
+
+        if action_items:
+            st.markdown("<div class='v6-separator'></div><div class='v6-section-title'>Governance Actions</div>", unsafe_allow_html=True)
+            for label, target_page in action_items:
+                if st.button(label, use_container_width=True, key=f"sidebar_open_hidden_{target_page}"):
+                    st.session_state["active_hidden_page"] = target_page
+                    st.rerun()
+
+        st.markdown("<div class='v6-separator'></div>", unsafe_allow_html=True)
+        if st.button("🚪 Logout", use_container_width=True, key="sidebar_logout_v6"):
+            _clear_login_query_params()
+            st.session_state.clear()
+            st.rerun()
     render_session_bar()
 
     active_hidden_page = st.session_state.get("active_hidden_page")
