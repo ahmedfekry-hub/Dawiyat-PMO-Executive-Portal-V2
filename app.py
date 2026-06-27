@@ -1903,7 +1903,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     smart_bulk_filter = json.dumps(_current_smart_bulk_filter_payload(), ensure_ascii=False)
     all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
     denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
-    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
+    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .side-tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
     export_button_css = ""
     if hide_global_pdf == "true" or hide_all_exports == "true":
         export_button_css += "#export-pdf, button#export-pdf, .btn#export-pdf { display:none !important; visibility:hidden !important; pointer-events:none !important; }\n"
