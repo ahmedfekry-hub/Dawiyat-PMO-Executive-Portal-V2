@@ -217,51 +217,19 @@ st.set_page_config(
 # Streamlit pages that must stay hidden from sidebar navigation.
 # They are opened only through controlled action buttons on the Dashboard.
 HIDDEN_ACTION_PAGES = {
-    # Support both display names and permission-sheet names.
-    "📤 Document Upload Center", "Document Upload Center",
-    "📊 Executive PPT Builder", "Executive PPT Builder",
-    "Admin Board",
-    "Project Updates Center", "Data Update Agent", "Notification Center 🔔", "Notification Center",
+    "📤 Document Upload Center", "📊 Executive PPT Builder", "Admin Board",
+    "Project Updates Center", "Data Update Agent", "Notification Center 🔔",
     "Executive Daily Digest", "WhatsApp Agent",
 }
-
-
-def _canonical_hidden_page_name(page_name: str) -> str:
-    """Normalize hidden/action page names coming from permissions.xlsx or sidebar buttons."""
-    text = str(page_name or "").strip()
-    clean = _excel_clean(text).lower() if '_excel_clean' in globals() else text.lower()
-    mapping = {
-        "document upload center": "📤 Document Upload Center",
-        "📤 document upload center": "📤 Document Upload Center",
-        "executive ppt builder": "📊 Executive PPT Builder",
-        "📊 executive ppt builder": "📊 Executive PPT Builder",
-        "notification center": "Notification Center 🔔",
-        "notification center 🔔": "Notification Center 🔔",
-        "project updates center": "Project Updates Center",
-        "data update agent": "Data Update Agent",
-        "executive daily digest": "Executive Daily Digest",
-        "whatsapp agent": "WhatsApp Agent",
-        "admin board": "Admin Board",
-        "__toggle_smart_bulk_filter__": "__toggle_smart_bulk_filter__",
-        "toggle_smart_bulk_filter": "__toggle_smart_bulk_filter__",
-    }
-    return mapping.get(clean, text)
 
 
 PORTAL_CSS = """
 <style>
 .block-container {
     padding-top: 0.6rem;
-    padding-left: 0.7rem !important;
-    padding-right: 0.7rem !important;
-    max-width: 100vw !important;
-    width: 100% !important;
-}
-[data-testid="stAppViewContainer"] > .main,
-[data-testid="stAppViewContainer"] main,
-section.main,
-.main .block-container {
-    margin-left: 0 !important;
+    padding-left: 0.7rem;
+    padding-right: 0.7rem;
+    max-width: 100%;
 }
 header, footer {visibility: hidden;}
 /* Best-effort hide Streamlit Cloud developer toolbar/Manage App from the portal UI.
@@ -538,136 +506,6 @@ div[data-testid="stButton"] button {
 body.dark-ui .quick-actions-panel { background:#111f34 !important; border-color:#2b3d5a !important; }
 body.dark-ui .quick-actions-title { color:#eaf2ff !important; }
 body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
-
-/* V6.0 Professional Sidebar */
-[data-testid="stSidebar"] {
-    width: 305px !important;
-    min-width: 305px !important;
-    background: linear-gradient(180deg,#062f34 0%,#09283c 62%,#071f34 100%) !important;
-    border-right: 1px solid rgba(148,163,184,.35);
-    box-shadow: 12px 0 28px rgba(15,23,42,.12);
-}
-[data-testid="stSidebar"] > div:first-child {
-    padding-top: 1.25rem;
-}
-.v6-sidebar-brand {
-    display:flex;
-    align-items:center;
-    gap:12px;
-    padding: 10px 10px 16px;
-    margin-bottom: 10px;
-    border-bottom: 1px solid rgba(226,232,240,.22);
-}
-.v6-brand-icon {
-    width:46px;
-    height:46px;
-    display:flex;
-    align-items:center;
-    justify-content:center;
-    border-radius:15px;
-    background: rgba(255,255,255,.12);
-    border: 1px solid rgba(255,255,255,.14);
-    font-size: 24px;
-}
-.v6-brand-title {
-    font-size: 18px;
-    font-weight: 900;
-    color: #fff;
-    line-height: 1.05;
-}
-.v6-brand-subtitle {
-    font-size: 11px;
-    font-weight: 700;
-    color: rgba(226,232,240,.86);
-    margin-top: 2px;
-}
-.v6-section-title {
-    margin: 14px 4px 8px;
-    color: #bae6fd;
-    font-size: 11px;
-    text-transform: uppercase;
-    letter-spacing: .11em;
-    font-weight: 900;
-}
-.v6-separator {
-    height: 1px;
-    margin: 16px 2px;
-    background: linear-gradient(90deg, transparent, rgba(226,232,240,.42), transparent);
-}
-[data-testid="stSidebar"] .stRadio > div {
-    gap: 7px;
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"] {
-    background: rgba(255,255,255,.07);
-    border: 1px solid rgba(255,255,255,.08);
-    border-radius: 16px;
-    padding: 9px 12px;
-    min-height: 44px;
-    transition: all .16s ease;
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"]:hover {
-    background: rgba(255,255,255,.14);
-    transform: translateX(2px);
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"] span {
-    color: #f8fafc !important;
-    font-weight: 850;
-}
-[data-testid="stSidebar"] button {
-    border-radius: 16px !important;
-    min-height: 43px !important;
-    font-weight: 850 !important;
-    border: 1px solid rgba(226,232,240,.24) !important;
-    background: rgba(255,255,255,.08) !important;
-    color: #f8fafc !important;
-}
-[data-testid="stSidebar"] button:hover {
-    background: rgba(255,255,255,.16) !important;
-    border-color: rgba(226,232,240,.42) !important;
-    transform: translateX(2px);
-}
-/* Hide old top Quick Actions block in V6.0 if any stale HTML is cached. */
-.quick-actions-panel { display: none !important; }
-
-/* V6.0.1: make the native Streamlit sidebar behave like an overlay drawer,
-   so opening it does not reserve a large empty column on the left. */
-section[data-testid="stSidebar"] {
-    position: fixed !important;
-    top: 0 !important;
-    left: 0 !important;
-    height: 100vh !important;
-    z-index: 100000 !important;
-    box-shadow: 16px 0 40px rgba(15,23,42,.22) !important;
-}
-section[data-testid="stSidebar"] > div {
-    height: 100vh !important;
-    overflow-y: auto !important;
-}
-section[data-testid="stMain"],
-[data-testid="stAppViewContainer"] main,
-.main {
-    margin-left: 0 !important;
-    padding-left: 0 !important;
-}
-[data-testid="stAppViewContainer"] {
-    margin-left: 0 !important;
-}
-.v6-sidebar-caption {
-    color: rgba(226,232,240,.86);
-    font-size: 12px;
-    font-weight: 800;
-    margin: -4px 4px 10px;
-}
-.v6-sidebar-note {
-    border:1px dashed rgba(226,232,240,.25);
-    border-radius:14px;
-    padding:8px 10px;
-    color:rgba(226,232,240,.78);
-    font-size:11px;
-    line-height:1.45;
-    margin-top:8px;
-}
-
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -2065,7 +1903,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     smart_bulk_filter = json.dumps(_current_smart_bulk_filter_payload(), ensure_ascii=False)
     all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
     denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
-    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .side-tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
+    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
     export_button_css = ""
     if hide_global_pdf == "true" or hide_all_exports == "true":
         export_button_css += "#export-pdf, button#export-pdf, .btn#export-pdf { display:none !important; visibility:hidden !important; pointer-events:none !important; }\n"
@@ -2808,7 +2646,7 @@ def _current_smart_bulk_filter_payload() -> Dict[str, Any]:
     }
 
 
-def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]], show_toggle: bool = True) -> None:
+def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]]) -> None:
     """Streamlit-native Smart Bulk Filter panel above the dashboard iframe.
     It supports Excel/CSV upload, searchable multi-select chips for Link Code and Work Order,
     and manual paste for large WO lists. Reset Filters in dashboard clears the iframe state;
@@ -2819,36 +2657,22 @@ def render_smart_bulk_filter_panel(raw: Dict[str, List[dict]], show_toggle: bool
     is_active = bool(st.session_state.get("smart_bulk_link_codes") or st.session_state.get("smart_bulk_work_orders"))
     show_filter = st.session_state.get("show_smart_bulk_filter", False)
 
-    if show_toggle:
-        top_cols = st.columns([1.2, 3, 1])
-        with top_cols[0]:
-            if st.button(("🙈 Hide Smart Bulk Filter" if show_filter else "🎯 Show Smart Bulk Filter"), use_container_width=True, key="toggle_smart_bulk_filter"):
-                st.session_state["show_smart_bulk_filter"] = not show_filter
-                st.rerun()
-        with top_cols[1]:
-            if is_active:
-                st.success(f"Smart Bulk Filter active: {len(st.session_state.get('smart_bulk_link_codes', []))} Link Codes, {len(st.session_state.get('smart_bulk_work_orders', []))} Work Orders.")
-        with top_cols[2]:
-            if is_active and st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear"):
-                for k in [
-                    "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
-                    "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
-                ]:
-                    st.session_state.pop(k, None)
-                st.rerun()
-    else:
+    top_cols = st.columns([1.2, 3, 1])
+    with top_cols[0]:
+        if st.button(("🙈 Hide Smart Bulk Filter" if show_filter else "🎯 Show Smart Bulk Filter"), use_container_width=True, key="toggle_smart_bulk_filter"):
+            st.session_state["show_smart_bulk_filter"] = not show_filter
+            st.rerun()
+    with top_cols[1]:
         if is_active:
-            smart_cols = st.columns([4, 1])
-            with smart_cols[0]:
-                st.success(f"Smart Bulk Filter active: {len(st.session_state.get('smart_bulk_link_codes', []))} Link Codes, {len(st.session_state.get('smart_bulk_work_orders', []))} Work Orders.")
-            with smart_cols[1]:
-                if st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear_sidebar_mode"):
-                    for k in [
-                        "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
-                        "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
-                    ]:
-                        st.session_state.pop(k, None)
-                    st.rerun()
+            st.success(f"Smart Bulk Filter active: {len(st.session_state.get('smart_bulk_link_codes', []))} Link Codes, {len(st.session_state.get('smart_bulk_work_orders', []))} Work Orders.")
+    with top_cols[2]:
+        if is_active and st.button("🧹 Clear", use_container_width=True, key="smart_bulk_quick_clear"):
+            for k in [
+                "smart_bulk_uploaded", "smart_bulk_link_codes", "smart_bulk_work_orders", "smart_bulk_pairs",
+                "smart_bulk_link_codes_multiselect", "smart_bulk_work_orders_multiselect", "smart_bulk_manual_wo_text",
+            ]:
+                st.session_state.pop(k, None)
+            st.rerun()
 
     if not st.session_state.get("show_smart_bulk_filter", False):
         return
@@ -2977,18 +2801,50 @@ def render_dashboard() -> None:
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
 
-    # V6.0: Quick/Governance actions are now available from the professional left sidebar only.
-    # This keeps the dashboard canvas clean and prevents duplicated navigation blocks.
+    render_smart_bulk_filter_panel(raw)
 
-    # Smart Bulk Filter is toggled from the left navigation sidebar; panel opens here when enabled.
-    render_smart_bulk_filter_panel(raw, show_toggle=False)
+    # Hidden action/governance pages: shown as compact buttons on Dashboard according to permissions.
+    all_allowed = allowed_pages_for_current_user()
+    quick_actions = []
+    if "Project Updates Center" in all_allowed:
+        quick_actions.append(("📝 Open Project Updates Center", "Project Updates Center", "secondary"))
+    if "Data Update Agent" in all_allowed:
+        quick_actions.append(("🧠 Open Data Update Agent", "Data Update Agent", "secondary"))
+    if "Notification Center 🔔" in all_allowed:
+        quick_actions.append((f"🔔 Open Notification Center ({unread_notifications_count(st.session_state.get('username',''))})", "Notification Center 🔔", "secondary"))
+    if "Executive Daily Digest" in all_allowed:
+        quick_actions.append(("📩 Open Executive Daily Digest", "Executive Daily Digest", "secondary"))
+    if "WhatsApp Agent" in all_allowed:
+        quick_actions.append(("🟢 Open WhatsApp Agent Outbox", "WhatsApp Agent", "secondary"))
+    if "📤 Document Upload Center" in all_allowed:
+        quick_actions.append(("📤 Open Document Upload Center", "📤 Document Upload Center", "secondary"))
+    if "📊 Executive PPT Builder" in all_allowed:
+        quick_actions.append(("📊 Open Executive PPT Builder", "📊 Executive PPT Builder", "secondary"))
+    if "Admin Board" in all_allowed and _is_admin_board_owner():
+        quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
+
+    if quick_actions:
+        st.markdown(
+            """
+            <div class="quick-actions-panel">
+                <div class="quick-actions-title">Quick Actions & Governance Agents</div>
+                <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        for i in range(0, len(quick_actions), 4):
+            action_cols = st.columns(min(4, len(quick_actions) - i))
+            for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
+                with col:
+                    if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
+                        st.session_state["active_hidden_page"] = target_page
+                        st.rerun()
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
 
-    # V6.0.2: governance actions are visible in the HTML sidebar; access remains enforced by Streamlit page permissions.
-
-    components.html(dashboard_html, height=9200, scrolling=False)
+    components.html(dashboard_html, height=3100, scrolling=True)
 
 
 
@@ -4161,6 +4017,7 @@ def document_upload_page() -> None:
     with top_left:
         st.title("📂 Document Upload Center")
         st.caption("Manual Google Drive upload workflow for every Link Code. Open the Link Code folder, upload files directly into: 01 Design / 02 Permit / 03 Photos / 04 PAT / 05 AsBuilt / 06 Handover / 07 Commercial, then refresh status.")
+        st.info("Manual upload mode: upload files in Google Drive, then click Refresh Document Status. Created/Uploaded Date and Modified Date are scanned from Google Drive for all 7 stages.")
     with top_right:
         st.write("")
         st.write("")
@@ -4192,8 +4049,8 @@ def document_upload_page() -> None:
     except Exception as exc:
         service = None
         drive_connected = False
-        drive_connected = False
-        st.info("Google Drive scan is not available for this session. Please check the Drive folder ID / permissions if document status scanning is required.")
+        st.error(str(exc))
+        st.info("Check Streamlit Secrets, enable Google Drive API, and share the Link Codes Google Drive folder with the service account email as Viewer/Editor so the dashboard can scan files.")
 
     st.markdown("### Executive Documents Dashboard")
     with st.container(border=True):
@@ -4201,7 +4058,7 @@ def document_upload_page() -> None:
         with scan_col1:
             scan_scope = st.multiselect("Scan Link Codes", links, default=links[:min(10, len(links))], help="Scanning all Link Codes may take time because each scan checks Google Drive folders.")
         with scan_col2:
-            max_scan = st.number_input("Max Scan", min_value=1, max_value=500, value=min(400, len(links)), step=10)
+            max_scan = st.number_input("Max Scan", min_value=1, max_value=500, value=min(50, len(links)), step=10)
         with scan_col3:
             st.metric("Drive", "Connected" if drive_connected else "Not Connected")
         if drive_connected and st.button("Refresh Document Status", use_container_width=True, type="secondary"):
@@ -4263,12 +4120,13 @@ def document_upload_page() -> None:
                 doc_status = document_status_for_link(service, link_folder_id)
             else:
                 st.warning("No existing Google Drive folder found for this Link Code. Create it manually under the Link Codes root folder, or add Document_Link to the CSV.")
-        except Exception:
-            # Hide raw Google API errors from end users; keep the page clean and actionable.
+        except Exception as exc:
+            # This usually means root_folder_id is missing AND the selected Link Code has no Document_Link.
+            st.warning(str(exc))
             if current_folder_url:
-                st.info("Document folder could not be scanned for this Link Code. Please check the folder link or Drive access.")
+                st.info("This Link Code has an existing Document_Link, but the folder ID could not be read. Check the link format.")
             else:
-                st.info("No linked Google Drive folder was found for this Link Code. Create the folder or add Document_Link, then refresh document status.")
+                st.info("Select a Link Code that already has Documents = Open, or create a folder with the exact Link Code name under the Link Codes root folder. The dashboard will find it on the next refresh.")
 
     with st.container(border=True):
         h1, h2 = st.columns([1, .35])
@@ -6285,62 +6143,22 @@ def main() -> None:
         return
     validate_current_authenticated_user()
 
-    # V6.0.2: handle navigation requests coming from the professional HTML sidebar
-    # rendered inside dashboard.html. The request is permission-checked later against
-    # hidden_allowed_pages before opening any governance/action page.
-    try:
-        _nav_action_qp = str(st.query_params.get("nav_action", "") or "").strip()
-    except Exception:
-        _nav_action_qp = ""
-
     # No timed auto-refresh: permissions update only on browser refresh, rerun, or Logout/Login.
 
     role = st.session_state.get("role", "user")
 
     with st.sidebar:
-        st.markdown(
-            """
-            <div class="v6-sidebar-brand">
-                <div class="v6-brand-icon">📊</div>
-                <div>
-                    <div class="v6-brand-title">PMO Portal</div>
-                    <div class="v6-brand-subtitle">Executive Dashboard</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown(f"<div class='v6-sidebar-caption'>👤 {st.session_state.get('username','')}<br>👔 {st.session_state.get('role','')}</div>", unsafe_allow_html=True)
+        st.markdown("### Dawiyat PMO Portal V3")
+        st.caption(f"User: {st.session_state.get('username','')}")
 
         all_allowed_pages = allowed_pages_for_current_user()
-        hidden_allowed_pages = []
-        pages = []
-        for _p in all_allowed_pages:
-            if _p in HIDDEN_ACTION_PAGES or _canonical_hidden_page_name(_p) in HIDDEN_ACTION_PAGES:
-                _canon = _canonical_hidden_page_name(_p)
-                if _canon not in hidden_allowed_pages:
-                    hidden_allowed_pages.append(_canon)
-            else:
-                pages.append(_p)
+        hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
+        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
         if not pages:
             pages = ["No Access"]
 
-        # Hidden action pages are intentionally excluded from the main navigation list.
-        # They are available in the Governance Actions section below based on permissions.
-        if _nav_action_qp:
-            _nav_canon = _canonical_hidden_page_name(_nav_action_qp)
-            if _nav_canon == "__toggle_smart_bulk_filter__":
-                st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
-            elif _nav_canon in hidden_allowed_pages:
-                if _nav_canon != "Admin Board" or _is_admin_board_owner():
-                    st.session_state["active_hidden_page"] = _nav_canon
-            # Clear nav_action from the URL while preserving auth query parameters.
-            try:
-                if "nav_action" in st.query_params:
-                    del st.query_params["nav_action"]
-            except Exception:
-                pass
-
+        # Hidden action pages are intentionally excluded from the sidebar. They remain
+        # accessible only through Dashboard action buttons and only when the user has permission.
         active_hidden = st.session_state.get("active_hidden_page")
         if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
@@ -6361,7 +6179,6 @@ def main() -> None:
         if st.session_state.get("main_nav") not in pages:
             st.session_state["main_nav"] = pages[0] if pages else "No Access"
 
-        st.markdown("<div class='v6-section-title'>Dashboard Pages</div>", unsafe_allow_html=True)
         page = st.radio(
             "Navigation",
             pages,
@@ -6369,47 +6186,9 @@ def main() -> None:
             label_visibility="collapsed",
         )
 
-        st.markdown("<div class='v6-separator'></div><div class='v6-section-title'>Smart Scope</div>", unsafe_allow_html=True)
-        sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
-        if st.button(sidebar_smart_label, use_container_width=True, key="sidebar_toggle_smart_bulk_filter"):
-            st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
-            st.rerun()
-
-        action_items = []
-        if "Project Updates Center" in hidden_allowed_pages:
-            action_items.append(("📝 Project Updates Center", "Project Updates Center"))
-        if "Data Update Agent" in hidden_allowed_pages:
-            action_items.append(("🧠 Data Update Agent", "Data Update Agent"))
-        if "Notification Center 🔔" in hidden_allowed_pages:
-            action_items.append((f"🔔 Notification Center ({unread_notifications_count(st.session_state.get('username',''))})", "Notification Center 🔔"))
-        if "Executive Daily Digest" in hidden_allowed_pages:
-            action_items.append(("📩 Executive Daily Digest", "Executive Daily Digest"))
-        if "WhatsApp Agent" in hidden_allowed_pages:
-            action_items.append(("🟢 WhatsApp Outbox", "WhatsApp Agent"))
-        if "📤 Document Upload Center" in hidden_allowed_pages:
-            action_items.append(("📤 Document Upload Center", "📤 Document Upload Center"))
-        if "📊 Executive PPT Builder" in hidden_allowed_pages:
-            action_items.append(("📊 Executive PPT Builder", "📊 Executive PPT Builder"))
-        if "Admin Board" in hidden_allowed_pages and _is_admin_board_owner():
-            action_items.append(("⚙️ Admin Board", "Admin Board"))
-
-        if action_items:
-            st.markdown("<div class='v6-separator'></div><div class='v6-section-title'>Governance Actions</div>", unsafe_allow_html=True)
-            for label, target_page in action_items:
-                if st.button(label, use_container_width=True, key=f"sidebar_open_hidden_{target_page}"):
-                    st.session_state["active_hidden_page"] = target_page
-                    st.rerun()
-
-        st.markdown("<div class='v6-separator'></div>", unsafe_allow_html=True)
-        if st.button("🚪 Logout", use_container_width=True, key="sidebar_logout_v6"):
-            _clear_login_query_params()
-            st.session_state.clear()
-            st.rerun()
     render_session_bar()
 
-    active_hidden_page = _canonical_hidden_page_name(st.session_state.get("active_hidden_page")) if st.session_state.get("active_hidden_page") else None
-    if active_hidden_page:
-        st.session_state["active_hidden_page"] = active_hidden_page
+    active_hidden_page = st.session_state.get("active_hidden_page")
     if active_hidden_page == "📤 Document Upload Center":
         document_upload_page()
         return
