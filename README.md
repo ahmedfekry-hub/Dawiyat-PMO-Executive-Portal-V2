@@ -1,3 +1,10 @@
+# Dawiyat PMO Executive Portal V5.9.7
+
+Navigation/UI fix:
+- Restored the elegant left sidebar navigation with no toggle button.
+- Quick Actions & Governance Agents panel is visible again according to permissions.
+- Dashboard iframe is rendered without its own scroll to reduce confusion and keep the main page as the primary scroll.
+
 # Dawiyat PMO Executive Portal V5.9.3
 
 Fixes included:
