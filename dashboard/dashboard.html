@@ -80,7 +80,8 @@
       linear-gradient(180deg,#071427 0%,#102a4d 48%,#0f766e 100%);
     box-shadow:0 28px 70px rgba(15,23,42,.34);
     border:1px solid rgba(255,255,255,.14);
-    overflow:hidden;
+    overflow-y:auto;
+    overflow-x:hidden;
     transform:translateX(-325px);
     opacity:0;
     pointer-events:none;
@@ -93,13 +94,19 @@
   .side-brand-title { font-size:14px; font-weight:900; letter-spacing:.04em; }
   .side-brand-sub { font-size:11px; color:#b9e8ff; margin-top:4px; font-weight:700; }
   .side-nav-items { display:grid; gap:8px; }
+  .side-nav-separator { height:1px; margin:14px 2px 12px; background:linear-gradient(90deg,transparent,rgba(226,232,240,.42),transparent); }
+  .side-section-title { margin:8px 4px 8px; color:#bae6fd; font-size:11px; text-transform:uppercase; letter-spacing:.11em; font-weight:900; }
+  .side-action { width:100%;display:flex;align-items:center;justify-content:center;gap:10px;min-height:42px;border-radius:16px;border:1px solid rgba(226,232,240,.22);background:rgba(255,255,255,.08);color:#f8fafc;cursor:pointer;padding:9px 10px;text-align:center;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, transform .18s ease, border-color .18s ease; margin-bottom:8px; }
+  .side-action:hover { background:rgba(255,255,255,.16); transform:translateX(2px); border-color:rgba(226,232,240,.40); }
+  .side-action.side-logout { margin-top:4px; background:rgba(15,23,42,.20); }
+  .side-action[data-open-action="admin_board"] { background:linear-gradient(135deg,#ef4444,#dc2626); border-color:rgba(248,113,113,.60); color:#fff; }
   .side-tab { width:100%;display:flex;align-items:center;gap:13px;min-height:50px;border:0;border-radius:18px;background:transparent;color:#dbeafe;cursor:pointer;padding:8px 10px;text-align:left;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, color .18s ease, transform .18s ease; }
   .side-tab:hover { background:rgba(255,255,255,.10); transform:translateX(2px); color:#fff; }
   .side-tab.active { background:linear-gradient(135deg,#ffffff 0%,#eaf4ff 100%); color:#0f2746; box-shadow:0 12px 26px rgba(0,0,0,.20); }
   .side-icon { width:42px;height:42px;border-radius:15px;display:flex;align-items:center;justify-content:center;flex:0 0 42px;background:rgba(255,255,255,.12);font-size:20px; }
   .side-tab.active .side-icon { background:#e8f2ff; }
   .side-label { opacity:1; transform:none; }
-  .side-footer { position:absolute;left:10px;right:10px;bottom:12px;color:#b9e8ff;font-size:10px;font-weight:800;text-align:center;opacity:.85;border-top:1px solid rgba(255,255,255,.12);padding-top:10px;white-space:nowrap; }
+  .side-footer { color:#b9e8ff;font-size:10px;font-weight:800;text-align:center;opacity:.85;border-top:1px solid rgba(255,255,255,.12);padding-top:10px;margin-top:10px;white-space:nowrap; }
   .app { margin-left:0!important; transition:none; padding-top:0 !important; }
   .side-nav-backdrop{position:fixed;inset:0;z-index:998;background:rgba(15,23,42,.18);opacity:0;pointer-events:none;transition:opacity .22s ease;}
   .side-nav-backdrop.open{opacity:1;pointer-events:auto;}
@@ -2087,6 +2094,7 @@ body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;borde
     <button class="side-tab" data-tab="decision" type="button"><span class="side-icon">🤖</span><span class="side-label">PMO Report Assistant</span></button>
     <button class="side-tab" data-tab="reports" type="button"><span class="side-icon">📈</span><span class="side-label">Executive Reports</span></button>
   </div>
+  <!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->
   <div class="side-footer">PMO Navigation</div>
 </nav>
 
@@ -7319,6 +7327,17 @@ if (sideNavBackdrop) sideNavBackdrop.addEventListener('click', () => setSideNavO
 document.querySelectorAll('.tab, .side-tab').forEach(btn => btn.addEventListener('click', () => {
   setTab(btn.dataset.tab);
   if (btn.classList.contains('side-tab')) setSideNavOpen(false);
+}));
+document.querySelectorAll('.side-action[data-open-action]').forEach(btn => btn.addEventListener('click', () => {
+  const action = btn.dataset.openAction || '';
+  if (!action) return;
+  try {
+    const parentUrl = new URL(window.parent.location.href);
+    parentUrl.searchParams.set('open_action', action);
+    window.parent.location.href = parentUrl.toString();
+  } catch(e) {
+    window.open('?open_action=' + encodeURIComponent(action), '_parent');
+  }
 }));
 document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 // Robust PMO sub-view switching, including when the PMO section is re-rendered.
