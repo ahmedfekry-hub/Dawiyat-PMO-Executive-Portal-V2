@@ -96,7 +96,7 @@
   .side-nav-items { display:grid; gap:8px; }
   .side-nav-separator { height:1px; margin:14px 2px 12px; background:linear-gradient(90deg,transparent,rgba(226,232,240,.42),transparent); }
   .side-section-title { margin:8px 4px 8px; color:#bae6fd; font-size:11px; text-transform:uppercase; letter-spacing:.11em; font-weight:900; }
-  .side-action { width:100%;display:flex;text-decoration:none;align-items:center;justify-content:center;gap:10px;min-height:42px;border-radius:16px;border:1px solid rgba(226,232,240,.22);background:rgba(255,255,255,.08);color:#f8fafc;cursor:pointer;padding:9px 10px;text-align:center;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, transform .18s ease, border-color .18s ease; margin-bottom:8px; }
+  .side-action { width:100%;display:flex;align-items:center;justify-content:center;gap:10px;min-height:42px;border-radius:16px;border:1px solid rgba(226,232,240,.22);background:rgba(255,255,255,.08);color:#f8fafc;cursor:pointer;padding:9px 10px;text-align:center;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, transform .18s ease, border-color .18s ease; margin-bottom:8px; }
   .side-action:hover { background:rgba(255,255,255,.16); transform:translateX(2px); border-color:rgba(226,232,240,.40); }
   .side-action.side-logout { margin-top:4px; background:rgba(15,23,42,.20); }
   .side-action[data-open-action="admin_board"] { background:linear-gradient(135deg,#ef4444,#dc2626); border-color:rgba(248,113,113,.60); color:#fff; }
@@ -2053,15 +2053,6 @@ body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;borde
 
 /* V5.8.26: allow handover split labels to wrap so all status buckets are visible */
 .wo-insight-card small{display:block;white-space:normal;line-height:1.35;margin-top:6px;font-size:12px;}
-
-/* V6.0.12 layout stability: allow Executive Reports to render fully and request dynamic iframe height. */
-#tab-reports, #tab-reports .reports-page, #tab-reports .report-section-card,
-#tab-reports .orange-reports-grid, #tab-reports .table-wrap {
-  max-height:none !important; height:auto !important; overflow:visible !important;
-}
-.reports-page { padding-bottom:40px !important; }
-html, body { overflow-x:hidden !important; }
-
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- PMO_ENGINE_FIX: Progress KPI uses actual completion by discipline, caps KPI at 100 only, leaves summary tables raw. -->
@@ -7318,9 +7309,7 @@ function setTab(tabName) {
   const globalFilters = document.getElementById('filters');
   if (globalFilters) globalFilters.style.display = tabName === 'pmo' ? 'none' : '';
   if (tabName === 'pmo') { bindPmoInputs(); renderPmoAll(); }
-  setTimeout(dawiyatNotifyFrameHeight, 150);
 }
-
 
 const sideNavToggle = document.getElementById('side-nav-toggle');
 const sideNav = document.getElementById('executive-side-nav');
@@ -7339,28 +7328,17 @@ document.querySelectorAll('.tab, .side-tab').forEach(btn => btn.addEventListener
   setTab(btn.dataset.tab);
   if (btn.classList.contains('side-tab')) setSideNavOpen(false);
 }));
-document.querySelectorAll('.side-action[data-open-action]').forEach(btn => btn.addEventListener('click', (ev) => {
+document.querySelectorAll('.side-action[data-open-action]').forEach(btn => btn.addEventListener('click', () => {
   const action = btn.dataset.openAction || '';
   if (!action) return;
   try {
-    const targetUrl = new URL(window.top.location.href);
-    targetUrl.searchParams.set('open_action', action);
-    window.open(targetUrl.toString(), '_top');
+    const parentUrl = new URL(window.parent.location.href);
+    parentUrl.searchParams.set('open_action', action);
+    window.parent.location.href = parentUrl.toString();
   } catch(e) {
-    window.open('?open_action=' + encodeURIComponent(action), '_top');
+    window.open('?open_action=' + encodeURIComponent(action), '_parent');
   }
 }));
-
-function dawiyatNotifyFrameHeight(){
-  try {
-    const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 900) + 40;
-    window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*');
-  } catch(e) {}
-}
-window.addEventListener('load', () => setTimeout(dawiyatNotifyFrameHeight, 250));
-setTimeout(dawiyatNotifyFrameHeight, 800);
-setTimeout(dawiyatNotifyFrameHeight, 1800);
-try { new MutationObserver(() => setTimeout(dawiyatNotifyFrameHeight, 120)).observe(document.body, {childList:true, subtree:true, attributes:true}); } catch(e) {}
 document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 // Robust PMO sub-view switching, including when the PMO section is re-rendered.
 document.addEventListener('click', (e) => {
