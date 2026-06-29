@@ -540,6 +540,18 @@ body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
     border:1px solid rgba(226,232,240,.24) !important; background:rgba(255,255,255,.08) !important; color:#f8fafc !important;
 }
 [data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.16) !important; border-color:rgba(226,232,240,.42) !important; transform:translateX(2px); }
+
+/* V6.1 Enterprise stable sidebar layout: native Streamlit sidebar is the only navigation surface. */
+[data-testid="stSidebar"] { min-width: 294px !important; width: 294px !important; }
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap: .35rem !important; }
+[data-testid="stSidebar"] .stRadio label { margin-bottom: 6px !important; }
+[data-testid="stSidebar"] div[role="radiogroup"] { gap: 7px !important; }
+[data-testid="stSidebar"] label[data-baseweb="radio"] { width:100% !important; }
+[data-testid="stSidebar"] button[kind="secondary"], [data-testid="stSidebar"] button { width:100% !important; }
+[data-testid="stSidebar"] .v604-section-title { margin-top: 14px !important; }
+[data-testid="stSidebar"] .v604-separator { margin: 14px 0 12px !important; }
+iframe[title="streamlit runtime"] { width:100% !important; min-height:18000px !important; }
+.block-container { max-width: none !important; padding-left: 0.7rem !important; padding-right: 0.7rem !important; }
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -2320,41 +2332,8 @@ window.DAWIYAT_RBAC = {{
     if "</head>" in updated:
         updated = updated.replace("</head>", portal_patch + "\n</head>", 1)
 
-    # V6.0.10: build the dashboard embedded sidebar action section from permissions.xlsx.
-    try:
-        _allowed = allowed_pages_for_current_user()
-        _items = []
-
-        def _add(label, code, page_name, admin_only=False):
-            if page_name in _allowed and (not admin_only or _is_admin_board_owner()):
-                _items.append((label, code))
-
-        _add("📝 Project Updates Center", "project_updates", "Project Updates Center")
-        _add("🧠 Data Update Agent", "data_update_agent", "Data Update Agent")
-        _add("🔔 Notification Center (" + str(unread_notifications_count(st.session_state.get("username", ""))) + ")", "notification_center", "Notification Center 🔔")
-        _add("📩 Executive Daily Digest", "executive_daily_digest", "Executive Daily Digest")
-        _add("🟢 WhatsApp Outbox", "whatsapp_agent", "WhatsApp Agent")
-        _add("☁️ Document Upload Center", "document_upload_center", "📤 Document Upload Center")
-        _add("📊 Executive PPT Builder", "executive_ppt_builder", "📊 Executive PPT Builder")
-        _add("⚙️ Admin Board", "admin_board", "Admin Board", admin_only=True)
-
-        _buttons = "".join([
-            '<a class="side-action" data-open-action="' + code + '" href="?open_action=' + code + '" target="_top">' + label + '</a>'
-            for label, code in _items
-        ])
-        _side_html = (
-            '<div class="side-nav-separator"></div>'
-            '<div class="side-section-title">Smart Scope</div>'
-            '<a class="side-action" data-open-action="toggle_smart_bulk" href="?open_action=toggle_smart_bulk" target="_top">🎯 Show Smart Bulk Filter</a>'
-            '<div class="side-nav-separator"></div>'
-            '<div class="side-section-title">Governance Actions</div>'
-            + _buttons +
-            '<div class="side-nav-separator"></div>'
-            '<a class="side-action side-logout" data-open-action="logout" href="?open_action=logout" target="_top">🚪 Logout</a>'
-        )
-        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", _side_html)
-    except Exception:
-        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", "")
+    # V6.1: Embedded dashboard sidebar actions are disabled. Navigation is handled by the native Streamlit sidebar to preserve session_state and permissions.
+    updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", "")
 
     return updated
 
@@ -2873,7 +2852,7 @@ def read_dashboard_html_cached(path_str: str, mtime: float) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
-def render_dashboard() -> None:
+def render_dashboard(active_dashboard_tab: str = "overview") -> None:
     if not DASHBOARD_PATH.exists():
         st.error("Dashboard HTML file is missing: dashboard/dashboard.html")
         return
@@ -2913,8 +2892,42 @@ def render_dashboard() -> None:
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
+    active_dashboard_tab = active_dashboard_tab if active_dashboard_tab in {"overview","tables","pmo","performance","perf-explanation","decision","reports"} else "overview"
+    dashboard_nav_patch = f"""
+<style>
+  /* V6.1 Enterprise: Streamlit sidebar is the single source of navigation. */
+  #side-nav-toggle, #executive-side-nav, #side-nav-backdrop {{ display:none !important; visibility:hidden !important; pointer-events:none !important; }}
+  .tabs {{ display:none !important; }}
+  html, body {{ overflow-x:hidden !important; }}
+  .app {{ max-width:none !important; width:100% !important; margin:0 !important; padding-left:0 !important; padding-right:0 !important; }}
+  .section, .panel, .report-block, .report-section {{ overflow:visible !important; }}
+  #tab-reports .table-wrap, #tab-reports .pmo-table-wrap, #tab-reports .assist-table-wrap {{ max-height:none !important; overflow:visible !important; }}
+</style>
+<script>
+  window.DAWIYAT_STREAMLIT_ACTIVE_TAB = {json.dumps(active_dashboard_tab)};
+  function DAWIYAT_apply_streamlit_tab() {{
+    try {{
+      if (typeof window.setTab === 'function') {{ window.setTab(window.DAWIYAT_STREAMLIT_ACTIVE_TAB); }}
+      document.querySelectorAll('.tab, .side-tab, .report-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === window.DAWIYAT_STREAMLIT_ACTIVE_TAB));
+      ['overview','performance','perf-explanation','tables','decision','pmo','reports'].forEach(tab => {{
+        const sec = document.getElementById('tab-' + tab);
+        if (sec) sec.classList.toggle('hidden', tab !== window.DAWIYAT_STREAMLIT_ACTIVE_TAB);
+      }});
+      if (window.DAWIYAT_STREAMLIT_ACTIVE_TAB === 'reports' && typeof renderExecutiveReports === 'function') renderExecutiveReports();
+      if (window.DAWIYAT_STREAMLIT_ACTIVE_TAB === 'pmo') {{ if (typeof bindPmoInputs === 'function') bindPmoInputs(); if (typeof renderPmoAll === 'function') renderPmoAll(); }}
+    }} catch(e) {{ console.warn('Streamlit tab sync failed', e); }}
+  }}
+  document.addEventListener('DOMContentLoaded', DAWIYAT_apply_streamlit_tab);
+  setTimeout(DAWIYAT_apply_streamlit_tab, 250);
+  setTimeout(DAWIYAT_apply_streamlit_tab, 900);
+  setTimeout(DAWIYAT_apply_streamlit_tab, 1800);
+</script>
+"""
+    if "</head>" in dashboard_html:
+        dashboard_html = dashboard_html.replace("</head>", dashboard_nav_patch + "\n</head>", 1)
 
-    components.html(dashboard_html, height=1200, scrolling=False)
+    # Large fixed height avoids truncated Executive Reports while keeping one main page scroll.
+    components.html(dashboard_html, height=18000, scrolling=False)
 
 
 
@@ -6277,40 +6290,55 @@ def main() -> None:
         )
 
         all_allowed_pages = allowed_pages_for_current_user()
-        hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
-        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
-        if not pages:
-            pages = ["No Access"]
+        allowed_dash_tabs = allowed_dashboard_tabs()
+        tab_labels = {
+            "overview": "🏠 Executive Overview",
+            "tables": "📋 Tables & Exports",
+            "pmo": "🛡️ PMO Audit",
+            "performance": "🎯 KPI Performance",
+            "perf-explanation": "💡 Performance Explanation",
+            "decision": "🤖 PMO Report Assistant",
+            "reports": "📈 Executive Reports",
+        }
+        ordered_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
+        dashboard_tab_options = [(t, tab_labels[t]) for t in ordered_tabs if t in allowed_dash_tabs]
+        if not dashboard_tab_options and "Dashboard" in all_allowed_pages:
+            dashboard_tab_options = [("overview", tab_labels["overview"])]
 
-        # Hidden action pages are intentionally excluded from the sidebar. They remain
-        # accessible only through Dashboard action buttons and only when the user has permission.
+        hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
         active_hidden = st.session_state.get("active_hidden_page")
         if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
+            active_hidden = None
 
-        # Support old force flags by converting them to hidden-page routing.
+        # Backward compatibility for old force flags.
         if st.session_state.pop("force_document_upload_center", False) and "📤 Document Upload Center" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "📤 Document Upload Center"
         if st.session_state.pop("force_ppt_builder", False) and "📊 Executive PPT Builder" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "📊 Executive PPT Builder"
         if st.session_state.pop("force_admin_board", False) and "Admin Board" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "Admin Board"
-
-        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
+        if st.session_state.get("force_dashboard"):
             st.session_state.pop("active_hidden_page", None)
-            st.session_state["main_nav"] = "Dashboard"
             st.session_state["force_dashboard"] = False
 
-        if st.session_state.get("main_nav") not in pages:
-            st.session_state["main_nav"] = pages[0] if pages else "No Access"
-
         st.markdown("<div class='v604-section-title'>Dashboard Navigation</div>", unsafe_allow_html=True)
-        page = st.radio(
-            "Navigation",
-            pages,
-            key="main_nav",
-            label_visibility="collapsed",
-        )
+        if dashboard_tab_options:
+            tab_codes = [x[0] for x in dashboard_tab_options]
+            if st.session_state.get("dashboard_tab_nav") not in tab_codes:
+                st.session_state["dashboard_tab_nav"] = tab_codes[0]
+            selected_tab = st.radio(
+                "Dashboard Navigation",
+                tab_codes,
+                format_func=lambda x: dict(dashboard_tab_options).get(x, x),
+                key="dashboard_tab_nav",
+                label_visibility="collapsed",
+            )
+            if active_hidden is None:
+                st.session_state["main_nav"] = "Dashboard"
+        else:
+            selected_tab = "overview"
+            st.info("No dashboard tabs are assigned to this user.")
 
         st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Smart Scope</div>", unsafe_allow_html=True)
         sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
@@ -6318,8 +6346,6 @@ def main() -> None:
             st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
             st.rerun()
 
-        # V6.0.4: Governance action pages are shown here, but routing remains the proven V5.9.9 session_state routing.
-        # Nothing in permissions.xlsx or the dashboard iframe data/filter logic is modified.
         action_items = []
         if "Project Updates Center" in hidden_allowed_pages:
             action_items.append(("📝 Project Updates Center", "Project Updates Center"))
@@ -6332,7 +6358,7 @@ def main() -> None:
         if "WhatsApp Agent" in hidden_allowed_pages:
             action_items.append(("🟢 WhatsApp Outbox", "WhatsApp Agent"))
         if "📤 Document Upload Center" in hidden_allowed_pages:
-            action_items.append(("📤 Document Upload Center", "📤 Document Upload Center"))
+            action_items.append(("☁️ Document Upload Center", "📤 Document Upload Center"))
         if "📊 Executive PPT Builder" in hidden_allowed_pages:
             action_items.append(("📊 Executive PPT Builder", "📊 Executive PPT Builder"))
         if "Admin Board" in hidden_allowed_pages and _is_admin_board_owner():
@@ -6341,16 +6367,15 @@ def main() -> None:
         if action_items:
             st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Governance Actions</div>", unsafe_allow_html=True)
             for label, target_page in action_items:
-                if st.button(label, use_container_width=True, key=f"v604_open_hidden_{target_page}"):
+                if st.button(label, use_container_width=True, key=f"v61_open_hidden_{target_page}"):
                     st.session_state["active_hidden_page"] = target_page
                     st.rerun()
 
         st.markdown("<div class='v604-separator'></div>", unsafe_allow_html=True)
-        if st.button("🚪 Logout", use_container_width=True, key="v604_sidebar_logout"):
+        if st.button("🚪 Logout", use_container_width=True, key="v61_sidebar_logout"):
             _clear_login_query_params()
             st.session_state.clear()
             st.rerun()
-
     render_session_bar()
 
     active_hidden_page = st.session_state.get("active_hidden_page")
@@ -6379,29 +6404,11 @@ def main() -> None:
         whatsapp_agent_page()
         return
 
-    if page == "No Access":
+    # Main dashboard tabs are controlled by the Streamlit sidebar and injected into dashboard.html.
+    if not allowed_pages_for_current_user():
         st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
         return
-    if page == "Dashboard":
-        render_dashboard()
-    elif page == "Project Updates Center":
-        project_updates_center_page()
-    elif page == "Data Update Agent":
-        data_update_agent_page()
-    elif page == "Notification Center 🔔":
-        notification_center_page()
-    elif page == "Executive Daily Digest":
-        executive_daily_digest_page()
-    elif page == "WhatsApp Agent":
-        whatsapp_agent_page()
-    elif page == "AI Executive Assistant":
-        ai_assistant_page()
-    elif page == "Smart Alerts":
-        smart_alerts_page()
-    elif page == "Executive Reports":
-        reports_page()
-    elif page == "Upload CSV":
-        upload_data_page()
+    render_dashboard(st.session_state.get("dashboard_tab_nav", "overview"))
 
 
 if __name__ == "__main__":
