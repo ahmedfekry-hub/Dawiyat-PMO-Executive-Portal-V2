@@ -210,53 +210,8 @@ st.set_page_config(
     page_title="Dawiyat PMO Executive Portal",
     page_icon="📊",
     layout="wide",
-    initial_sidebar_state="expanded",
+    initial_sidebar_state="collapsed",
 )
-
-
-st.markdown("""
-<style>
-/* V6.2 stable native Streamlit sidebar - functional and permission-safe */
-[data-testid="stSidebar"] {
-  background: linear-gradient(180deg,#071c2f 0%, #073f46 100%) !important;
-  border-right: 1px solid rgba(226,232,240,.16);
-  min-width: 292px !important;
-  width: 292px !important;
-}
-[data-testid="stSidebar"] > div:first-child {
-  padding: 14px 12px 16px !important;
-  overflow-y: auto !important;
-}
-[data-testid="stSidebar"] * { color:#f8fafc !important; }
-.v62-brand { display:flex; align-items:center; gap:10px; padding:10px 8px 12px; border-bottom:1px solid rgba(226,232,240,.22); margin-bottom:10px; }
-.v62-brand-icon { width:42px; height:42px; border-radius:14px; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,.12); font-size:22px; box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
-.v62-brand-title { font-size:16px; font-weight:950; line-height:1.05; color:#fff; }
-.v62-brand-subtitle { font-size:10px; font-weight:800; color:rgba(226,232,240,.82); margin-top:2px; }
-.v62-user { padding:6px 8px 10px; font-size:12px; line-height:1.55; font-weight:800; color:#dbeafe; border-bottom:1px solid rgba(226,232,240,.18); margin-bottom:10px; }
-.v62-section { margin:10px 2px 7px; color:#bae6fd !important; font-size:10px; text-transform:uppercase; letter-spacing:.12em; font-weight:950; }
-.v62-sep { height:1px; margin:10px 0; background:linear-gradient(90deg,transparent,rgba(226,232,240,.42),transparent); }
-[data-testid="stSidebar"] .stButton { margin: 0 0 5px 0 !important; }
-[data-testid="stSidebar"] button {
-  min-height: 34px !important;
-  border-radius: 13px !important;
-  border: 1px solid rgba(226,232,240,.18) !important;
-  background: rgba(255,255,255,.075) !important;
-  color:#f8fafc !important;
-  font-weight: 900 !important;
-  justify-content: flex-start !important;
-  padding: 6px 10px !important;
-  box-shadow: none !important;
-  transition: all .15s ease !important;
-}
-[data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.16) !important; transform: translateX(2px); }
-[data-testid="stSidebar"] button[kind="primary"] { background:#eef6ff !important; color:#08213a !important; border-color:#dbeafe !important; }
-[data-testid="stSidebar"] button[kind="primary"] p, [data-testid="stSidebar"] button[kind="primary"] span { color:#08213a !important; }
-[data-testid="stSidebar"] .element-container:has(button[title="Admin Board Action"]),
-[data-testid="stSidebar"] button[title="Admin Board Action"] { background:linear-gradient(135deg,#ef4444,#dc2626) !important; color:#fff !important; }
-/* Hide embedded HTML dashboard side navigation; the functional Streamlit sidebar is the single source of navigation */
-iframe[title="streamlit runtime"] { width:100% !important; }
-</style>
-""", unsafe_allow_html=True)
 
 
 # Streamlit pages that must stay hidden from sidebar navigation.
@@ -270,6 +225,44 @@ HIDDEN_ACTION_PAGES = {
 
 PORTAL_CSS = """
 <style>
+
+/* V6.2.1 safe functional fixed left navigation (not Streamlit native sidebar) */
+[data-testid="stSidebar"]{display:none !important; width:0 !important; min-width:0 !important;}
+[data-testid="collapsedControl"]{display:none !important;}
+.block-container{padding-top:.55rem !important; padding-left:.35rem !important; padding-right:.35rem !important; max-width:100% !important;}
+.v621-left-shell{
+  background:linear-gradient(180deg,#071c2f 0%,#073f46 100%);
+  border-radius:0 0 0 0;
+  border-right:1px solid rgba(226,232,240,.18);
+  padding:14px 12px 18px;
+  min-height:calc(100vh - 95px);
+  max-height:calc(100vh - 12px);
+  overflow-y:auto;
+  position:sticky; top:8px;
+  box-shadow:14px 0 38px rgba(15,23,42,.10);
+}
+.v621-brand{display:flex;align-items:center;gap:10px;padding:8px 4px 12px;border-bottom:1px solid rgba(226,232,240,.20);margin-bottom:10px;}
+.v621-brand-icon{width:42px;height:42px;border-radius:14px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.13);font-size:22px;}
+.v621-brand-title{font-size:16px;font-weight:950;color:#fff;line-height:1.1;}
+.v621-brand-sub{font-size:10px;font-weight:850;color:rgba(226,232,240,.82);}
+.v621-user{font-size:12px;line-height:1.55;font-weight:850;color:#dbeafe;padding:6px 8px 10px;border-bottom:1px solid rgba(226,232,240,.18);margin-bottom:10px;}
+.v621-section{font-size:10px;text-transform:uppercase;letter-spacing:.12em;font-weight:950;color:#bae6fd;margin:12px 2px 7px;}
+.v621-sep{height:1px;margin:11px 0;background:linear-gradient(90deg,transparent,rgba(226,232,240,.45),transparent);}
+.v621-footer{font-size:10px;text-align:center;color:#b9d6ea;font-weight:800;margin-top:8px;}
+/* style all Streamlit buttons placed in left nav column */
+div[data-testid="column"]:first-child div.stButton > button{
+  width:100% !important; min-height:36px !important; border-radius:14px !important;
+  border:1px solid rgba(226,232,240,.20) !important; background:rgba(255,255,255,.075) !important;
+  color:#f8fafc !important; font-weight:900 !important; justify-content:flex-start !important;
+  padding:7px 10px !important; margin:0 0 5px 0 !important; box-shadow:none !important;
+}
+div[data-testid="column"]:first-child div.stButton > button:hover{background:rgba(255,255,255,.16) !important; transform:translateX(2px);}
+div[data-testid="column"]:first-child div.stButton > button[kind="primary"]{background:#eef6ff !important;color:#08213a !important;border-color:#dbeafe !important;}
+div[data-testid="column"]:first-child div.stButton > button[kind="primary"] *{color:#08213a !important;}
+.v621-right-shell{padding:0 .25rem;}
+.quick-actions-panel{display:none !important;}
+@media (max-width: 900px){.v621-left-shell{position:relative;max-height:none;min-height:auto;} }
+
 .block-container {
     padding-top: 0.6rem;
     padding-left: 0.7rem;
@@ -2855,13 +2848,7 @@ def render_dashboard() -> None:
 
     raw = build_initial_raw()
 
-    with st.sidebar.expander("Data check", expanded=False):
-        st.write(f"Work Orders: {len(raw['workorders']):,}")
-        st.write(f"Penalties: {len(raw['penalties']):,}")
-        st.write(f"District: {len(raw['districts']):,}")
-
-    # V6.2: Quick Actions are moved to the functional Streamlit sidebar.
-    # Smart Bulk Filter is toggled from the left navigation sidebar; panel opens here when enabled.
+    # Smart Bulk Filter is controlled from the fixed left navigation; panel opens above the dashboard only when enabled.
     render_smart_bulk_filter_panel(raw, show_toggle=False)
 
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
@@ -2872,20 +2859,22 @@ def render_dashboard() -> None:
     if allowed_tabs and active_tab not in allowed_tabs:
         active_tab = allowed_tabs[0]
         st.session_state["dashboard_tab"] = active_tab
-    # Disable the old embedded HTML side menu and open the selected dashboard tab from the real Streamlit sidebar.
+
+    # Hide the old HTML floating sidebar; the Streamlit left navigation is now the single source of navigation.
+    # Also remove inner table scroll limits that caused hidden Executive Reports tables.
     tab_script = f"""
     <style>
       .side-nav-toggle, .executive-side-nav, .side-nav-backdrop {{ display:none !important; visibility:hidden !important; }}
-      body {{ padding-left: 0 !important; overflow-x: hidden !important; }}
-      .app-shell {{ margin-left: 0 !important; width: 100% !important; max-width: none !important; }}
-      .table-wrap, .pmo-table-wrap, .assist-table-wrap {{ max-height: none !important; overflow: visible !important; }}
-      .panel, .section, .report-section {{ overflow: visible !important; }}
+      body {{ padding-left:0 !important; overflow-x:hidden !important; }}
+      .app-shell {{ margin-left:0 !important; width:100% !important; max-width:none !important; }}
+      .table-wrap, .pmo-table-wrap, .assist-table-wrap {{ max-height:none !important; overflow:visible !important; }}
+      .panel, .section, .report-section, .executive-section {{ overflow:visible !important; }}
     </style>
     <script>
       window.addEventListener('load', function() {{
         setTimeout(function() {{
           try {{ if (typeof setTab === 'function') setTab({active_tab!r}); }} catch(e) {{ console.warn(e); }}
-        }}, 150);
+        }}, 200);
       }});
     </script>
     """
@@ -2895,7 +2884,6 @@ def render_dashboard() -> None:
         dashboard_html += tab_script
 
     components.html(dashboard_html, height=18000, scrolling=False)
-
 
 
 def render_back_to_dashboard_button(key_suffix: str = "") -> None:
@@ -6177,35 +6165,23 @@ def render_session_bar() -> None:
         unsafe_allow_html=True,
     )
 
-    col_spacer, col_logout = st.columns([8.7, 1.3])
-    with col_logout:
-        if st.button("🚪 Logout", use_container_width=True, key="top_logout"):
-            _clear_login_query_params()
-            st.session_state.clear()
-            st.rerun()
 
 
 
-
-def _sidebar_button(label: str, key: str, primary: bool = False) -> bool:
-    return st.sidebar.button(label, use_container_width=True, key=key, type="primary" if primary else "secondary")
-
-
-def main() -> None:
-    if not login_page():
-        return
-    validate_current_authenticated_user()
-
-    # No timed auto-refresh: permissions update only on browser refresh, rerun, or Logout/Login.
+def _render_v621_sidebar(all_allowed_pages: List[str], hidden_allowed_pages: List[str], allowed_tabs: List[str]) -> None:
     username = str(st.session_state.get("username", ""))
     role_label = str(st.session_state.get("role", ""))
 
-    all_allowed_pages = allowed_pages_for_current_user()
-    hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
-    allowed_tabs = allowed_dashboard_tabs()
-    if not allowed_tabs:
-        allowed_tabs = ["overview"]
+    st.markdown("""
+    <div class="v621-left-shell">
+      <div class="v621-brand">
+        <div class="v621-brand-icon">📊</div>
+        <div><div class="v621-brand-title">PMO Portal</div><div class="v621-brand-sub">Executive Dashboard</div></div>
+      </div>
+    """, unsafe_allow_html=True)
+    st.markdown(f"<div class='v621-user'>👤 {username}<br>👔 {role_label}</div>", unsafe_allow_html=True)
 
+    st.markdown("<div class='v621-section'>Dashboard Navigation</div>", unsafe_allow_html=True)
     dashboard_tab_items = [
         ("🏠  Executive Overview", "overview"),
         ("📋  Tables & Exports", "tables"),
@@ -6218,7 +6194,55 @@ def main() -> None:
     dashboard_tab_items = [(label, code) for label, code in dashboard_tab_items if code in allowed_tabs]
     if not dashboard_tab_items and "Dashboard" in all_allowed_pages:
         dashboard_tab_items = [("🏠  Executive Overview", "overview")]
+    current_tab = st.session_state.get("dashboard_tab", dashboard_tab_items[0][1] if dashboard_tab_items else "overview")
+    for label, tab_code in dashboard_tab_items:
+        active = (not st.session_state.get("active_hidden_page")) and current_tab == tab_code
+        if st.button(label, use_container_width=True, key=f"v621_tab_{tab_code}", type="primary" if active else "secondary"):
+            st.session_state.pop("active_hidden_page", None)
+            st.session_state["dashboard_tab"] = tab_code
+            st.rerun()
 
+    st.markdown("<div class='v621-sep'></div><div class='v621-section'>Smart Scope</div>", unsafe_allow_html=True)
+    smart_label = "🙈  Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯  Show Smart Bulk Filter"
+    if st.button(smart_label, use_container_width=True, key="v621_toggle_smart_bulk"):
+        st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
+        st.rerun()
+
+    action_items = []
+    if "Project Updates Center" in hidden_allowed_pages:
+        action_items.append(("📝  Project Updates Center", "Project Updates Center"))
+    if "Data Update Agent" in hidden_allowed_pages:
+        action_items.append(("🧠  Data Update Agent", "Data Update Agent"))
+    if "Notification Center 🔔" in hidden_allowed_pages:
+        action_items.append((f"🔔  Notification Center ({unread_notifications_count(username)})", "Notification Center 🔔"))
+    if "Executive Daily Digest" in hidden_allowed_pages:
+        action_items.append(("📩  Executive Daily Digest", "Executive Daily Digest"))
+    if "WhatsApp Agent" in hidden_allowed_pages:
+        action_items.append(("🟢  WhatsApp Outbox", "WhatsApp Agent"))
+    if "📤 Document Upload Center" in hidden_allowed_pages:
+        action_items.append(("☁️  Document Upload Center", "📤 Document Upload Center"))
+    if "📊 Executive PPT Builder" in hidden_allowed_pages:
+        action_items.append(("📊  Executive PPT Builder", "📊 Executive PPT Builder"))
+    if "Admin Board" in hidden_allowed_pages and _is_admin_board_owner():
+        action_items.append(("⚙️  Admin Board", "Admin Board"))
+
+    if action_items:
+        st.markdown("<div class='v621-sep'></div><div class='v621-section'>Governance Actions</div>", unsafe_allow_html=True)
+        for label, target_page in action_items:
+            active = st.session_state.get("active_hidden_page") == target_page
+            if st.button(label, use_container_width=True, key=f"v621_action_{target_page}", type="primary" if active else "secondary"):
+                st.session_state["active_hidden_page"] = target_page
+                st.rerun()
+
+    st.markdown("<div class='v621-sep'></div>", unsafe_allow_html=True)
+    if st.button("🚪  Logout", use_container_width=True, key="v621_sidebar_logout"):
+        _clear_login_query_params()
+        st.session_state.clear()
+        st.rerun()
+    st.markdown("<div class='v621-footer'>PMO Navigation</div></div>", unsafe_allow_html=True)
+
+
+def _render_selected_content(all_allowed_pages: List[str], hidden_allowed_pages: List[str]) -> None:
     # Hidden/action page validity
     active_hidden = st.session_state.get("active_hidden_page")
     if active_hidden and active_hidden not in hidden_allowed_pages:
@@ -6235,104 +6259,50 @@ def main() -> None:
         st.session_state.pop("active_hidden_page", None)
         st.session_state["force_dashboard"] = False
 
-    with st.sidebar:
-        st.markdown(
-            """
-            <div class="v62-brand">
-                <div class="v62-brand-icon">📊</div>
-                <div>
-                    <div class="v62-brand-title">PMO Portal</div>
-                    <div class="v62-brand-subtitle">Executive Dashboard</div>
-                </div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        st.markdown(
-            f"<div class='v62-user'>👤 {username}<br>👔 {role_label}</div>",
-            unsafe_allow_html=True,
-        )
+    active_hidden_page = st.session_state.get("active_hidden_page")
+    if active_hidden_page == "📤 Document Upload Center":
+        document_upload_page(); return
+    if active_hidden_page == "📊 Executive PPT Builder":
+        executive_ppt_builder_page(); return
+    if active_hidden_page == "Admin Board":
+        admin_page(); return
+    if active_hidden_page == "Project Updates Center":
+        project_updates_center_page(); return
+    if active_hidden_page == "Data Update Agent":
+        data_update_agent_page(); return
+    if active_hidden_page == "Notification Center 🔔":
+        notification_center_page(); return
+    if active_hidden_page == "Executive Daily Digest":
+        executive_daily_digest_page(); return
+    if active_hidden_page == "WhatsApp Agent":
+        whatsapp_agent_page(); return
 
-        st.markdown("<div class='v62-section'>Dashboard Navigation</div>", unsafe_allow_html=True)
-        current_tab = st.session_state.get("dashboard_tab", dashboard_tab_items[0][1] if dashboard_tab_items else "overview")
-        for label, tab_code in dashboard_tab_items:
-            is_active = (not st.session_state.get("active_hidden_page")) and current_tab == tab_code
-            if st.button(label, use_container_width=True, key=f"v62_tab_{tab_code}", type="primary" if is_active else "secondary"):
-                st.session_state.pop("active_hidden_page", None)
-                st.session_state["dashboard_tab"] = tab_code
-                st.rerun()
+    if "Dashboard" not in all_allowed_pages:
+        st.error("No Dashboard page is currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
+        return
+    render_dashboard()
 
-        st.markdown("<div class='v62-sep'></div><div class='v62-section'>Smart Scope</div>", unsafe_allow_html=True)
-        smart_label = "🙈  Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯  Show Smart Bulk Filter"
-        if st.button(smart_label, use_container_width=True, key="v62_toggle_smart_bulk"):
-            st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
-            st.rerun()
 
-        action_items = []
-        if "Project Updates Center" in hidden_allowed_pages:
-            action_items.append(("📝  Project Updates Center", "Project Updates Center"))
-        if "Data Update Agent" in hidden_allowed_pages:
-            action_items.append(("🧠  Data Update Agent", "Data Update Agent"))
-        if "Notification Center 🔔" in hidden_allowed_pages:
-            action_items.append((f"🔔  Notification Center ({unread_notifications_count(username)})", "Notification Center 🔔"))
-        if "Executive Daily Digest" in hidden_allowed_pages:
-            action_items.append(("📩  Executive Daily Digest", "Executive Daily Digest"))
-        if "WhatsApp Agent" in hidden_allowed_pages:
-            action_items.append(("🟢  WhatsApp Outbox", "WhatsApp Agent"))
-        if "📤 Document Upload Center" in hidden_allowed_pages:
-            action_items.append(("☁️  Document Upload Center", "📤 Document Upload Center"))
-        if "📊 Executive PPT Builder" in hidden_allowed_pages:
-            action_items.append(("📊  Executive PPT Builder", "📊 Executive PPT Builder"))
-        if "Admin Board" in hidden_allowed_pages and _is_admin_board_owner():
-            action_items.append(("⚙️  Admin Board", "Admin Board"))
+def main() -> None:
+    if not login_page():
+        return
+    validate_current_authenticated_user()
 
-        if action_items:
-            st.markdown("<div class='v62-sep'></div><div class='v62-section'>Governance Actions</div>", unsafe_allow_html=True)
-            for label, target_page in action_items:
-                is_active = st.session_state.get("active_hidden_page") == target_page
-                if st.button(label, use_container_width=True, key=f"v62_action_{target_page}", type="primary" if is_active else "secondary"):
-                    st.session_state["active_hidden_page"] = target_page
-                    st.rerun()
-
-        st.markdown("<div class='v62-sep'></div>", unsafe_allow_html=True)
-        if st.button("🚪  Logout", use_container_width=True, key="v62_sidebar_logout"):
-            _clear_login_query_params()
-            st.session_state.clear()
-            st.rerun()
+    all_allowed_pages = allowed_pages_for_current_user()
+    hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
+    allowed_tabs = allowed_dashboard_tabs()
+    if not allowed_tabs:
+        allowed_tabs = ["overview"]
 
     render_session_bar()
 
-    active_hidden_page = st.session_state.get("active_hidden_page")
-    if active_hidden_page == "📤 Document Upload Center":
-        document_upload_page()
-        return
-    if active_hidden_page == "📊 Executive PPT Builder":
-        executive_ppt_builder_page()
-        return
-    if active_hidden_page == "Admin Board":
-        admin_page()
-        return
-    if active_hidden_page == "Project Updates Center":
-        project_updates_center_page()
-        return
-    if active_hidden_page == "Data Update Agent":
-        data_update_agent_page()
-        return
-    if active_hidden_page == "Notification Center 🔔":
-        notification_center_page()
-        return
-    if active_hidden_page == "Executive Daily Digest":
-        executive_daily_digest_page()
-        return
-    if active_hidden_page == "WhatsApp Agent":
-        whatsapp_agent_page()
-        return
-
-    if not dashboard_tab_items and "Dashboard" not in all_allowed_pages:
-        st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
-        return
-
-    render_dashboard()
+    left_col, right_col = st.columns([0.16, 0.84], gap="small")
+    with left_col:
+        _render_v621_sidebar(all_allowed_pages, hidden_allowed_pages, allowed_tabs)
+    with right_col:
+        st.markdown("<div class='v621-right-shell'>", unsafe_allow_html=True)
+        _render_selected_content(all_allowed_pages, hidden_allowed_pages)
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 if __name__ == "__main__":
