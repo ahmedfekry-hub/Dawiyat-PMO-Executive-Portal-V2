@@ -540,6 +540,15 @@ body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
     border:1px solid rgba(226,232,240,.24) !important; background:rgba(255,255,255,.08) !important; color:#f8fafc !important;
 }
 [data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.16) !important; border-color:rgba(226,232,240,.42) !important; transform:translateX(2px); }
+
+.v608-actions-frame {
+    margin-top: 8px; padding: 10px; border-radius: 18px;
+    border: 1px solid rgba(226,232,240,.22); background: rgba(255,255,255,.055);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
+}
+.v608-actions-frame-title {
+    color:#dbeafe; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.10em; margin: 2px 2px 10px;
+}
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -2869,7 +2878,7 @@ def render_dashboard() -> None:
     if "Admin Board" in all_allowed and _is_admin_board_owner():
         quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
 
-    if quick_actions:
+    if False and quick_actions:
         st.markdown(
             """
             <div class="quick-actions-panel">
@@ -6214,12 +6223,31 @@ def main() -> None:
 
         all_allowed_pages = allowed_pages_for_current_user()
         hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
-        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
+
+        # V6.0.8: Sidebar dashboard navigation uses the same executive page names
+        # already controlled by permissions.xlsx. The legacy container page "Dashboard"
+        # is not displayed as a menu item because it only hosts the embedded dashboard.
+        preferred_dashboard_pages = [
+            "Executive Overview",
+            "Tables & Exports",
+            "PMO Audit",
+            "KPI Performance",
+            "Performance Explanation",
+            "PMO Report Assistant",
+            "Executive Reports",
+        ]
+        pages = [p for p in preferred_dashboard_pages if p in all_allowed_pages]
+        # Legacy stand-alone pages remain available only if explicitly granted.
+        for legacy_page in ["AI Executive Assistant", "Smart Alerts", "Upload CSV"]:
+            if legacy_page in all_allowed_pages and legacy_page not in pages:
+                pages.append(legacy_page)
+        if not pages and "Dashboard" in all_allowed_pages:
+            pages = ["Executive Overview"]
         if not pages:
             pages = ["No Access"]
 
-        # Hidden action pages are intentionally excluded from the sidebar. They remain
-        # accessible only through Dashboard action buttons and only when the user has permission.
+        # Hidden/governance action pages are excluded from dashboard navigation but are shown
+        # safely in the Sidebar Governance Actions section according to permissions.xlsx.
         active_hidden = st.session_state.get("active_hidden_page")
         if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
@@ -6232,9 +6260,9 @@ def main() -> None:
         if st.session_state.pop("force_admin_board", False) and "Admin Board" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "Admin Board"
 
-        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
+        if st.session_state.get("force_dashboard"):
             st.session_state.pop("active_hidden_page", None)
-            st.session_state["main_nav"] = "Dashboard"
+            st.session_state["main_nav"] = pages[0] if pages and pages[0] != "No Access" else "Executive Overview"
             st.session_state["force_dashboard"] = False
 
         if st.session_state.get("main_nav") not in pages:
@@ -6275,11 +6303,12 @@ def main() -> None:
             action_items.append(("⚙️ Admin Board", "Admin Board"))
 
         if action_items:
-            st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Governance Actions</div>", unsafe_allow_html=True)
+            st.markdown("<div class='v604-separator'></div><div class='v608-actions-frame'><div class='v608-actions-frame-title'>Governance Actions</div>", unsafe_allow_html=True)
             for label, target_page in action_items:
                 if st.button(label, use_container_width=True, key=f"v604_open_hidden_{target_page}"):
                     st.session_state["active_hidden_page"] = target_page
                     st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("<div class='v604-separator'></div>", unsafe_allow_html=True)
         if st.button("🚪 Logout", use_container_width=True, key="v604_sidebar_logout"):
@@ -6318,7 +6347,7 @@ def main() -> None:
     if page == "No Access":
         st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
         return
-    if page == "Dashboard":
+    if page in ["Dashboard", "Executive Overview", "Tables & Exports", "PMO Audit", "KPI Performance", "Performance Explanation", "PMO Report Assistant", "Executive Reports"]:
         render_dashboard()
     elif page == "Project Updates Center":
         project_updates_center_page()
