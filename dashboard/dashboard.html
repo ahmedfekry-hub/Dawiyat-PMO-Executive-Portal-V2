@@ -96,7 +96,7 @@
   .side-nav-items { display:grid; gap:8px; }
   .side-nav-separator { height:1px; margin:14px 2px 12px; background:linear-gradient(90deg,transparent,rgba(226,232,240,.42),transparent); }
   .side-section-title { margin:8px 4px 8px; color:#bae6fd; font-size:11px; text-transform:uppercase; letter-spacing:.11em; font-weight:900; }
-  .side-action { width:100%;display:flex;align-items:center;justify-content:center;gap:10px;min-height:42px;border-radius:16px;border:1px solid rgba(226,232,240,.22);background:rgba(255,255,255,.08);color:#f8fafc;cursor:pointer;padding:9px 10px;text-align:center;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, transform .18s ease, border-color .18s ease; margin-bottom:8px; }
+  .side-action { width:100%;display:flex;text-decoration:none;align-items:center;justify-content:center;gap:10px;min-height:42px;border-radius:16px;border:1px solid rgba(226,232,240,.22);background:rgba(255,255,255,.08);color:#f8fafc;cursor:pointer;padding:9px 10px;text-align:center;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, transform .18s ease, border-color .18s ease; margin-bottom:8px; }
   .side-action:hover { background:rgba(255,255,255,.16); transform:translateX(2px); border-color:rgba(226,232,240,.40); }
   .side-action.side-logout { margin-top:4px; background:rgba(15,23,42,.20); }
   .side-action[data-open-action="admin_board"] { background:linear-gradient(135deg,#ef4444,#dc2626); border-color:rgba(248,113,113,.60); color:#fff; }
@@ -2054,40 +2054,13 @@ body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;borde
 /* V5.8.26: allow handover split labels to wrap so all status buckets are visible */
 .wo-insight-card small{display:block;white-space:normal;line-height:1.35;margin-top:6px;font-size:12px;}
 
-  /* V6.0.11 Stable: permanent single embedded sidebar with compact full navigation */
-  .side-nav-toggle, .side-nav-backdrop { display:none !important; }
-  .executive-side-nav {
-    position:fixed !important;
-    left:0 !important; top:0 !important; bottom:0 !important;
-    width:302px !important;
-    z-index:1000 !important;
-    border-radius:0 !important;
-    padding:14px 14px 12px !important;
-    transform:none !important; opacity:1 !important; pointer-events:auto !important;
-    overflow-y:auto !important; overflow-x:hidden !important;
-    background: radial-gradient(circle at top, rgba(20,184,166,.22), transparent 32%), linear-gradient(180deg,#071427 0%,#0b3340 52%,#09233b 100%) !important;
-    box-shadow: 10px 0 28px rgba(15,23,42,.16) !important;
-    border-right:1px solid rgba(226,232,240,.18) !important;
-  }
-  .executive-side-nav::-webkit-scrollbar { width:7px; }
-  .executive-side-nav::-webkit-scrollbar-thumb { background:rgba(226,232,240,.28); border-radius:999px; }
-  .app { margin-left:318px !important; padding-left:0 !important; transition:none !important; }
-  .side-brand { padding:8px 4px 12px !important; margin-bottom:8px !important; }
-  .side-brand-mark { width:42px !important; height:42px !important; flex-basis:42px !important; border-radius:14px !important; }
-  .side-brand-title { font-size:15px !important; }
-  .side-brand-sub { font-size:10px !important; }
-  .side-user-box { color:#eaf6ff; font-weight:850; font-size:12px; line-height:1.8; padding:2px 8px 4px; }
-  .side-nav-items { display:grid !important; gap:5px !important; }
-  .side-tab { min-height:36px !important; border-radius:13px !important; padding:4px 8px !important; gap:9px !important; background:rgba(255,255,255,.055); border:1px solid rgba(255,255,255,.08); }
-  .side-tab.active { background:linear-gradient(135deg,#ffffff 0%,#eaf4ff 100%) !important; color:#0f2746 !important; }
-  .side-icon { width:28px !important; height:28px !important; flex:0 0 28px !important; border-radius:10px !important; font-size:15px !important; }
-  .side-label { font-size:12px !important; font-weight:900 !important; }
-  .side-section-title { margin:10px 2px 7px !important; font-size:10px !important; letter-spacing:.10em !important; }
-  .side-nav-separator { margin:10px 2px 8px !important; }
-  .side-action { min-height:36px !important; border-radius:13px !important; padding:7px 10px !important; margin-bottom:6px !important; font-size:12px !important; justify-content:center !important; }
-  .side-action.side-logout { margin-top:5px !important; }
-  .side-footer { font-size:9px !important; margin-top:8px !important; padding-top:8px !important; }
-  @media(max-width:900px){ .executive-side-nav{width:276px!important;} .app{margin-left:0!important; padding-top:70px!important;} .side-nav-toggle{display:flex!important;} .executive-side-nav{transform:translateX(-310px)!important; opacity:0!important; pointer-events:none!important; border-radius:0 24px 24px 0!important;} .executive-side-nav.open{transform:translateX(0)!important; opacity:1!important; pointer-events:auto!important;} }
+/* V6.0.12 layout stability: allow Executive Reports to render fully and request dynamic iframe height. */
+#tab-reports, #tab-reports .reports-page, #tab-reports .report-section-card,
+#tab-reports .orange-reports-grid, #tab-reports .table-wrap {
+  max-height:none !important; height:auto !important; overflow:visible !important;
+}
+.reports-page { padding-bottom:40px !important; }
+html, body { overflow-x:hidden !important; }
 
 </style>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -2121,9 +2094,6 @@ body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;borde
 <div id="side-nav-backdrop" class="side-nav-backdrop"></div>
 <nav id="executive-side-nav" class="executive-side-nav" aria-label="Executive Dashboard Navigation">
   <div class="side-brand"><div class="side-brand-mark">📊</div><div class="side-brand-text"><div class="side-brand-title">PMO Portal</div><div class="side-brand-sub">Executive Dashboard</div></div></div>
-  <!--DAWIYAT_STREAMLIT_SIDE_NAV_USER-->
-  <div class="side-nav-separator"></div>
-  <div class="side-section-title">Dashboard Navigation</div>
   <div class="side-nav-items">
     <button class="side-tab active" data-tab="overview" type="button"><span class="side-icon">🏠</span><span class="side-label">Executive Overview</span></button>
     <button class="side-tab" data-tab="tables" type="button"><span class="side-icon">📋</span><span class="side-label">Tables &amp; Exports</span></button>
@@ -7348,7 +7318,9 @@ function setTab(tabName) {
   const globalFilters = document.getElementById('filters');
   if (globalFilters) globalFilters.style.display = tabName === 'pmo' ? 'none' : '';
   if (tabName === 'pmo') { bindPmoInputs(); renderPmoAll(); }
+  setTimeout(dawiyatNotifyFrameHeight, 150);
 }
+
 
 const sideNavToggle = document.getElementById('side-nav-toggle');
 const sideNav = document.getElementById('executive-side-nav');
@@ -7367,18 +7339,28 @@ document.querySelectorAll('.tab, .side-tab').forEach(btn => btn.addEventListener
   setTab(btn.dataset.tab);
   if (btn.classList.contains('side-tab')) setSideNavOpen(false);
 }));
-document.querySelectorAll('.side-action[data-open-action]').forEach(btn => btn.addEventListener('click', () => {
+document.querySelectorAll('.side-action[data-open-action]').forEach(btn => btn.addEventListener('click', (ev) => {
   const action = btn.dataset.openAction || '';
   if (!action) return;
   try {
-    const parentUrl = new URL(window.parent.location.href);
-    parentUrl.searchParams.set('open_action', action);
-    window.parent.location.assign(parentUrl.toString());
+    const targetUrl = new URL(window.top.location.href);
+    targetUrl.searchParams.set('open_action', action);
+    window.open(targetUrl.toString(), '_top');
   } catch(e) {
-    try { window.top.location.href = window.location.pathname + '?open_action=' + encodeURIComponent(action); }
-    catch(err) { window.open('?open_action=' + encodeURIComponent(action), '_top'); }
+    window.open('?open_action=' + encodeURIComponent(action), '_top');
   }
 }));
+
+function dawiyatNotifyFrameHeight(){
+  try {
+    const h = Math.max(document.body.scrollHeight, document.documentElement.scrollHeight, 900) + 40;
+    window.parent.postMessage({isStreamlitMessage:true, type:'streamlit:setFrameHeight', height:h}, '*');
+  } catch(e) {}
+}
+window.addEventListener('load', () => setTimeout(dawiyatNotifyFrameHeight, 250));
+setTimeout(dawiyatNotifyFrameHeight, 800);
+setTimeout(dawiyatNotifyFrameHeight, 1800);
+try { new MutationObserver(() => setTimeout(dawiyatNotifyFrameHeight, 120)).observe(document.body, {childList:true, subtree:true, attributes:true}); } catch(e) {}
 document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 // Robust PMO sub-view switching, including when the PMO section is re-rendered.
 document.addEventListener('click', (e) => {
