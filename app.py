@@ -507,141 +507,39 @@ body.dark-ui .quick-actions-panel { background:#111f34 !important; border-color:
 body.dark-ui .quick-actions-title { color:#eaf2ff !important; }
 body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
 
-/* V6.0.6 Permission-safe professional sidebar.
-   The sidebar is the single navigation/control area. It does not alter permissions.xlsx,
+/* V6.0.4 Permission-safe professional Streamlit sidebar.
+   This styles the native Streamlit sidebar only; it does not alter permissions.xlsx,
    dashboard calculations, iframe filters, formulas, or data pipelines. */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg,#073b3e 0%,#083146 55%,#071f34 100%) !important;
-    border-right: 1px solid rgba(148,163,184,.32);
+    background: linear-gradient(180deg,#062f34 0%,#09283c 62%,#071f34 100%) !important;
+    border-right: 1px solid rgba(148,163,184,.35);
     box-shadow: 12px 0 28px rgba(15,23,42,.12);
 }
-[data-testid="stSidebar"] > div:first-child { padding-top: 1.05rem; padding-left: .85rem; padding-right: .85rem; }
+[data-testid="stSidebar"] > div:first-child { padding-top: 1.1rem; }
 .v604-sidebar-brand {
     display:flex; align-items:center; gap:12px; padding: 10px 8px 14px; margin-bottom: 10px;
-    border-bottom: 1px solid rgba(226,232,240,.24);
+    border-bottom: 1px solid rgba(226,232,240,.22);
 }
 .v604-brand-icon {
     width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:15px;
-    background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.16); font-size:23px;
+    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); font-size:23px;
 }
 .v604-brand-title { font-size:18px; font-weight:900; color:#fff; line-height:1.05; }
 .v604-brand-subtitle { font-size:11px; font-weight:750; color:rgba(226,232,240,.86); margin-top:2px; }
-.v604-sidebar-caption { color:rgba(226,232,240,.9); font-size:12px; font-weight:850; margin: 2px 4px 10px; line-height:1.55; }
-.v604-section-title { margin:15px 4px 9px; color:#bae6fd; font-size:11px; text-transform:uppercase; letter-spacing:.11em; font-weight:950; }
+.v604-sidebar-caption { color:rgba(226,232,240,.88); font-size:12px; font-weight:800; margin: 2px 4px 10px; }
+.v604-section-title { margin:14px 4px 8px; color:#bae6fd; font-size:11px; text-transform:uppercase; letter-spacing:.11em; font-weight:900; }
 .v604-separator { height:1px; margin:16px 2px; background:linear-gradient(90deg,transparent,rgba(226,232,240,.42),transparent); }
-/* Navigation cards */
-[data-testid="stSidebar"] [role="radiogroup"] { gap: 7px; display:flex; flex-direction:column; }
 [data-testid="stSidebar"] label[data-baseweb="radio"] {
-    background: rgba(255,255,255,.075);
-    border:1px solid rgba(255,255,255,.10);
-    border-radius:16px;
-    padding: 10px 12px;
-    min-height:46px;
-    transition: all .16s ease;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
+    background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08); border-radius:16px;
+    padding: 9px 12px; min-height:42px; transition: all .16s ease;
 }
-[data-testid="stSidebar"] label[data-baseweb="radio"]:hover { background:rgba(255,255,255,.15); transform:translateX(2px); }
-[data-testid="stSidebar"] label[data-baseweb="radio"] span { color:#f8fafc !important; font-weight:900; }
-[data-testid="stSidebar"] label[data-baseweb="radio"][aria-checked="true"] {
-    background:#eef6ff !important;
-    border-color:#eef6ff !important;
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"][aria-checked="true"] span { color:#10223a !important; }
-/* Hide the default small radio circles so the labels look like a clean nav menu. */
-[data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child { display:none !important; }
-/* Action buttons under Smart Scope / Governance Actions / Logout */
+[data-testid="stSidebar"] label[data-baseweb="radio"]:hover { background:rgba(255,255,255,.14); transform:translateX(2px); }
+[data-testid="stSidebar"] label[data-baseweb="radio"] span { color:#f8fafc !important; font-weight:850; }
 [data-testid="stSidebar"] button {
-    border-radius:16px !important;
-    min-height:46px !important;
-    font-weight:900 !important;
-    border:1px solid rgba(226,232,240,.24) !important;
-    background:rgba(255,255,255,.09) !important;
-    color:#f8fafc !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
+    border-radius:16px !important; min-height:42px !important; font-weight:850 !important;
+    border:1px solid rgba(226,232,240,.24) !important; background:rgba(255,255,255,.08) !important; color:#f8fafc !important;
 }
-[data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.17) !important; border-color:rgba(226,232,240,.44) !important; transform:translateX(2px); }
-
-/* V6.0.7: single professional sidebar groups - dashboard pages, smart scope, governance actions, logout. */
-[data-testid="stSidebar"] { min-width: 285px !important; max-width: 285px !important; }
-[data-testid="stSidebar"] > div:first-child {
-    overflow-y: auto !important;
-    padding-bottom: 24px !important;
-}
-.v607-sidebar-info {
-    margin: 8px 2px 12px;
-    padding: 10px 12px;
-    border-radius: 16px;
-    background: rgba(255,255,255,.07);
-    border: 1px solid rgba(226,232,240,.18);
-    color: rgba(241,245,249,.92);
-    font-size: 12px;
-    font-weight: 850;
-    line-height: 1.55;
-}
-.v607-section-box {
-    margin: 8px 0 14px;
-    padding: 8px 7px 10px;
-    border: 1px solid rgba(226,232,240,.16);
-    border-radius: 20px;
-    background: rgba(15,23,42,.16);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 22px rgba(0,0,0,.10);
-}
-.v607-section-title {
-    display:flex;
-    align-items:center;
-    gap:7px;
-    margin: 4px 5px 9px;
-    color:#bae6fd;
-    font-size:11px;
-    text-transform:uppercase;
-    letter-spacing:.11em;
-    font-weight:950;
-}
-.v607-separator {
-    height:1px;
-    margin: 12px 2px;
-    background: linear-gradient(90deg, transparent, rgba(226,232,240,.38), transparent);
-}
-/* Make Dashboard Navigation look exactly like one clean list. */
-[data-testid="stSidebar"] [role="radiogroup"] {
-    display:flex !important;
-    flex-direction:column !important;
-    gap:8px !important;
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"] {
-    border-radius:18px !important;
-    padding: 10px 12px !important;
-    min-height:48px !important;
-    background: rgba(255,255,255,.08) !important;
-    border: 1px solid rgba(226,232,240,.12) !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important;
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"][aria-checked="true"] {
-    background: #eef6ff !important;
-    border-color: #eef6ff !important;
-    box-shadow: 0 10px 24px rgba(0,0,0,.18) !important;
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"] span { font-size:14px !important; }
-/* Governance buttons use the same card style and remain below Smart Scope inside the same sidebar. */
-[data-testid="stSidebar"] button[kind="secondary"],
-[data-testid="stSidebar"] .stButton > button {
-    width:100% !important;
-    border-radius:18px !important;
-    min-height:48px !important;
-    margin: 2px 0 6px !important;
-    background: rgba(255,255,255,.085) !important;
-    border: 1px solid rgba(226,232,240,.22) !important;
-    color:#f8fafc !important;
-    font-weight:900 !important;
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.05) !important;
-}
-[data-testid="stSidebar"] button[kind="secondary"]:hover,
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: rgba(255,255,255,.16) !important;
-    border-color: rgba(226,232,240,.42) !important;
-    transform: translateX(2px);
-}
-
+[data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.16) !important; border-color:rgba(226,232,240,.42) !important; transform:translateX(2px); }
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -2951,8 +2849,43 @@ def render_dashboard() -> None:
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
 
-    # V6.0.5: Quick Actions were moved to the professional left sidebar.
-    # Keeping them out of the page prevents duplicate navigation blocks and protects the dashboard layout.
+    # Hidden action/governance pages: shown as compact buttons on Dashboard according to permissions.
+    all_allowed = allowed_pages_for_current_user()
+    quick_actions = []
+    if "Project Updates Center" in all_allowed:
+        quick_actions.append(("📝 Open Project Updates Center", "Project Updates Center", "secondary"))
+    if "Data Update Agent" in all_allowed:
+        quick_actions.append(("🧠 Open Data Update Agent", "Data Update Agent", "secondary"))
+    if "Notification Center 🔔" in all_allowed:
+        quick_actions.append((f"🔔 Open Notification Center ({unread_notifications_count(st.session_state.get('username',''))})", "Notification Center 🔔", "secondary"))
+    if "Executive Daily Digest" in all_allowed:
+        quick_actions.append(("📩 Open Executive Daily Digest", "Executive Daily Digest", "secondary"))
+    if "WhatsApp Agent" in all_allowed:
+        quick_actions.append(("🟢 Open WhatsApp Agent Outbox", "WhatsApp Agent", "secondary"))
+    if "📤 Document Upload Center" in all_allowed:
+        quick_actions.append(("📤 Open Document Upload Center", "📤 Document Upload Center", "secondary"))
+    if "📊 Executive PPT Builder" in all_allowed:
+        quick_actions.append(("📊 Open Executive PPT Builder", "📊 Executive PPT Builder", "secondary"))
+    if "Admin Board" in all_allowed and _is_admin_board_owner():
+        quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
+
+    if quick_actions:
+        st.markdown(
+            """
+            <div class="quick-actions-panel">
+                <div class="quick-actions-title">Quick Actions & Governance Agents</div>
+                <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
+        for i in range(0, len(quick_actions), 4):
+            action_cols = st.columns(min(4, len(quick_actions) - i))
+            for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
+                with col:
+                    if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
+                        st.session_state["active_hidden_page"] = target_page
+                        st.rerun()
 
     # Smart Bulk Filter is toggled from the left navigation sidebar; panel opens here when enabled.
     render_smart_bulk_filter_panel(raw, show_toggle=False)
@@ -6275,29 +6208,18 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<div class='v607-sidebar-info'>👤 {st.session_state.get('username','')}<br>👔 {st.session_state.get('role','')}</div>",
+            f"<div class='v604-sidebar-caption'>👤 {st.session_state.get('username','')}<br>👔 {st.session_state.get('role','')}</div>",
             unsafe_allow_html=True,
         )
 
         all_allowed_pages = allowed_pages_for_current_user()
         hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
-
-        # V6.0.6: show the professional dashboard page list requested by PMO inside the same sidebar.
-        # These items are visual navigation entries for the embedded executive dashboard.
-        # They do NOT modify permissions.xlsx, filters, formulas, data logic, or hidden governance routes.
-        dashboard_nav_pages = [
-            "🏠 Executive Overview",
-            "📋 Tables & Exports",
-            "🛡️ PMO Audit",
-            "🎯 KPI Performance",
-            "💡 Performance Explanation",
-            "🤖 PMO Report Assistant",
-            "📈 Executive Reports",
-        ]
-        pages = dashboard_nav_pages if "Dashboard" in all_allowed_pages else []
+        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
         if not pages:
             pages = ["No Access"]
 
+        # Hidden action pages are intentionally excluded from the sidebar. They remain
+        # accessible only through Dashboard action buttons and only when the user has permission.
         active_hidden = st.session_state.get("active_hidden_page")
         if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
@@ -6310,38 +6232,29 @@ def main() -> None:
         if st.session_state.pop("force_admin_board", False) and "Admin Board" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "Admin Board"
 
-        if st.session_state.get("force_dashboard") and pages != ["No Access"]:
+        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
             st.session_state.pop("active_hidden_page", None)
-            st.session_state["main_nav"] = pages[0]
+            st.session_state["main_nav"] = "Dashboard"
             st.session_state["force_dashboard"] = False
 
         if st.session_state.get("main_nav") not in pages:
             st.session_state["main_nav"] = pages[0] if pages else "No Access"
 
-        st.markdown("<div class='v607-section-box'><div class='v607-section-title'>📌 Dashboard Navigation</div>", unsafe_allow_html=True)
+        st.markdown("<div class='v604-section-title'>Dashboard Navigation</div>", unsafe_allow_html=True)
         page = st.radio(
             "Navigation",
             pages,
             key="main_nav",
             label_visibility="collapsed",
         )
-        st.markdown("</div>", unsafe_allow_html=True)
 
-        # If the user clicks any dashboard navigation item while inside a governance page,
-        # safely return to the dashboard without logging out or resetting permissions.
-        if st.session_state.get("_last_main_nav") != page:
-            st.session_state["_last_main_nav"] = page
-            if page != "No Access":
-                st.session_state.pop("active_hidden_page", None)
-
-        st.markdown("<div class='v607-section-box'><div class='v607-section-title'>🎯 Smart Scope</div>", unsafe_allow_html=True)
+        st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Smart Scope</div>", unsafe_allow_html=True)
         sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
         if st.button(sidebar_smart_label, use_container_width=True, key="sidebar_toggle_smart_bulk_filter"):
             st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
-        # V6.0.6: Governance action pages stay in the same sidebar, below Smart Scope, using proven session_state routing.
+        # V6.0.4: Governance action pages are shown here, but routing remains the proven V5.9.9 session_state routing.
         # Nothing in permissions.xlsx or the dashboard iframe data/filter logic is modified.
         action_items = []
         if "Project Updates Center" in hidden_allowed_pages:
@@ -6362,19 +6275,17 @@ def main() -> None:
             action_items.append(("⚙️ Admin Board", "Admin Board"))
 
         if action_items:
-            st.markdown("<div class='v607-section-box'><div class='v607-section-title'>🧭 Governance Actions</div>", unsafe_allow_html=True)
+            st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Governance Actions</div>", unsafe_allow_html=True)
             for label, target_page in action_items:
                 if st.button(label, use_container_width=True, key=f"v604_open_hidden_{target_page}"):
                     st.session_state["active_hidden_page"] = target_page
                     st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("<div class='v607-section-box'><div class='v607-section-title'>🔐 Session</div>", unsafe_allow_html=True)
+        st.markdown("<div class='v604-separator'></div>", unsafe_allow_html=True)
         if st.button("🚪 Logout", use_container_width=True, key="v604_sidebar_logout"):
             _clear_login_query_params()
             st.session_state.clear()
             st.rerun()
-        st.markdown("</div>", unsafe_allow_html=True)
 
     render_session_bar()
 
@@ -6407,10 +6318,26 @@ def main() -> None:
     if page == "No Access":
         st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
         return
-
-    # V6.0.5: dashboard navigation labels all render the protected embedded dashboard.
-    # The actual dashboard tabs, filters, formulas, and calculations remain inside dashboard.html.
-    render_dashboard()
+    if page == "Dashboard":
+        render_dashboard()
+    elif page == "Project Updates Center":
+        project_updates_center_page()
+    elif page == "Data Update Agent":
+        data_update_agent_page()
+    elif page == "Notification Center 🔔":
+        notification_center_page()
+    elif page == "Executive Daily Digest":
+        executive_daily_digest_page()
+    elif page == "WhatsApp Agent":
+        whatsapp_agent_page()
+    elif page == "AI Executive Assistant":
+        ai_assistant_page()
+    elif page == "Smart Alerts":
+        smart_alerts_page()
+    elif page == "Executive Reports":
+        reports_page()
+    elif page == "Upload CSV":
+        upload_data_page()
 
 
 if __name__ == "__main__":
