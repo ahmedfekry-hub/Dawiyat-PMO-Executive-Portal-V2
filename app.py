@@ -1903,7 +1903,7 @@ def inject_data_into_dashboard(html: str, raw_data: Dict[str, List[dict]]) -> st
     smart_bulk_filter = json.dumps(_current_smart_bulk_filter_payload(), ensure_ascii=False)
     all_dashboard_tabs = ["overview", "tables", "pmo", "performance", "perf-explanation", "decision", "reports"]
     denied_tabs = [t for t in all_dashboard_tabs if t not in allowed_dashboard_tabs()]
-    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .side-tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
+    deny_tab_css = "\n".join([f'.tab[data-tab="{t}"], .report-tab[data-tab="{t}"], [data-tab="{t}"], #tab-{t} {{ display: none !important; visibility: hidden !important; }}' for t in denied_tabs])
     export_button_css = ""
     if hide_global_pdf == "true" or hide_all_exports == "true":
         export_button_css += "#export-pdf, button#export-pdf, .btn#export-pdf { display:none !important; visibility:hidden !important; pointer-events:none !important; }\n"
@@ -2801,6 +2801,8 @@ def render_dashboard() -> None:
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
 
+    render_smart_bulk_filter_panel(raw)
+
     # Hidden action/governance pages: shown as compact buttons on Dashboard according to permissions.
     all_allowed = allowed_pages_for_current_user()
     quick_actions = []
@@ -2839,14 +2841,10 @@ def render_dashboard() -> None:
                         st.session_state["active_hidden_page"] = target_page
                         st.rerun()
 
-    # Keep Smart Bulk Filter available after Quick Actions with a clear visual separator.
-    st.markdown("<hr style='margin:18px 0;border:0;border-top:1px dashed #cbd5e1;'>", unsafe_allow_html=True)
-    render_smart_bulk_filter_panel(raw)
-
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
 
-    components.html(dashboard_html, height=9200, scrolling=False)
+    components.html(dashboard_html, height=3100, scrolling=True)
 
 
 
