@@ -560,6 +560,88 @@ body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
     box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
 }
 [data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.17) !important; border-color:rgba(226,232,240,.44) !important; transform:translateX(2px); }
+
+/* V6.0.7: single professional sidebar groups - dashboard pages, smart scope, governance actions, logout. */
+[data-testid="stSidebar"] { min-width: 285px !important; max-width: 285px !important; }
+[data-testid="stSidebar"] > div:first-child {
+    overflow-y: auto !important;
+    padding-bottom: 24px !important;
+}
+.v607-sidebar-info {
+    margin: 8px 2px 12px;
+    padding: 10px 12px;
+    border-radius: 16px;
+    background: rgba(255,255,255,.07);
+    border: 1px solid rgba(226,232,240,.18);
+    color: rgba(241,245,249,.92);
+    font-size: 12px;
+    font-weight: 850;
+    line-height: 1.55;
+}
+.v607-section-box {
+    margin: 8px 0 14px;
+    padding: 8px 7px 10px;
+    border: 1px solid rgba(226,232,240,.16);
+    border-radius: 20px;
+    background: rgba(15,23,42,.16);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 10px 22px rgba(0,0,0,.10);
+}
+.v607-section-title {
+    display:flex;
+    align-items:center;
+    gap:7px;
+    margin: 4px 5px 9px;
+    color:#bae6fd;
+    font-size:11px;
+    text-transform:uppercase;
+    letter-spacing:.11em;
+    font-weight:950;
+}
+.v607-separator {
+    height:1px;
+    margin: 12px 2px;
+    background: linear-gradient(90deg, transparent, rgba(226,232,240,.38), transparent);
+}
+/* Make Dashboard Navigation look exactly like one clean list. */
+[data-testid="stSidebar"] [role="radiogroup"] {
+    display:flex !important;
+    flex-direction:column !important;
+    gap:8px !important;
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"] {
+    border-radius:18px !important;
+    padding: 10px 12px !important;
+    min-height:48px !important;
+    background: rgba(255,255,255,.08) !important;
+    border: 1px solid rgba(226,232,240,.12) !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04) !important;
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"][aria-checked="true"] {
+    background: #eef6ff !important;
+    border-color: #eef6ff !important;
+    box-shadow: 0 10px 24px rgba(0,0,0,.18) !important;
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"] span { font-size:14px !important; }
+/* Governance buttons use the same card style and remain below Smart Scope inside the same sidebar. */
+[data-testid="stSidebar"] button[kind="secondary"],
+[data-testid="stSidebar"] .stButton > button {
+    width:100% !important;
+    border-radius:18px !important;
+    min-height:48px !important;
+    margin: 2px 0 6px !important;
+    background: rgba(255,255,255,.085) !important;
+    border: 1px solid rgba(226,232,240,.22) !important;
+    color:#f8fafc !important;
+    font-weight:900 !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05) !important;
+}
+[data-testid="stSidebar"] button[kind="secondary"]:hover,
+[data-testid="stSidebar"] .stButton > button:hover {
+    background: rgba(255,255,255,.16) !important;
+    border-color: rgba(226,232,240,.42) !important;
+    transform: translateX(2px);
+}
+
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -6193,7 +6275,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.markdown(
-            f"<div class='v604-sidebar-caption'>👤 {st.session_state.get('username','')}<br>👔 {st.session_state.get('role','')}</div>",
+            f"<div class='v607-sidebar-info'>👤 {st.session_state.get('username','')}<br>👔 {st.session_state.get('role','')}</div>",
             unsafe_allow_html=True,
         )
 
@@ -6236,13 +6318,14 @@ def main() -> None:
         if st.session_state.get("main_nav") not in pages:
             st.session_state["main_nav"] = pages[0] if pages else "No Access"
 
-        st.markdown("<div class='v604-section-title'>Dashboard Navigation</div>", unsafe_allow_html=True)
+        st.markdown("<div class='v607-section-box'><div class='v607-section-title'>📌 Dashboard Navigation</div>", unsafe_allow_html=True)
         page = st.radio(
             "Navigation",
             pages,
             key="main_nav",
             label_visibility="collapsed",
         )
+        st.markdown("</div>", unsafe_allow_html=True)
 
         # If the user clicks any dashboard navigation item while inside a governance page,
         # safely return to the dashboard without logging out or resetting permissions.
@@ -6251,11 +6334,12 @@ def main() -> None:
             if page != "No Access":
                 st.session_state.pop("active_hidden_page", None)
 
-        st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Smart Scope</div>", unsafe_allow_html=True)
+        st.markdown("<div class='v607-section-box'><div class='v607-section-title'>🎯 Smart Scope</div>", unsafe_allow_html=True)
         sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
         if st.button(sidebar_smart_label, use_container_width=True, key="sidebar_toggle_smart_bulk_filter"):
             st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
         # V6.0.6: Governance action pages stay in the same sidebar, below Smart Scope, using proven session_state routing.
         # Nothing in permissions.xlsx or the dashboard iframe data/filter logic is modified.
@@ -6278,17 +6362,19 @@ def main() -> None:
             action_items.append(("⚙️ Admin Board", "Admin Board"))
 
         if action_items:
-            st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Governance Actions</div>", unsafe_allow_html=True)
+            st.markdown("<div class='v607-section-box'><div class='v607-section-title'>🧭 Governance Actions</div>", unsafe_allow_html=True)
             for label, target_page in action_items:
                 if st.button(label, use_container_width=True, key=f"v604_open_hidden_{target_page}"):
                     st.session_state["active_hidden_page"] = target_page
                     st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
-        st.markdown("<div class='v604-separator'></div>", unsafe_allow_html=True)
+        st.markdown("<div class='v607-section-box'><div class='v607-section-title'>🔐 Session</div>", unsafe_allow_html=True)
         if st.button("🚪 Logout", use_container_width=True, key="v604_sidebar_logout"):
             _clear_login_query_params()
             st.session_state.clear()
             st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
 
     render_session_bar()
 
