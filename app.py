@@ -540,26 +540,6 @@ body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
     border:1px solid rgba(226,232,240,.24) !important; background:rgba(255,255,255,.08) !important; color:#f8fafc !important;
 }
 [data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.16) !important; border-color:rgba(226,232,240,.42) !important; transform:translateX(2px); }
-/* V6.0.9: keep the whole sidebar as one professional navigation surface. */
-[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
-    overflow-y: auto !important;
-    max-height: 100vh !important;
-    padding-bottom: 18px !important;
-}
-[data-testid="stSidebar"] label[data-baseweb="radio"] {
-    margin-bottom: 6px !important;
-}
-[data-testid="stSidebar"] .stButton { margin-bottom: 8px !important; }
-.v609-actions-note { color:rgba(226,232,240,.72); font-size:10px; line-height:1.35; margin-top:6px; }
-
-.v608-actions-frame {
-    margin-top: 8px; padding: 10px; border-radius: 18px;
-    border: 1px solid rgba(226,232,240,.22); background: rgba(255,255,255,.055);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,.08);
-}
-.v608-actions-frame-title {
-    color:#dbeafe; font-size:11px; font-weight:900; text-transform:uppercase; letter-spacing:.10em; margin: 2px 2px 10px;
-}
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -2340,6 +2320,42 @@ window.DAWIYAT_RBAC = {{
     if "</head>" in updated:
         updated = updated.replace("</head>", portal_patch + "\n</head>", 1)
 
+    # V6.0.10: build the dashboard embedded sidebar action section from permissions.xlsx.
+    try:
+        _allowed = allowed_pages_for_current_user()
+        _items = []
+
+        def _add(label, code, page_name, admin_only=False):
+            if page_name in _allowed and (not admin_only or _is_admin_board_owner()):
+                _items.append((label, code))
+
+        _add("📝 Project Updates Center", "project_updates", "Project Updates Center")
+        _add("🧠 Data Update Agent", "data_update_agent", "Data Update Agent")
+        _add("🔔 Notification Center (" + str(unread_notifications_count(st.session_state.get("username", ""))) + ")", "notification_center", "Notification Center 🔔")
+        _add("📩 Executive Daily Digest", "executive_daily_digest", "Executive Daily Digest")
+        _add("🟢 WhatsApp Outbox", "whatsapp_agent", "WhatsApp Agent")
+        _add("☁️ Document Upload Center", "document_upload_center", "📤 Document Upload Center")
+        _add("📊 Executive PPT Builder", "executive_ppt_builder", "📊 Executive PPT Builder")
+        _add("⚙️ Admin Board", "admin_board", "Admin Board", admin_only=True)
+
+        _buttons = "".join([
+            '<button class="side-action" data-open-action="' + code + '" type="button">' + label + '</button>'
+            for label, code in _items
+        ])
+        _side_html = (
+            '<div class="side-nav-separator"></div>'
+            '<div class="side-section-title">Smart Scope</div>'
+            '<button class="side-action" data-open-action="toggle_smart_bulk" type="button">🎯 Show Smart Bulk Filter</button>'
+            '<div class="side-nav-separator"></div>'
+            '<div class="side-section-title">Governance Actions</div>'
+            + _buttons +
+            '<div class="side-nav-separator"></div>'
+            '<button class="side-action side-logout" data-open-action="logout" type="button">🚪 Logout</button>'
+        )
+        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", _side_html)
+    except Exception:
+        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", "")
+
     return updated
 
 
@@ -2889,23 +2905,8 @@ def render_dashboard() -> None:
     if "Admin Board" in all_allowed and _is_admin_board_owner():
         quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
 
-    if False and quick_actions:
-        st.markdown(
-            """
-            <div class="quick-actions-panel">
-                <div class="quick-actions-title">Quick Actions & Governance Agents</div>
-                <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        for i in range(0, len(quick_actions), 4):
-            action_cols = st.columns(min(4, len(quick_actions) - i))
-            for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
-                with col:
-                    if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
-                        st.session_state["active_hidden_page"] = target_page
-                        st.rerun()
+    # V6.0.10: Quick Actions are integrated inside the professional embedded left Sidebar.
+    # The old top Quick Actions block is intentionally removed to avoid duplicated navigation.
 
     # Smart Bulk Filter is toggled from the left navigation sidebar; panel opens here when enabled.
     render_smart_bulk_filter_panel(raw, show_toggle=False)
@@ -6210,29 +6211,52 @@ def main() -> None:
         return
     validate_current_authenticated_user()
 
+    # V6.0.10: allow the embedded dashboard sidebar to open Streamlit governance pages safely.
+    # permissions.xlsx remains the only authority; data/filter/formula logic is untouched.
+    try:
+        _open_action = st.query_params.get("open_action", "")
+        if isinstance(_open_action, list):
+            _open_action = _open_action[0] if _open_action else ""
+        _open_action = str(_open_action).strip()
+        _action_map = {
+            "project_updates": "Project Updates Center",
+            "data_update_agent": "Data Update Agent",
+            "notification_center": "Notification Center 🔔",
+            "executive_daily_digest": "Executive Daily Digest",
+            "whatsapp_agent": "WhatsApp Agent",
+            "document_upload_center": "📤 Document Upload Center",
+            "executive_ppt_builder": "📊 Executive PPT Builder",
+            "admin_board": "Admin Board",
+        }
+        if _open_action == "toggle_smart_bulk":
+            st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
+            del st.query_params["open_action"]
+            st.rerun()
+        elif _open_action == "logout":
+            _clear_login_query_params()
+            try:
+                del st.query_params["open_action"]
+            except Exception:
+                pass
+            st.session_state.clear()
+            st.rerun()
+        elif _open_action in _action_map:
+            _target = _action_map[_open_action]
+            if _target in allowed_pages_for_current_user() and (_target != "Admin Board" or _is_admin_board_owner()):
+                st.session_state["active_hidden_page"] = _target
+                del st.query_params["open_action"]
+                st.rerun()
+            else:
+                try:
+                    del st.query_params["open_action"]
+                except Exception:
+                    pass
+    except Exception:
+        pass
+
     # No timed auto-refresh: permissions update only on browser refresh, rerun, or Logout/Login.
 
     role = st.session_state.get("role", "user")
-
-    def _has_allowed_page(*names: str) -> bool:
-        allowed_norm = {str(p).replace("📤", "").replace("📊", "").strip().lower() for p in all_allowed_pages}
-        for name in names:
-            if str(name).replace("📤", "").replace("📊", "").strip().lower() in allowed_norm:
-                return True
-        return False
-
-    def _canonical_allowed_page(*names: str) -> str | None:
-        allowed_norm = {str(p).replace("📤", "").replace("📊", "").strip().lower(): str(p) for p in all_allowed_pages}
-        for name in names:
-            key = str(name).replace("📤", "").replace("📊", "").strip().lower()
-            if key in allowed_norm:
-                # Use internal routing names that are stable in the app.
-                if key == "document upload center":
-                    return "Document Upload Center"
-                if key == "executive ppt builder":
-                    return "Executive PPT Builder"
-                return allowed_norm[key]
-        return None
 
     with st.sidebar:
         st.markdown(
@@ -6253,58 +6277,28 @@ def main() -> None:
         )
 
         all_allowed_pages = allowed_pages_for_current_user()
-        # V6.0.9: permissions.xlsx may store page names with or without icons.
-        # Keep permission checks exact to the workbook but route action pages using stable internal names.
-        hidden_allowed_pages = []
-        for _page_name in [
-            "Project Updates Center", "Data Update Agent", "Notification Center 🔔",
-            "Executive Daily Digest", "WhatsApp Agent", "Document Upload Center",
-            "Executive PPT Builder", "Admin Board",
-        ]:
-            _canonical = _canonical_allowed_page(_page_name)
-            if _canonical or (_page_name == "Admin Board" and _is_admin_board_owner() and _has_allowed_page("Admin Board")):
-                hidden_allowed_pages.append(_page_name)
-
-        # V6.0.8: Sidebar dashboard navigation uses the same executive page names
-        # already controlled by permissions.xlsx. The legacy container page "Dashboard"
-        # is not displayed as a menu item because it only hosts the embedded dashboard.
-        preferred_dashboard_pages = [
-            "Executive Overview",
-            "Tables & Exports",
-            "PMO Audit",
-            "KPI Performance",
-            "Performance Explanation",
-            "PMO Report Assistant",
-            "Executive Reports",
-        ]
-        pages = [p for p in preferred_dashboard_pages if p in all_allowed_pages]
-        # Legacy stand-alone pages remain available only if explicitly granted.
-        for legacy_page in ["AI Executive Assistant", "Smart Alerts", "Upload CSV"]:
-            if legacy_page in all_allowed_pages and legacy_page not in pages:
-                pages.append(legacy_page)
-        if not pages and "Dashboard" in all_allowed_pages:
-            pages = ["Executive Overview"]
+        hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
+        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
         if not pages:
             pages = ["No Access"]
 
-        # Hidden/governance action pages are excluded from dashboard navigation but are shown
-        # safely in the Sidebar Governance Actions section according to permissions.xlsx.
+        # Hidden action pages are intentionally excluded from the sidebar. They remain
+        # accessible only through Dashboard action buttons and only when the user has permission.
         active_hidden = st.session_state.get("active_hidden_page")
-        active_hidden_norm = str(active_hidden).replace("📤", "").replace("📊", "").strip() if active_hidden else ""
-        if active_hidden and active_hidden_norm not in hidden_allowed_pages:
+        if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
 
         # Support old force flags by converting them to hidden-page routing.
-        if st.session_state.pop("force_document_upload_center", False) and "Document Upload Center" in hidden_allowed_pages:
-            st.session_state["active_hidden_page"] = "Document Upload Center"
-        if st.session_state.pop("force_ppt_builder", False) and "Executive PPT Builder" in hidden_allowed_pages:
-            st.session_state["active_hidden_page"] = "Executive PPT Builder"
+        if st.session_state.pop("force_document_upload_center", False) and "📤 Document Upload Center" in hidden_allowed_pages:
+            st.session_state["active_hidden_page"] = "📤 Document Upload Center"
+        if st.session_state.pop("force_ppt_builder", False) and "📊 Executive PPT Builder" in hidden_allowed_pages:
+            st.session_state["active_hidden_page"] = "📊 Executive PPT Builder"
         if st.session_state.pop("force_admin_board", False) and "Admin Board" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "Admin Board"
 
-        if st.session_state.get("force_dashboard"):
+        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
             st.session_state.pop("active_hidden_page", None)
-            st.session_state["main_nav"] = pages[0] if pages and pages[0] != "No Access" else "Executive Overview"
+            st.session_state["main_nav"] = "Dashboard"
             st.session_state["force_dashboard"] = False
 
         if st.session_state.get("main_nav") not in pages:
@@ -6337,20 +6331,19 @@ def main() -> None:
             action_items.append(("📩 Executive Daily Digest", "Executive Daily Digest"))
         if "WhatsApp Agent" in hidden_allowed_pages:
             action_items.append(("🟢 WhatsApp Outbox", "WhatsApp Agent"))
-        if "Document Upload Center" in hidden_allowed_pages:
-            action_items.append(("📤 Document Upload Center", "Document Upload Center"))
-        if "Executive PPT Builder" in hidden_allowed_pages:
-            action_items.append(("📊 Executive PPT Builder", "Executive PPT Builder"))
+        if "📤 Document Upload Center" in hidden_allowed_pages:
+            action_items.append(("📤 Document Upload Center", "📤 Document Upload Center"))
+        if "📊 Executive PPT Builder" in hidden_allowed_pages:
+            action_items.append(("📊 Executive PPT Builder", "📊 Executive PPT Builder"))
         if "Admin Board" in hidden_allowed_pages and _is_admin_board_owner():
             action_items.append(("⚙️ Admin Board", "Admin Board"))
 
         if action_items:
-            st.markdown("<div class='v604-separator'></div><div class='v608-actions-frame'><div class='v608-actions-frame-title'>Governance Actions</div>", unsafe_allow_html=True)
+            st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Governance Actions</div>", unsafe_allow_html=True)
             for label, target_page in action_items:
                 if st.button(label, use_container_width=True, key=f"v604_open_hidden_{target_page}"):
                     st.session_state["active_hidden_page"] = target_page
                     st.rerun()
-            st.markdown("</div>", unsafe_allow_html=True)
 
         st.markdown("<div class='v604-separator'></div>", unsafe_allow_html=True)
         if st.button("🚪 Logout", use_container_width=True, key="v604_sidebar_logout"):
@@ -6361,10 +6354,10 @@ def main() -> None:
     render_session_bar()
 
     active_hidden_page = st.session_state.get("active_hidden_page")
-    if active_hidden_page in ["📤 Document Upload Center", "Document Upload Center"]:
+    if active_hidden_page == "📤 Document Upload Center":
         document_upload_page()
         return
-    if active_hidden_page in ["📊 Executive PPT Builder", "Executive PPT Builder"]:
+    if active_hidden_page == "📊 Executive PPT Builder":
         executive_ppt_builder_page()
         return
     if active_hidden_page == "Admin Board":
@@ -6389,7 +6382,7 @@ def main() -> None:
     if page == "No Access":
         st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
         return
-    if page in ["Dashboard", "Executive Overview", "Tables & Exports", "PMO Audit", "KPI Performance", "Performance Explanation", "PMO Report Assistant", "Executive Reports"]:
+    if page == "Dashboard":
         render_dashboard()
     elif page == "Project Updates Center":
         project_updates_center_page()
@@ -6407,10 +6400,6 @@ def main() -> None:
         smart_alerts_page()
     elif page == "Executive Reports":
         reports_page()
-    elif page in ["📤 Document Upload Center", "Document Upload Center"]:
-        document_upload_page()
-    elif page in ["📊 Executive PPT Builder", "Executive PPT Builder"]:
-        executive_ppt_builder_page()
     elif page == "Upload CSV":
         upload_data_page()
 
