@@ -2,7 +2,6 @@
 import base64
 import hashlib
 import hmac
-import html
 import time
 import io
 import json
@@ -2340,31 +2339,22 @@ window.DAWIYAT_RBAC = {{
         _add("⚙️ Admin Board", "admin_board", "Admin Board", admin_only=True)
 
         _buttons = "".join([
-            '<button class="side-action" data-open-action="' + code + '" type="button">' + label + '</button>'
+            '<a class="side-action" data-open-action="' + code + '" href="?open_action=' + code + '" target="_top">' + label + '</a>'
             for label, code in _items
         ])
         _side_html = (
             '<div class="side-nav-separator"></div>'
             '<div class="side-section-title">Smart Scope</div>'
-            '<button class="side-action" data-open-action="toggle_smart_bulk" type="button">🎯 Show Smart Bulk Filter</button>'
+            '<a class="side-action" data-open-action="toggle_smart_bulk" href="?open_action=toggle_smart_bulk" target="_top">🎯 Show Smart Bulk Filter</a>'
             '<div class="side-nav-separator"></div>'
             '<div class="side-section-title">Governance Actions</div>'
             + _buttons +
             '<div class="side-nav-separator"></div>'
-            '<button class="side-action side-logout" data-open-action="logout" type="button">🚪 Logout</button>'
+            '<a class="side-action side-logout" data-open-action="logout" href="?open_action=logout" target="_top">🚪 Logout</a>'
         )
         updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", _side_html)
     except Exception:
         updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", "")
-
-    # V6.0.11: user/role block inside embedded dashboard sidebar; display only, permissions still come from permissions.xlsx.
-    try:
-        _user = html.escape(str(st.session_state.get("username", "")))
-        _role = html.escape(str(st.session_state.get("role", ""))).replace("_", " ").title()
-        _user_html = f'<div class="side-user-box">👤 {_user}<br>👔 {_role}</div>'
-        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_USER-->", _user_html)
-    except Exception:
-        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_USER-->", "")
 
     return updated
 
@@ -2924,7 +2914,7 @@ def render_dashboard() -> None:
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
 
-    components.html(dashboard_html, height=7600, scrolling=False)
+    components.html(dashboard_html, height=1200, scrolling=False)
 
 
 
