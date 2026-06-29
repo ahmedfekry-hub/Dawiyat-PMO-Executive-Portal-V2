@@ -2,6 +2,7 @@
 import base64
 import hashlib
 import hmac
+import html
 import time
 import io
 import json
@@ -2356,6 +2357,15 @@ window.DAWIYAT_RBAC = {{
     except Exception:
         updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_ACTIONS-->", "")
 
+    # V6.0.11: user/role block inside embedded dashboard sidebar; display only, permissions still come from permissions.xlsx.
+    try:
+        _user = html.escape(str(st.session_state.get("username", "")))
+        _role = html.escape(str(st.session_state.get("role", ""))).replace("_", " ").title()
+        _user_html = f'<div class="side-user-box">👤 {_user}<br>👔 {_role}</div>'
+        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_USER-->", _user_html)
+    except Exception:
+        updated = updated.replace("<!--DAWIYAT_STREAMLIT_SIDE_NAV_USER-->", "")
+
     return updated
 
 
@@ -2914,7 +2924,7 @@ def render_dashboard() -> None:
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
 
-    components.html(dashboard_html, height=9200, scrolling=False)
+    components.html(dashboard_html, height=7600, scrolling=False)
 
 
 
