@@ -540,6 +540,17 @@ body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
     border:1px solid rgba(226,232,240,.24) !important; background:rgba(255,255,255,.08) !important; color:#f8fafc !important;
 }
 [data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.16) !important; border-color:rgba(226,232,240,.42) !important; transform:translateX(2px); }
+/* V6.0.9: keep the whole sidebar as one professional navigation surface. */
+[data-testid="stSidebar"] [data-testid="stSidebarContent"] {
+    overflow-y: auto !important;
+    max-height: 100vh !important;
+    padding-bottom: 18px !important;
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"] {
+    margin-bottom: 6px !important;
+}
+[data-testid="stSidebar"] .stButton { margin-bottom: 8px !important; }
+.v609-actions-note { color:rgba(226,232,240,.72); font-size:10px; line-height:1.35; margin-top:6px; }
 
 .v608-actions-frame {
     margin-top: 8px; padding: 10px; border-radius: 18px;
@@ -6203,6 +6214,26 @@ def main() -> None:
 
     role = st.session_state.get("role", "user")
 
+    def _has_allowed_page(*names: str) -> bool:
+        allowed_norm = {str(p).replace("📤", "").replace("📊", "").strip().lower() for p in all_allowed_pages}
+        for name in names:
+            if str(name).replace("📤", "").replace("📊", "").strip().lower() in allowed_norm:
+                return True
+        return False
+
+    def _canonical_allowed_page(*names: str) -> str | None:
+        allowed_norm = {str(p).replace("📤", "").replace("📊", "").strip().lower(): str(p) for p in all_allowed_pages}
+        for name in names:
+            key = str(name).replace("📤", "").replace("📊", "").strip().lower()
+            if key in allowed_norm:
+                # Use internal routing names that are stable in the app.
+                if key == "document upload center":
+                    return "Document Upload Center"
+                if key == "executive ppt builder":
+                    return "Executive PPT Builder"
+                return allowed_norm[key]
+        return None
+
     with st.sidebar:
         st.markdown(
             """
@@ -6222,7 +6253,17 @@ def main() -> None:
         )
 
         all_allowed_pages = allowed_pages_for_current_user()
-        hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
+        # V6.0.9: permissions.xlsx may store page names with or without icons.
+        # Keep permission checks exact to the workbook but route action pages using stable internal names.
+        hidden_allowed_pages = []
+        for _page_name in [
+            "Project Updates Center", "Data Update Agent", "Notification Center 🔔",
+            "Executive Daily Digest", "WhatsApp Agent", "Document Upload Center",
+            "Executive PPT Builder", "Admin Board",
+        ]:
+            _canonical = _canonical_allowed_page(_page_name)
+            if _canonical or (_page_name == "Admin Board" and _is_admin_board_owner() and _has_allowed_page("Admin Board")):
+                hidden_allowed_pages.append(_page_name)
 
         # V6.0.8: Sidebar dashboard navigation uses the same executive page names
         # already controlled by permissions.xlsx. The legacy container page "Dashboard"
@@ -6249,14 +6290,15 @@ def main() -> None:
         # Hidden/governance action pages are excluded from dashboard navigation but are shown
         # safely in the Sidebar Governance Actions section according to permissions.xlsx.
         active_hidden = st.session_state.get("active_hidden_page")
-        if active_hidden and active_hidden not in hidden_allowed_pages:
+        active_hidden_norm = str(active_hidden).replace("📤", "").replace("📊", "").strip() if active_hidden else ""
+        if active_hidden and active_hidden_norm not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
 
         # Support old force flags by converting them to hidden-page routing.
-        if st.session_state.pop("force_document_upload_center", False) and "📤 Document Upload Center" in hidden_allowed_pages:
-            st.session_state["active_hidden_page"] = "📤 Document Upload Center"
-        if st.session_state.pop("force_ppt_builder", False) and "📊 Executive PPT Builder" in hidden_allowed_pages:
-            st.session_state["active_hidden_page"] = "📊 Executive PPT Builder"
+        if st.session_state.pop("force_document_upload_center", False) and "Document Upload Center" in hidden_allowed_pages:
+            st.session_state["active_hidden_page"] = "Document Upload Center"
+        if st.session_state.pop("force_ppt_builder", False) and "Executive PPT Builder" in hidden_allowed_pages:
+            st.session_state["active_hidden_page"] = "Executive PPT Builder"
         if st.session_state.pop("force_admin_board", False) and "Admin Board" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "Admin Board"
 
@@ -6295,10 +6337,10 @@ def main() -> None:
             action_items.append(("📩 Executive Daily Digest", "Executive Daily Digest"))
         if "WhatsApp Agent" in hidden_allowed_pages:
             action_items.append(("🟢 WhatsApp Outbox", "WhatsApp Agent"))
-        if "📤 Document Upload Center" in hidden_allowed_pages:
-            action_items.append(("📤 Document Upload Center", "📤 Document Upload Center"))
-        if "📊 Executive PPT Builder" in hidden_allowed_pages:
-            action_items.append(("📊 Executive PPT Builder", "📊 Executive PPT Builder"))
+        if "Document Upload Center" in hidden_allowed_pages:
+            action_items.append(("📤 Document Upload Center", "Document Upload Center"))
+        if "Executive PPT Builder" in hidden_allowed_pages:
+            action_items.append(("📊 Executive PPT Builder", "Executive PPT Builder"))
         if "Admin Board" in hidden_allowed_pages and _is_admin_board_owner():
             action_items.append(("⚙️ Admin Board", "Admin Board"))
 
@@ -6319,10 +6361,10 @@ def main() -> None:
     render_session_bar()
 
     active_hidden_page = st.session_state.get("active_hidden_page")
-    if active_hidden_page == "📤 Document Upload Center":
+    if active_hidden_page in ["📤 Document Upload Center", "Document Upload Center"]:
         document_upload_page()
         return
-    if active_hidden_page == "📊 Executive PPT Builder":
+    if active_hidden_page in ["📊 Executive PPT Builder", "Executive PPT Builder"]:
         executive_ppt_builder_page()
         return
     if active_hidden_page == "Admin Board":
@@ -6365,6 +6407,10 @@ def main() -> None:
         smart_alerts_page()
     elif page == "Executive Reports":
         reports_page()
+    elif page in ["📤 Document Upload Center", "Document Upload Center"]:
+        document_upload_page()
+    elif page in ["📊 Executive PPT Builder", "Executive PPT Builder"]:
+        executive_ppt_builder_page()
     elif page == "Upload CSV":
         upload_data_page()
 
