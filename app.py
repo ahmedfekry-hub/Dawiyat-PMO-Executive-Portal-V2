@@ -507,39 +507,59 @@ body.dark-ui .quick-actions-panel { background:#111f34 !important; border-color:
 body.dark-ui .quick-actions-title { color:#eaf2ff !important; }
 body.dark-ui .quick-actions-subtitle { color:#9fb0c7 !important; }
 
-/* V6.0.4 Permission-safe professional Streamlit sidebar.
-   This styles the native Streamlit sidebar only; it does not alter permissions.xlsx,
+/* V6.0.6 Permission-safe professional sidebar.
+   The sidebar is the single navigation/control area. It does not alter permissions.xlsx,
    dashboard calculations, iframe filters, formulas, or data pipelines. */
 [data-testid="stSidebar"] {
-    background: linear-gradient(180deg,#062f34 0%,#09283c 62%,#071f34 100%) !important;
-    border-right: 1px solid rgba(148,163,184,.35);
+    background: linear-gradient(180deg,#073b3e 0%,#083146 55%,#071f34 100%) !important;
+    border-right: 1px solid rgba(148,163,184,.32);
     box-shadow: 12px 0 28px rgba(15,23,42,.12);
 }
-[data-testid="stSidebar"] > div:first-child { padding-top: 1.1rem; }
+[data-testid="stSidebar"] > div:first-child { padding-top: 1.05rem; padding-left: .85rem; padding-right: .85rem; }
 .v604-sidebar-brand {
     display:flex; align-items:center; gap:12px; padding: 10px 8px 14px; margin-bottom: 10px;
-    border-bottom: 1px solid rgba(226,232,240,.22);
+    border-bottom: 1px solid rgba(226,232,240,.24);
 }
 .v604-brand-icon {
     width:44px; height:44px; display:flex; align-items:center; justify-content:center; border-radius:15px;
-    background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.14); font-size:23px;
+    background:rgba(255,255,255,.13); border:1px solid rgba(255,255,255,.16); font-size:23px;
 }
 .v604-brand-title { font-size:18px; font-weight:900; color:#fff; line-height:1.05; }
 .v604-brand-subtitle { font-size:11px; font-weight:750; color:rgba(226,232,240,.86); margin-top:2px; }
-.v604-sidebar-caption { color:rgba(226,232,240,.88); font-size:12px; font-weight:800; margin: 2px 4px 10px; }
-.v604-section-title { margin:14px 4px 8px; color:#bae6fd; font-size:11px; text-transform:uppercase; letter-spacing:.11em; font-weight:900; }
+.v604-sidebar-caption { color:rgba(226,232,240,.9); font-size:12px; font-weight:850; margin: 2px 4px 10px; line-height:1.55; }
+.v604-section-title { margin:15px 4px 9px; color:#bae6fd; font-size:11px; text-transform:uppercase; letter-spacing:.11em; font-weight:950; }
 .v604-separator { height:1px; margin:16px 2px; background:linear-gradient(90deg,transparent,rgba(226,232,240,.42),transparent); }
+/* Navigation cards */
+[data-testid="stSidebar"] [role="radiogroup"] { gap: 7px; display:flex; flex-direction:column; }
 [data-testid="stSidebar"] label[data-baseweb="radio"] {
-    background: rgba(255,255,255,.07); border:1px solid rgba(255,255,255,.08); border-radius:16px;
-    padding: 9px 12px; min-height:42px; transition: all .16s ease;
+    background: rgba(255,255,255,.075);
+    border:1px solid rgba(255,255,255,.10);
+    border-radius:16px;
+    padding: 10px 12px;
+    min-height:46px;
+    transition: all .16s ease;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.04);
 }
-[data-testid="stSidebar"] label[data-baseweb="radio"]:hover { background:rgba(255,255,255,.14); transform:translateX(2px); }
-[data-testid="stSidebar"] label[data-baseweb="radio"] span { color:#f8fafc !important; font-weight:850; }
+[data-testid="stSidebar"] label[data-baseweb="radio"]:hover { background:rgba(255,255,255,.15); transform:translateX(2px); }
+[data-testid="stSidebar"] label[data-baseweb="radio"] span { color:#f8fafc !important; font-weight:900; }
+[data-testid="stSidebar"] label[data-baseweb="radio"][aria-checked="true"] {
+    background:#eef6ff !important;
+    border-color:#eef6ff !important;
+}
+[data-testid="stSidebar"] label[data-baseweb="radio"][aria-checked="true"] span { color:#10223a !important; }
+/* Hide the default small radio circles so the labels look like a clean nav menu. */
+[data-testid="stSidebar"] label[data-baseweb="radio"] > div:first-child { display:none !important; }
+/* Action buttons under Smart Scope / Governance Actions / Logout */
 [data-testid="stSidebar"] button {
-    border-radius:16px !important; min-height:42px !important; font-weight:850 !important;
-    border:1px solid rgba(226,232,240,.24) !important; background:rgba(255,255,255,.08) !important; color:#f8fafc !important;
+    border-radius:16px !important;
+    min-height:46px !important;
+    font-weight:900 !important;
+    border:1px solid rgba(226,232,240,.24) !important;
+    background:rgba(255,255,255,.09) !important;
+    color:#f8fafc !important;
+    box-shadow: inset 0 1px 0 rgba(255,255,255,.05);
 }
-[data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.16) !important; border-color:rgba(226,232,240,.42) !important; transform:translateX(2px); }
+[data-testid="stSidebar"] button:hover { background:rgba(255,255,255,.17) !important; border-color:rgba(226,232,240,.44) !important; transform:translateX(2px); }
 </style>
 """
 st.markdown(PORTAL_CSS, unsafe_allow_html=True)
@@ -6180,7 +6200,7 @@ def main() -> None:
         all_allowed_pages = allowed_pages_for_current_user()
         hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
 
-        # V6.0.5: show the same professional dashboard page list requested by PMO.
+        # V6.0.6: show the professional dashboard page list requested by PMO inside the same sidebar.
         # These items are visual navigation entries for the embedded executive dashboard.
         # They do NOT modify permissions.xlsx, filters, formulas, data logic, or hidden governance routes.
         dashboard_nav_pages = [
@@ -6237,7 +6257,7 @@ def main() -> None:
             st.session_state["show_smart_bulk_filter"] = not st.session_state.get("show_smart_bulk_filter", False)
             st.rerun()
 
-        # V6.0.4: Governance action pages are shown here, but routing remains the proven V5.9.9 session_state routing.
+        # V6.0.6: Governance action pages stay in the same sidebar, below Smart Scope, using proven session_state routing.
         # Nothing in permissions.xlsx or the dashboard iframe data/filter logic is modified.
         action_items = []
         if "Project Updates Center" in hidden_allowed_pages:
