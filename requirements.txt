@@ -1,0 +1,10 @@
+streamlit
+pandas
+reportlab
+google-api-python-client
+google-auth
+google-auth-httplib2
+python-pptx
+pillow
+openpyxl
+xlrd
