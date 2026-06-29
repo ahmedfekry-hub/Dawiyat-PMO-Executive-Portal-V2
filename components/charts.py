@@ -1,1 +1,0 @@
-"""Chart component helpers placeholder."""
