@@ -46,6 +46,65 @@
     padding:10px 14px; border-radius:999px; border:1px solid var(--line); background:#fff; cursor:pointer; font-weight:700; color:var(--muted);
   }
   .tab.active { background:var(--navy); color:#fff; border-color:var(--navy); }
+
+  /* V5.9.8 Executive Left Navigation - button controlled drawer, no hover auto-open */
+  .tabs { display:none !important; }
+  .side-nav-toggle {
+    position:fixed;
+    left:18px;
+    top:18px;
+    z-index:1001;
+    width:54px;
+    height:54px;
+    border:0;
+    border-radius:18px;
+    color:#fff;
+    font-size:24px;
+    font-weight:900;
+    cursor:pointer;
+    background:linear-gradient(135deg,#071427 0%,#102a4d 55%,#0f766e 100%);
+    box-shadow:0 16px 40px rgba(15,23,42,.28);
+  }
+  .side-nav-toggle:hover { transform:translateY(-1px); }
+  .executive-side-nav {
+    position:fixed;
+    left:18px;
+    top:82px;
+    bottom:18px;
+    width:272px;
+    z-index:1000;
+    border-radius:28px;
+    padding:14px 10px;
+    background:
+      radial-gradient(circle at top, rgba(20,184,166,.25), transparent 32%),
+      linear-gradient(180deg,#071427 0%,#102a4d 48%,#0f766e 100%);
+    box-shadow:0 28px 70px rgba(15,23,42,.34);
+    border:1px solid rgba(255,255,255,.14);
+    overflow:hidden;
+    transform:translateX(-325px);
+    opacity:0;
+    pointer-events:none;
+    transition:transform .28s ease, opacity .22s ease;
+  }
+  .executive-side-nav.open { transform:translateX(0); opacity:1; pointer-events:auto; }
+  .side-brand { display:flex; align-items:center; gap:12px; padding:8px 8px 14px; border-bottom:1px solid rgba(255,255,255,.14); margin-bottom:12px; white-space:nowrap; }
+  .side-brand-mark { width:46px;height:46px;border-radius:16px;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.12);color:#fff;font-size:23px;flex:0 0 46px;box-shadow:inset 0 0 0 1px rgba(255,255,255,.12); }
+  .side-brand-text { opacity:1; transform:none; color:#fff; line-height:1.1; }
+  .side-brand-title { font-size:14px; font-weight:900; letter-spacing:.04em; }
+  .side-brand-sub { font-size:11px; color:#b9e8ff; margin-top:4px; font-weight:700; }
+  .side-nav-items { display:grid; gap:8px; }
+  .side-tab { width:100%;display:flex;align-items:center;gap:13px;min-height:50px;border:0;border-radius:18px;background:transparent;color:#dbeafe;cursor:pointer;padding:8px 10px;text-align:left;font-weight:900;letter-spacing:.01em;white-space:nowrap;transition:background .18s ease, color .18s ease, transform .18s ease; }
+  .side-tab:hover { background:rgba(255,255,255,.10); transform:translateX(2px); color:#fff; }
+  .side-tab.active { background:linear-gradient(135deg,#ffffff 0%,#eaf4ff 100%); color:#0f2746; box-shadow:0 12px 26px rgba(0,0,0,.20); }
+  .side-icon { width:42px;height:42px;border-radius:15px;display:flex;align-items:center;justify-content:center;flex:0 0 42px;background:rgba(255,255,255,.12);font-size:20px; }
+  .side-tab.active .side-icon { background:#e8f2ff; }
+  .side-label { opacity:1; transform:none; }
+  .side-footer { position:absolute;left:10px;right:10px;bottom:12px;color:#b9e8ff;font-size:10px;font-weight:800;text-align:center;opacity:.85;border-top:1px solid rgba(255,255,255,.12);padding-top:10px;white-space:nowrap; }
+  .app { margin-left:0!important; transition:none; padding-top:0 !important; }
+  .side-nav-backdrop{position:fixed;inset:0;z-index:998;background:rgba(15,23,42,.18);opacity:0;pointer-events:none;transition:opacity .22s ease;}
+  .side-nav-backdrop.open{opacity:1;pointer-events:auto;}
+  @media(max-width:900px){ body{padding:12px;} .side-nav-toggle{left:12px;top:12px;width:50px;height:50px}.executive-side-nav{left:12px;top:72px;bottom:12px;width:min(300px,calc(100vw - 24px));} .side-brand,.side-footer{display:none;} }
+  @media print{.side-nav-toggle,.executive-side-nav,.side-nav-backdrop{display:none!important}.app{margin-left:0!important}.tabs{display:none!important}}
   .filters {
     display:grid; grid-template-columns: repeat(5, minmax(180px,1fr)); gap:12px; margin-bottom:16px;
   }
@@ -2014,6 +2073,22 @@ body.dark-ui .pmo-filters.grouped-filters .filter-group{background:#172235;borde
 <!-- Scope Target, SOR Status, and 1st 50 Invoice Status are fully synchronized between global pages and PMO Audit. -->
 
 <!-- KPI_FORMULA_SYNC_WITH_BOARD_PMO_2026_05_13: computeProgressComponents, computeWeightedKpi, renderWeightedKpiEvaluation copied from Dawiyat_Executive_Board_Dashboard_PMO(8).html while preserving SOR Full Width layout. -->
+
+<button id="side-nav-toggle" class="side-nav-toggle" type="button" aria-label="Open navigation">☰</button>
+<div id="side-nav-backdrop" class="side-nav-backdrop"></div>
+<nav id="executive-side-nav" class="executive-side-nav" aria-label="Executive Dashboard Navigation">
+  <div class="side-brand"><div class="side-brand-mark">📊</div><div class="side-brand-text"><div class="side-brand-title">PMO Portal</div><div class="side-brand-sub">Executive Dashboard</div></div></div>
+  <div class="side-nav-items">
+    <button class="side-tab active" data-tab="overview" type="button"><span class="side-icon">🏠</span><span class="side-label">Executive Overview</span></button>
+    <button class="side-tab" data-tab="tables" type="button"><span class="side-icon">📋</span><span class="side-label">Tables &amp; Exports</span></button>
+    <button class="side-tab" data-tab="pmo" type="button"><span class="side-icon">🛡️</span><span class="side-label">PMO Audit</span></button>
+    <button class="side-tab" data-tab="performance" type="button"><span class="side-icon">🎯</span><span class="side-label">KPI Performance</span></button>
+    <button class="side-tab" data-tab="perf-explanation" type="button"><span class="side-icon">💡</span><span class="side-label">Performance Explanation</span></button>
+    <button class="side-tab" data-tab="decision" type="button"><span class="side-icon">🤖</span><span class="side-label">PMO Report Assistant</span></button>
+    <button class="side-tab" data-tab="reports" type="button"><span class="side-icon">📈</span><span class="side-label">Executive Reports</span></button>
+  </div>
+  <div class="side-footer">PMO Navigation</div>
+</nav>
 
 <div class="app">
 <div class="executive-header-v2">
@@ -7212,7 +7287,7 @@ function toggleDetailedAnalysis() {
 
 function setTab(tabName) {
   state.tab = tabName;
-  document.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
+  document.querySelectorAll('.tab, .side-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
   document.getElementById('tab-overview').classList.toggle('hidden', tabName !== 'overview');
   document.getElementById('tab-performance').classList.toggle('hidden', tabName !== 'performance');
   document.getElementById('tab-perf-explanation').classList.toggle('hidden', tabName !== 'perf-explanation');
@@ -7227,7 +7302,24 @@ function setTab(tabName) {
   if (globalFilters) globalFilters.style.display = tabName === 'pmo' ? 'none' : '';
   if (tabName === 'pmo') { bindPmoInputs(); renderPmoAll(); }
 }
-document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
+
+const sideNavToggle = document.getElementById('side-nav-toggle');
+const sideNav = document.getElementById('executive-side-nav');
+const sideNavBackdrop = document.getElementById('side-nav-backdrop');
+function setSideNavOpen(isOpen){
+  if (!sideNav || !sideNavToggle) return;
+  sideNav.classList.toggle('open', isOpen);
+  if (sideNavBackdrop) sideNavBackdrop.classList.toggle('open', isOpen);
+  sideNavToggle.textContent = isOpen ? '×' : '☰';
+  sideNavToggle.setAttribute('aria-label', isOpen ? 'Close navigation' : 'Open navigation');
+}
+if (sideNavToggle) sideNavToggle.addEventListener('click', () => setSideNavOpen(!sideNav.classList.contains('open')));
+if (sideNavBackdrop) sideNavBackdrop.addEventListener('click', () => setSideNavOpen(false));
+
+document.querySelectorAll('.tab, .side-tab').forEach(btn => btn.addEventListener('click', () => {
+  setTab(btn.dataset.tab);
+  if (btn.classList.contains('side-tab')) setSideNavOpen(false);
+}));
 document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 // Robust PMO sub-view switching, including when the PMO section is re-rendered.
 document.addEventListener('click', (e) => {
