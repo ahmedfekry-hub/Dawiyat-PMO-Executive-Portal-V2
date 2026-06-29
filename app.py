@@ -2849,43 +2849,8 @@ def render_dashboard() -> None:
         st.write(f"Penalties: {len(raw['penalties']):,}")
         st.write(f"District: {len(raw['districts']):,}")
 
-    # Hidden action/governance pages: shown as compact buttons on Dashboard according to permissions.
-    all_allowed = allowed_pages_for_current_user()
-    quick_actions = []
-    if "Project Updates Center" in all_allowed:
-        quick_actions.append(("📝 Open Project Updates Center", "Project Updates Center", "secondary"))
-    if "Data Update Agent" in all_allowed:
-        quick_actions.append(("🧠 Open Data Update Agent", "Data Update Agent", "secondary"))
-    if "Notification Center 🔔" in all_allowed:
-        quick_actions.append((f"🔔 Open Notification Center ({unread_notifications_count(st.session_state.get('username',''))})", "Notification Center 🔔", "secondary"))
-    if "Executive Daily Digest" in all_allowed:
-        quick_actions.append(("📩 Open Executive Daily Digest", "Executive Daily Digest", "secondary"))
-    if "WhatsApp Agent" in all_allowed:
-        quick_actions.append(("🟢 Open WhatsApp Agent Outbox", "WhatsApp Agent", "secondary"))
-    if "📤 Document Upload Center" in all_allowed:
-        quick_actions.append(("📤 Open Document Upload Center", "📤 Document Upload Center", "secondary"))
-    if "📊 Executive PPT Builder" in all_allowed:
-        quick_actions.append(("📊 Open Executive PPT Builder", "📊 Executive PPT Builder", "secondary"))
-    if "Admin Board" in all_allowed and _is_admin_board_owner():
-        quick_actions.append(("⚙️ Open Admin Board", "Admin Board", "primary"))
-
-    if quick_actions:
-        st.markdown(
-            """
-            <div class="quick-actions-panel">
-                <div class="quick-actions-title">Quick Actions & Governance Agents</div>
-                <div class="quick-actions-subtitle">Data Update Agent, Notification Center, Daily Digest, WhatsApp Agent, Document Center, PPT Builder, and Admin Board open only from here according to user permissions.</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
-        for i in range(0, len(quick_actions), 4):
-            action_cols = st.columns(min(4, len(quick_actions) - i))
-            for col, (label, target_page, btn_type) in zip(action_cols, quick_actions[i:i+4]):
-                with col:
-                    if st.button(label, use_container_width=True, type=btn_type, key=f"open_hidden_{target_page}"):
-                        st.session_state["active_hidden_page"] = target_page
-                        st.rerun()
+    # V6.0.5: Quick Actions were moved to the professional left sidebar.
+    # Keeping them out of the page prevents duplicate navigation blocks and protects the dashboard layout.
 
     # Smart Bulk Filter is toggled from the left navigation sidebar; panel opens here when enabled.
     render_smart_bulk_filter_panel(raw, show_toggle=False)
@@ -6214,12 +6179,23 @@ def main() -> None:
 
         all_allowed_pages = allowed_pages_for_current_user()
         hidden_allowed_pages = [p for p in all_allowed_pages if p in HIDDEN_ACTION_PAGES]
-        pages = [p for p in all_allowed_pages if p not in HIDDEN_ACTION_PAGES]
+
+        # V6.0.5: show the same professional dashboard page list requested by PMO.
+        # These items are visual navigation entries for the embedded executive dashboard.
+        # They do NOT modify permissions.xlsx, filters, formulas, data logic, or hidden governance routes.
+        dashboard_nav_pages = [
+            "🏠 Executive Overview",
+            "📋 Tables & Exports",
+            "🛡️ PMO Audit",
+            "🎯 KPI Performance",
+            "💡 Performance Explanation",
+            "🤖 PMO Report Assistant",
+            "📈 Executive Reports",
+        ]
+        pages = dashboard_nav_pages if "Dashboard" in all_allowed_pages else []
         if not pages:
             pages = ["No Access"]
 
-        # Hidden action pages are intentionally excluded from the sidebar. They remain
-        # accessible only through Dashboard action buttons and only when the user has permission.
         active_hidden = st.session_state.get("active_hidden_page")
         if active_hidden and active_hidden not in hidden_allowed_pages:
             st.session_state.pop("active_hidden_page", None)
@@ -6232,9 +6208,9 @@ def main() -> None:
         if st.session_state.pop("force_admin_board", False) and "Admin Board" in hidden_allowed_pages:
             st.session_state["active_hidden_page"] = "Admin Board"
 
-        if st.session_state.get("force_dashboard") and "Dashboard" in pages:
+        if st.session_state.get("force_dashboard") and pages != ["No Access"]:
             st.session_state.pop("active_hidden_page", None)
-            st.session_state["main_nav"] = "Dashboard"
+            st.session_state["main_nav"] = pages[0]
             st.session_state["force_dashboard"] = False
 
         if st.session_state.get("main_nav") not in pages:
@@ -6247,6 +6223,13 @@ def main() -> None:
             key="main_nav",
             label_visibility="collapsed",
         )
+
+        # If the user clicks any dashboard navigation item while inside a governance page,
+        # safely return to the dashboard without logging out or resetting permissions.
+        if st.session_state.get("_last_main_nav") != page:
+            st.session_state["_last_main_nav"] = page
+            if page != "No Access":
+                st.session_state.pop("active_hidden_page", None)
 
         st.markdown("<div class='v604-separator'></div><div class='v604-section-title'>Smart Scope</div>", unsafe_allow_html=True)
         sidebar_smart_label = "🙈 Hide Smart Bulk Filter" if st.session_state.get("show_smart_bulk_filter", False) else "🎯 Show Smart Bulk Filter"
@@ -6318,26 +6301,10 @@ def main() -> None:
     if page == "No Access":
         st.error("No pages are currently assigned to your username in permissions.xlsx. Please contact the PMO System Administrator.")
         return
-    if page == "Dashboard":
-        render_dashboard()
-    elif page == "Project Updates Center":
-        project_updates_center_page()
-    elif page == "Data Update Agent":
-        data_update_agent_page()
-    elif page == "Notification Center 🔔":
-        notification_center_page()
-    elif page == "Executive Daily Digest":
-        executive_daily_digest_page()
-    elif page == "WhatsApp Agent":
-        whatsapp_agent_page()
-    elif page == "AI Executive Assistant":
-        ai_assistant_page()
-    elif page == "Smart Alerts":
-        smart_alerts_page()
-    elif page == "Executive Reports":
-        reports_page()
-    elif page == "Upload CSV":
-        upload_data_page()
+
+    # V6.0.5: dashboard navigation labels all render the protected embedded dashboard.
+    # The actual dashboard tabs, filters, formulas, and calculations remain inside dashboard.html.
+    render_dashboard()
 
 
 if __name__ == "__main__":
