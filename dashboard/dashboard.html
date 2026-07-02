@@ -2485,6 +2485,7 @@ const FILTERS = [
   ['second50', 'Second 50% status'],
   ['sorReferenceNumber', 'SOR Reference Number'],
   ['scopeTarget', 'Scope Target'],
+  ['requiredAction', 'Required Action'],
   ['linkCode', 'Link Code'],
   ['workOrder', 'Work Order']
 ];
@@ -2493,7 +2494,7 @@ const FILTER_GROUPS = [
   {id:'destination', title:'Destination', icon:'🌍', keys:['region','city','district']},
   {id:'implementation', title:'Implementation', icon:'🚧', keys:['stage','project','subclass','type','className','closureStatus']},
   {id:'financial', title:'Financial', icon:'💰', keys:['sorStatus','invoice50','second50','sorReferenceNumber']},
-  {id:'audit', title:'Audit', icon:'🛡️', keys:['scopeTarget','year','performance']},
+  {id:'audit', title:'Audit', icon:'🛡️', keys:['scopeTarget','year','performance','requiredAction']},
   {id:'search', title:'Search', icon:'🔎', keys:['linkCode','workOrder']}
 ];
 const FILTER_MAP = Object.fromEntries(FILTERS.map(f => [f[0], f[1]]));
@@ -3527,6 +3528,13 @@ function filterComparableValue(row, key) {
   if (key === 'invoice50') return row.invoice50 || pmoInvoice50Status(row) || '';
   if (key === 'second50') return row.second50 || String(getFieldValue(row.raw || row, ['Second 50% status','2nd 50 Invoice Status','Second 50 Invoice Status']) || '').trim();
   if (key === 'scopeTarget') return getScopeTargetValue(row);
+  if (key === 'requiredAction') {
+    if (row.pmoRequiredAction) return row.pmoRequiredAction;
+    try {
+      const audited = (typeof pmoAuditRowsBuild === 'function') ? pmoAuditRowsBuild([row])[0] : null;
+      return audited?.pmoRequiredAction || '';
+    } catch(e) { return ''; }
+  }
   if (key === 'sorReferenceNumber') return row.sorReferenceNumber || String(getFieldValue(row.raw || row, ['SOR Reference Number','SOR Ref Number','SOR Reference','SOR Ref','SOR Number','SOR No','SOR ID']) || '').trim();
   return row[key] ?? '';
 }
@@ -5547,7 +5555,13 @@ function renderPerformanceEndVisuals(rows) {
 }
 
 function getRawField(row,names){if(!row)return '';for(const n of names){if(row[n]!==undefined&&row[n]!==null&&String(row[n]).trim()!=='')return row[n];}const keys=Object.keys(row);for(const n of names){const target=String(n).toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'');const k=keys.find(x=>String(x).toLowerCase().replace(/\s+/g,'').replace(/[^a-z0-9]/g,'')===target);if(k&&row[k]!==undefined&&row[k]!==null&&String(row[k]).trim()!=='')return row[k];}return '';}
-function pmoNorm(v){return String(v??'').trim().toUpperCase().replace(/\s+/g,' ')}function pmoKey(l,w,t){return `${pmoNorm(l)}||${pmoNorm(w)}||${pmoNorm(t)}`}function pmoShortKey(l,w){return `${pmoNorm(l)}||${pmoNorm(w)}`}function pmoStatusText(r){const parts=['Fiber Status','Civil Status','FULL WO STATUS','Full WO Status','WO Status'].map(k=>getRawField(r,[k])).filter(v=>String(v??'').trim()!==''&&String(v??'').trim()!=='0');return parts.join(' / ').toLowerCase()}function pmoIsCompletedStatus(r){return /completed|complete|تم|مكتمل/i.test(pmoStatusText(r))}function pmoIsNotStartValue(v){const x=pmoNorm(v);return x===''||x==='0'||x==='NOT START'||x==='NOT STARTED'||x==='NOTSTART'}function pmoNotStartedNoProgress(raw,targetRaw,targetProgress){const full=getRawField(raw,['FULL WO STATUS','Full WO Status','WO Status']);const civil=getRawField(raw,['Civil Status']);const fiber=getRawField(raw,['Fiber Status']);const targetBlank=String(targetRaw??'').trim()==='';const targetZero=targetBlank||Number(targetProgress||0)===0;return targetZero&&pmoIsNotStartValue(full)&&pmoIsNotStartValue(civil)&&pmoIsNotStartValue(fiber)}function pmoRawForWO(w){return w.raw||{}}function pmoTargetMonth(w){return String(getRawField(pmoRawForWO(w),['Target Date ( MONTH )','Target Date Month','Target Month'])||'').trim()}function pmoUpdatedScope(w){return String(getRawField(pmoRawForWO(w),['Updated Scope'])||'').trim()}function pmoInvoice50(w){return String(getRawField(pmoRawForWO(w),['1st 50 Invoice Status','First 50 Invoice Status'])||'').trim()}function pmoSORStatus(w){return String(getRawField(pmoRawForWO(w),['SOR Status'])||'').trim()}function pmoInvoiceAmount(w){return parseNum(getRawField(pmoRawForWO(w),['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount']))}
+function pmoNorm(v){return String(v??'').trim().toUpperCase().replace(/\s+/g,' ')}function pmoKey(l,w,t){return `${pmoNorm(l)}||${pmoNorm(w)}||${pmoNorm(t)}`}function pmoShortKey(l,w){return `${pmoNorm(l)}||${pmoNorm(w)}`}function pmoStatusText(r){
+  const civil=getRawField(r,['Civil Status','Civil status','civil status']);
+  const fiber=getRawField(r,['Fiber Status','Fibre Status','Fiber status','fiber status']);
+  const implementation=getRawField(r,['implementation update','Implementation Update','Implementation update','IMPLEMENTATION UPDATE']);
+  const parts=[civil,fiber,implementation].filter(v=>String(v??'').trim()!==''&&String(v??'').trim()!=='0');
+  return parts.join(' / ').toLowerCase();
+}function pmoIsCompletedStatus(r){return /completed|complete|تم|مكتمل/i.test(pmoStatusText(r))}function pmoIsNotStartValue(v){const x=pmoNorm(v);return x===''||x==='0'||x==='NOT START'||x==='NOT STARTED'||x==='NOTSTART'}function pmoNotStartedNoProgress(raw,targetRaw,targetProgress){const full=getRawField(raw,['FULL WO STATUS','Full WO Status','WO Status']);const civil=getRawField(raw,['Civil Status']);const fiber=getRawField(raw,['Fiber Status']);const targetBlank=String(targetRaw??'').trim()==='';const targetZero=targetBlank||Number(targetProgress||0)===0;return targetZero&&pmoIsNotStartValue(full)&&pmoIsNotStartValue(civil)&&pmoIsNotStartValue(fiber)}function pmoRawForWO(w){return w.raw||{}}function pmoTargetMonth(w){return String(getRawField(pmoRawForWO(w),['Target Date ( MONTH )','Target Date Month','Target Month'])||'').trim()}function pmoUpdatedScope(w){return String(getRawField(pmoRawForWO(w),['Updated Scope'])||'').trim()}function pmoInvoice50(w){return String(getRawField(pmoRawForWO(w),['1st 50 Invoice Status','First 50 Invoice Status'])||'').trim()}function pmoSORStatus(w){return String(getRawField(pmoRawForWO(w),['SOR Status'])||'').trim()}function pmoInvoiceAmount(w){return parseNum(getRawField(pmoRawForWO(w),['1st 50 Invoice Cost Amount','First 50 Invoice Cost Amount']))}
 function pmoInvoice50Status(w){
   /* SOURCE-VALUE DISPLAY RULE:
      Executive SOR Summary & Revenue Exposure displays the actual current
@@ -5687,25 +5701,29 @@ function pmoAuditRowsBase(){
   return pmoAuditRowsBuild(base)
 }
 function pmoAuditRowsAll(){return pmoAuditRowsBuild(state.data?.workorders||[])}
-const PMO_FILTERS=[['region','Updated Region'],['city','Updated City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['sorStatus','SOR Status'],['issueType','Missing PM Report / PM Review / PM Review'],['linkCode','Link Code'],['workOrder','Work Order'],['invoice50','1st 50 Invoice Status'],['second50','Second 50% status'],['sorReferenceNumber','SOR Reference Number'],['scopeTarget','Scope Target'],['year','Year'],['performance','Performance']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
+const PMO_FILTERS=[['region','Updated Region'],['city','Updated City'],['district','WO Districts'],['project','Project'],['type','Type'],['subclass','Subclass'],['stage','Stage'],['workOrderStatus','Work Order Status'],['civilStatus','Civil Status'],['fiberStatus','Fiber Status'],['implementationUpdate','Implementation Update'],['sorStatus','SOR Status'],['issueType','Audit Record Status'],['requiredAction','Required Action'],['linkCode','Link Code'],['workOrder','Work Order'],['invoice50','1st 50 Invoice Status'],['second50','Second 50% status'],['sorReferenceNumber','SOR Reference Number'],['scopeTarget','Scope Target'],['year','Year'],['performance','Performance']];if(!state.pmo)state.pmo={filters:Object.fromEntries(PMO_FILTERS.map(f=>[f[0],'All'])),search:'',view:'audit',sorExposureMode:'gt80'};
 
 const PMO_FILTER_GROUPS=[
   {id:'destination', title:'Destination', icon:'🌍', keys:['region','city','district']},
   {id:'implementation', title:'Implementation', icon:'🚧', keys:['stage','project','subclass','type','workOrderStatus']},
   {id:'financial', title:'Financial', icon:'💰', keys:['sorStatus','invoice50','second50','sorReferenceNumber']},
-  {id:'audit', title:'Audit', icon:'🛡️', keys:['scopeTarget','year','performance','issueType']},
+  {id:'audit', title:'Audit', icon:'🛡️', keys:['scopeTarget','year','performance','requiredAction']},
   {id:'search', title:'Search', icon:'🔎', keys:['linkCode','workOrder']}
 ];
 const PMO_FILTER_LABELS=Object.fromEntries(PMO_FILTERS.map(f=>[f[0],f[1]]));
 if(!state.pmo.sorExposureMode)state.pmo.sorExposureMode='gt80';
 if(state.pmo.sorCriticalGlobalActive===undefined)state.pmo.sorCriticalGlobalActive=false;
-function pmoIssueType(r){if(r.pmoStatus==='PM REVIEW'||r.pmoCompletedBelow100)return 'PM Review';if(r.pmoStatus==='MISSING MET'||(r.pmoReasons||[]).some(x=>String(x).toLowerCase().includes('no internal met')||String(x).toLowerCase().includes('updated > 7')))return 'Missing PM Report / PM Review';return 'Sheet Synced'}
+function pmoIssueType(r){return r.pmoStatus || r.pmoCategory || 'Sheet Synced'}
 function pmoFieldValue(r,key){
   if(key==='city')return r.city||getRawField(r.raw,['City','WO City','Updated City'])||'';
   if(key==='project'){const projectValue=String(r.project||getRawField(r.raw,['Project'])||'').trim();return projectValue||'N/A';}
   if(key==='workOrderStatus')return r.raw?.['Work Order Status']||r.displayStatus||'';
   if(key==='sorStatus')return pmoSORStatus(r);
+  if(key==='civilStatus')return getRawField(r.raw || r.pmoMetRaw || r, ['Civil Status','Civil status','civil status']);
+  if(key==='fiberStatus')return getRawField(r.raw || r.pmoMetRaw || r, ['Fiber Status','Fibre Status','Fiber status','fiber status']);
+  if(key==='implementationUpdate')return getRawField(r.raw || r.pmoMetRaw || r, ['implementation update','Implementation Update','Implementation update','IMPLEMENTATION UPDATE']);
   if(key==='issueType')return pmoIssueType(r);
+  if(key==='requiredAction')return r.pmoRequiredAction||'';
   if(key==='linkCode')return r.linkCode||'';
   if(key==='workOrder')return r.workOrder||'';
   if(key==='year')return r.year||getRawField(r.raw,['Year'])||'';
@@ -5728,7 +5746,7 @@ function pmoRowsMatchingFiltersFromAll(){
 }
 function pmoSyncFiltersToGlobal(){
   if(!state?.pmo?.filters||!state.filters)return;
-  const map={region:'region',city:'city',district:'district',project:'project',type:'type',subclass:'subclass',stage:'stage',sorStatus:'sorStatus',invoice50:'invoice50',second50:'second50',sorReferenceNumber:'sorReferenceNumber',scopeTarget:'scopeTarget',year:'year',performance:'performance'};
+  const map={region:'region',city:'city',district:'district',project:'project',type:'type',subclass:'subclass',stage:'stage',sorStatus:'sorStatus',invoice50:'invoice50',second50:'second50',sorReferenceNumber:'sorReferenceNumber',scopeTarget:'scopeTarget',year:'year',performance:'performance',requiredAction:'requiredAction'};
   Object.entries(map).forEach(([pmoKey,globalKey])=>{
     const v=state.pmo.filters[pmoKey];
     state.filters[globalKey]=(v&&v!=='All')?String(v):'All';
@@ -5761,7 +5779,8 @@ function pmoSyncGlobalToFilters(){
     sorReferenceNumber:'sorReferenceNumber',
     scopeTarget:'scopeTarget',
     year:'year',
-    performance:'performance'
+    performance:'performance',
+    requiredAction:'requiredAction'
   };
 
   Object.entries(map).forEach(([pmoKey, globalKey]) => {
@@ -5885,15 +5904,23 @@ function renderPmoKpis(rows){
   const issues=rows.filter(r=>!['Healthy','Not Started'].includes(r.pmoCategory));
   const links=new Set(rows.map(r=>r.linkCode));
   const issueLinks=new Set(issues.map(r=>r.linkCode));
-  host.innerHTML=[
-    ['Total Audited Sites',rows.length,`${links.size} Link Codes`,'blue'],
-    ['Healthy / Synced',count('Healthy'),'PM report date within 7 days','green'],
-    ['Stale Updates',count('Stale Update'),'PM last Update Date > 7 days','yellow'],
-    ['Missing in PM Report',count('Missing in PM Report'),'Validation = Not Found','red'],
-    ['Progress Mismatch',count('Progress Mismatch'),'Completed status below 100%','red'],
-    ['Missing Status',count('Missing Status'),'Missing status/date fields','orange'],
-    ['Not Started',count('Not Started'),'Normal not-started scope','blue']
-  ].map(x=>`<div class="pmo-kpi"><div class="label">${escapeHtml(x[0])}</div><div class="value"><span class="pmo-chip ${x[3]}">${escapeHtml(String(x[1]))}</span></div><div class="hint">${escapeHtml(x[2])}</div></div>`).join('');
+  const cards=[
+    ['Total Audited Sites',rows.length,`${links.size} Link Codes`,'blue','All'],
+    ['Healthy / Synced',count('Healthy'),'PM report date within 7 days','green','No Action Required'],
+    ['Stale Updates',count('Stale Update'),'PM last Update Date > 7 days','yellow','Update PM Report Date'],
+    ['Missing in PM Report',count('Missing in PM Report'),'Validation = Not Found','red','Add Missing Record in PM Report'],
+    ['Progress Mismatch',count('Progress Mismatch'),'Completed status below 100%','red','Verify Site Progress'],
+    ['Missing Status',count('Missing Status'),'Missing status/date fields','orange','Complete Missing Fields'],
+    ['Not Started',count('Not Started'),'Normal not-started scope','blue','Monitor Site']
+  ];
+  host.innerHTML=cards.map(x=>`<div class="pmo-kpi" data-required-action="${escapeHtml(x[4])}" title="Click to filter by Required Action"><div class="label">${escapeHtml(x[0])}</div><div class="value"><span class="pmo-chip ${x[3]}">${escapeHtml(String(x[1]))}</span></div><div class="hint">${escapeHtml(x[2])}</div></div>`).join('');
+  host.querySelectorAll('[data-required-action]').forEach(card=>card.addEventListener('click',()=>{
+    const action=card.getAttribute('data-required-action')||'All';
+    state.pmo.filters.requiredAction=action;
+    if(state.filters) state.filters.requiredAction=action;
+    pmoSyncFiltersToGlobal();
+    renderAll();
+  }));
   const pill=document.getElementById('pmo-issue-pill');if(pill){pill.textContent=`${issueLinks.size} ISSUES FOUND`;pill.className='pmo-chip '+(issueLinks.size?'red':'green');}
   const sub=document.getElementById('pmo-alert-sub');if(sub)sub.textContent=`${issueLinks.size} LINK CODES REQUIRE PM REPORT ACTION`;
 }
@@ -5913,14 +5940,14 @@ function renderPmoRootCause(rows){
 }
 function renderPmoAuditTable(rows){
   const t=document.getElementById('pmo-audit-table');if(!t)return;
-  t.innerHTML=`<thead><tr><th>Identities</th><th>Regional Info</th><th>Target %</th><th>Cost</th><th>PM/Site Status</th><th>PM Report Validation</th><th>PM last Update Date</th><th>Days Since PM Update</th><th>Variance / Flag</th><th>Target Date</th><th>Record Status</th><th>Required Action</th><th>Audit Priority</th></tr></thead><tbody>`+rows.map(r=>{
+  t.innerHTML=`<thead><tr><th>Link Code</th><th>Work Order</th><th>Region</th><th>City</th><th>District</th><th>Target %</th><th>Cost</th><th>PM/Site Status<br><span class="pmo-sub">Civil / Fiber / Implementation</span></th><th>PM Report Validation</th><th>PM last Update Date</th><th>Days Since PM Update</th><th>Variance / Flag</th><th>Target Date</th><th>Record Status</th><th>Required Action</th><th>Audit Priority</th></tr></thead><tbody>`+rows.map(r=>{
     const variance=(r.pmoCategory==='Healthy')?'SHEET SYNCED':(r.pmoReasons||[]).join(' | ');
     const site=pmoStatusText(r.pmoMetRaw)||'No PM status';
     const targetDate=fmtDate(r.updatedTarget||r.targeted||r.baseline),costVal=effectiveCost(r);
     const updatedDisplay=r.pmoUpdatedDate?fmtDate(r.pmoUpdatedDate):(r.pmoUpdatedRaw||'—');
     const daysDisplay=(r.pmoDaysSinceUpdate===null||r.pmoDaysSinceUpdate===undefined)?'—':String(r.pmoDaysSinceUpdate)+' days';
     const rowAlert=!['Healthy','Not Started'].includes(r.pmoCategory);
-    return`<tr class="${rowAlert?'pmo-row-alert':''}"><td><div class="pmo-ident">${escapeHtml(r.linkCode)}</div><div class="pmo-sub">${escapeHtml(r.workOrder)}</div></td><td><b>${escapeHtml(r.region)}</b><div class="pmo-sub">${escapeHtml(r.district||r.city)}</div></td><td><b>${fmtPct(r.actualProgress)}</b></td><td><b>${fmtMoney(costVal)}</b></td><td>${escapeHtml(site)}</td><td><span class="pmo-chip ${String(r.pmoValidation).toLowerCase().includes('not')?'red':'green'}">${escapeHtml(r.pmoValidation||'Available')}</span></td><td><b>${escapeHtml(updatedDisplay)}</b><div class="pmo-sub">From PM last Update Date</div></td><td><span class="pmo-chip ${r.pmoStale?'yellow':'green'}">${escapeHtml(daysDisplay)}</span></td><td><span class="pmo-chip ${pmoAuditClassFor(r.pmoCategory)}">${escapeHtml(variance)}</span></td><td>${escapeHtml(targetDate)}</td><td>${pmoStatusChip(r.pmoStatus,r.pmoCategory)}</td><td><b>${escapeHtml(r.pmoRequiredAction)}</b></td><td>${escapeHtml(r.pmoPriority)}</td></tr>`
+    return`<tr class="${rowAlert?'pmo-row-alert':''}"><td><div class="pmo-ident">${escapeHtml(r.linkCode)}</div></td><td><div class="pmo-sub">${escapeHtml(r.workOrder)}</div></td><td><b>${escapeHtml(r.region||'—')}</b></td><td>${escapeHtml(r.city||'—')}</td><td>${escapeHtml(r.district||'—')}</td><td><b>${fmtPct(r.actualProgress)}</b></td><td><b>${fmtMoney(costVal)}</b></td><td>${escapeHtml(site)}</td><td><span class="pmo-chip ${String(r.pmoValidation).toLowerCase().includes('not')?'red':'green'}">${escapeHtml(r.pmoValidation||'Available')}</span></td><td><b>${escapeHtml(updatedDisplay)}</b></td><td><span class="pmo-chip ${r.pmoStale?'yellow':'green'}">${escapeHtml(daysDisplay)}</span></td><td><span class="pmo-chip ${pmoAuditClassFor(r.pmoCategory)}">${escapeHtml(variance)}</span></td><td>${escapeHtml(targetDate)}</td><td>${pmoStatusChip(r.pmoStatus,r.pmoCategory)}</td><td><b>${escapeHtml(r.pmoRequiredAction)}</b></td><td>${escapeHtml(r.pmoPriority)}</td></tr>`
   }).join('')+'</tbody>'
 }
 function renderPmoMasterTable(rows){const t=document.getElementById('pmo-master-table');if(!t)return;t.innerHTML=`<thead><tr><th>Identities</th><th>Supervisor</th><th>City</th><th>Category</th><th>Stage</th><th>Trenching</th><th>Fiber/ODB</th><th>SOR / Invoice</th><th>Record Status</th></tr></thead><tbody>`+rows.map(r=>{const sup=getRawField(r.raw,['Supervisor','Assigned To','Owner','Project Manager'])||'—',cat=`${r.project||'FTTH'} / ${r.subclass||r.type||'—'}`,tr=`${parseNum(r.milestones?.Trench?.progress)} / ${parseNum(r.milestones?.Trench?.scope)}`,fo=`Fib: ${parseNum(r.milestones?.Fiber?.progress)} | ODB: ${parseNum(r.milestones?.ODBs?.progress)}`,sor=`${pmoSORStatus(r)||'—'} / ${pmoInvoice50Status(r)||'Not Started'}`;return`<tr class="${r.pmoReasons.length?'pmo-row-alert':''}"><td><div class="pmo-ident">${escapeHtml(r.linkCode)}</div><div class="pmo-sub">${escapeHtml(r.workOrder)}</div></td><td><b>${escapeHtml(sup)}</b><div class="pmo-sub">${escapeHtml(r.district)}</div></td><td>${escapeHtml(r.city||'—')}</td><td><span class="pmo-chip blue">${escapeHtml(cat)}</span></td><td>${escapeHtml(r.stage)}</td><td>${escapeHtml(tr)}</td><td>${escapeHtml(fo)}</td><td>${escapeHtml(sor)}</td><td>${pmoStatusChip(r.pmoStatus)}</td></tr>`}).join('')+'</tbody>'}
@@ -6265,7 +6292,7 @@ function normalizeInvoiceStatusLabel(status){
     <div class="sor-exec-note"><strong>Executive Reading:</strong> The Critical Observation selector filters the SOR Exposure Link Codes table directly. The table is Link-Code based and includes District, Link Code, Avg Completion, SOR Status, and Exposure Cost only.</div>`;
 
 }
-function renderPmoAll(){if(!document.getElementById('tab-pmo'))return;/* PMO uses its own dedicated filter strip, visible only inside PMO Audit. */renderPmoFilters();const rows=pmoFilteredRows();renderPmoKpis(rows);renderPmoCards(rows);renderPmoAuditTable(rows);renderPmoRootCause(rows);renderPmoMasterTable(rows);renderPmoCost(rows);pmoSetView(state.pmo?.view||'audit',false)}function pmoSetView(view,scrollToPanel=false){state.pmo.view=view;const audit=view==='audit';document.getElementById('pmo-view-audit')?.classList.toggle('active',audit);document.getElementById('pmo-view-master')?.classList.toggle('active',!audit);document.getElementById('pmo-audit-panel')?.classList.toggle('hidden',!audit);document.getElementById('pmo-master-panel')?.classList.toggle('hidden',audit);if(scrollToPanel){setTimeout(()=>{const target=audit?document.getElementById('pmo-missing-panel'):document.getElementById('pmo-master-panel');target?.scrollIntoView({behavior:'smooth',block:'start'});},50)}}function pmoExportCsv(){const rows=pmoFilteredRows(),headers=['Link Code','Work Order','Region','City','District','Project','Subclass','Stage','Target %','Cost','PM/Site Status','PMO Status','Required Action','Priority','Reasons','PM last Update Date','Target Date'];const csv=[headers.join(',')].concat(rows.map(r=>[r.linkCode,r.workOrder,r.region,r.city,r.district,r.project,r.subclass,r.stage,fmtPct(r.actualProgress),fmtMoney(effectiveCost(r)),pmoStatusText(r.pmoMetRaw),r.pmoStatus,r.pmoRequiredAction,r.pmoPriority,r.pmoReasons.join(' | '),r.pmoUpdatedDate?fmtDate(r.pmoUpdatedDate):(r.pmoUpdatedRaw||'—'),fmtDate(r.updatedTarget||r.targeted||r.baseline)].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','))).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='pmo_audit_reconciliation.csv';a.click()}function pmoExportAuditExcel(){exportTableToExcel('pmo-audit-table','pmo_audit_comparison')}function pmoExportMasterExcel(){exportTableToExcel('pmo-master-table','pmo_master_data_inventory')}
+function renderPmoAll(){if(!document.getElementById('tab-pmo'))return;/* PMO uses its own dedicated filter strip, visible only inside PMO Audit. */renderPmoFilters();const rows=pmoFilteredRows();renderPmoKpis(rows);renderPmoCards(rows);renderPmoAuditTable(rows);renderPmoRootCause(rows);renderPmoMasterTable(rows);renderPmoCost(rows);pmoSetView(state.pmo?.view||'audit',false)}function pmoSetView(view,scrollToPanel=false){state.pmo.view=view;const audit=view==='audit';document.getElementById('pmo-view-audit')?.classList.toggle('active',audit);document.getElementById('pmo-view-master')?.classList.toggle('active',!audit);document.getElementById('pmo-audit-panel')?.classList.toggle('hidden',!audit);document.getElementById('pmo-master-panel')?.classList.toggle('hidden',audit);if(scrollToPanel){setTimeout(()=>{const target=audit?document.getElementById('pmo-missing-panel'):document.getElementById('pmo-master-panel');target?.scrollIntoView({behavior:'smooth',block:'start'});},50)}}function pmoExportCsv(){const rows=pmoFilteredRows(),headers=['Link Code','Work Order','Region','City','District','Project','Subclass','Stage','Target %','Cost','Civil Status','Fiber Status','Implementation Update','PM/Site Status','PMO Status','Required Action','Priority','Reasons','PM last Update Date','Target Date'];const csv=[headers.join(',')].concat(rows.map(r=>[r.linkCode,r.workOrder,r.region,r.city,r.district,r.project,r.subclass,r.stage,fmtPct(r.actualProgress),fmtMoney(effectiveCost(r)),getRawField(r.raw,['Civil Status']),getRawField(r.raw,['Fiber Status','Fibre Status']),getRawField(r.raw,['implementation update','Implementation Update']),pmoStatusText(r.pmoMetRaw),r.pmoStatus,r.pmoRequiredAction,r.pmoPriority,r.pmoReasons.join(' | '),r.pmoUpdatedDate?fmtDate(r.pmoUpdatedDate):(r.pmoUpdatedRaw||'—'),fmtDate(r.updatedTarget||r.targeted||r.baseline)].map(v=>'"'+String(v??'').replace(/"/g,'""')+'"').join(','))).join('\n');const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([csv],{type:'text/csv'}));a.download='pmo_audit_reconciliation.csv';a.click()}function pmoExportAuditExcel(){exportTableToExcel('pmo-audit-table','pmo_audit_comparison')}function pmoExportMasterExcel(){exportTableToExcel('pmo-master-table','pmo_master_data_inventory')}
 function pmoExportMissingExcel(){const rows=pmoFilteredRows().filter(r=>(r.pmoReasons||[]).length);const html='<table id="pmo-missing-export-table"><thead><tr><th>Link Code</th><th>Work Order</th><th>Region</th><th>District</th><th>Project</th><th>Subclass</th><th>Stage</th><th>Target %</th><th>Cost</th><th>Issue Type</th><th>PM/Site Status</th><th>Record Status</th><th>Reasons</th><th>Updated</th><th>Target Date</th></tr></thead><tbody>'+rows.map(r=>'<tr><td>'+escapeHtml(r.linkCode)+'</td><td>'+escapeHtml(r.workOrder)+'</td><td>'+escapeHtml(r.region)+'</td><td>'+escapeHtml(r.district||r.city)+'</td><td>'+escapeHtml(r.project)+'</td><td>'+escapeHtml(r.subclass)+'</td><td>'+escapeHtml(r.stage)+'</td><td>'+escapeHtml(fmtPct(r.actualProgress))+'</td><td>'+escapeHtml(fmtMoney(effectiveCost(r)))+'</td><td>'+escapeHtml(pmoIssueType(r))+'</td><td>'+escapeHtml(pmoStatusText(r.pmoMetRaw)||'No PM status')+'</td><td>'+escapeHtml(r.pmoStatus)+'</td><td>'+escapeHtml((r.pmoReasons||[]).join(' | '))+'</td><td>'+escapeHtml(r.pmoUpdatedDate?fmtDate(r.pmoUpdatedDate):(r.pmoUpdatedRaw||'—'))+'</td><td>'+escapeHtml(fmtDate(r.updatedTarget||r.targeted||r.baseline))+'</td></tr>').join('')+'</tbody></table>';const tmp=document.createElement('div');tmp.style.display='none';tmp.innerHTML=html;document.body.appendChild(tmp);exportTableToExcel('pmo-missing-export-table','pmo_missing_pm_report');tmp.remove()}
 
 function pmoExportSorExposureExcel(){
