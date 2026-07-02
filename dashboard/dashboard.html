@@ -7172,28 +7172,47 @@ function renderExecutiveReports(){
 }
 
 function renderAll() {
+  // PERFORMANCE FIX: render only the active tab instead of rebuilding every table/chart on each load.
+  // The previous version rendered Overview + Tables + PMO Audit + Performance + Reports together,
+  // which can freeze the browser and trigger "This page isn't responding" on Streamlit Cloud.
   updateBulkFilterStatus();
   renderFilters();
   let rows = getFilteredWorkorders();
   rows = applyFilteredKpiContext(rows);
   const penalties = getFilteredPenalties(rows);
-  renderKpis(rows, penalties);
-  renderExecutiveOverviewSummary(rows);
-  renderHealthSummary(rows);
-  renderMilestones(rows);
-  renderClosureAlert(rows);
-  renderTimeline(rows);
-  renderPenaltyHeatmap(penalties);
-  renderPerformance(rows);
-  renderKpiTrend(rows);
-  renderPerformancePage(rows);
-  renderPerformanceEndVisuals(rows);
-  renderPerformanceExplanationEngine(rows);
-  renderExtraTables(rows, penalties);
-  renderDecision(rows, penalties);
-  renderPmoAll();
-  if (state.tab === 'reports') renderExecutiveReports();
-  bindPmoInputs();
+  const activeTab = state.tab || 'overview';
+
+  if (activeTab === 'overview') {
+    renderKpis(rows, penalties);
+    renderExecutiveOverviewSummary(rows);
+    renderHealthSummary(rows);
+    renderMilestones(rows);
+    renderClosureAlert(rows);
+    renderTimeline(rows);
+    renderPenaltyHeatmap(penalties);
+    renderPerformance(rows);
+    renderKpiTrend(rows);
+  } else if (activeTab === 'tables') {
+    renderKpis(rows, penalties);
+    renderExtraTables(rows, penalties);
+  } else if (activeTab === 'pmo') {
+    renderPmoAll();
+    bindPmoInputs();
+  } else if (activeTab === 'performance') {
+    renderPerformancePage(rows);
+    renderPerformanceEndVisuals(rows);
+  } else if (activeTab === 'perf-explanation') {
+    renderPerformanceExplanationEngine(rows);
+  } else if (activeTab === 'decision') {
+    renderDecision(rows, penalties);
+  } else if (activeTab === 'reports') {
+    // Reports need KPI and executive summaries as source blocks for copied report cards.
+    renderKpis(rows, penalties);
+    renderExecutiveOverviewSummary(rows);
+    renderPmoCost(rows);
+    renderExecutiveReports();
+  }
+
   updateDetailedAnalysisButtons();
   dashboardFilterIntegrityCheck();
 }
@@ -7222,10 +7241,10 @@ function setTab(tabName) {
   const reportsSection = document.getElementById('tab-reports');
   if (reportsSection) reportsSection.classList.toggle('hidden', tabName !== 'reports');
   document.querySelectorAll('.report-tab').forEach(t => t.classList.toggle('active', t.dataset.tab === tabName));
-  if (tabName === 'reports') renderExecutiveReports();
   const globalFilters = document.getElementById('filters');
   if (globalFilters) globalFilters.style.display = tabName === 'pmo' ? 'none' : '';
-  if (tabName === 'pmo') { bindPmoInputs(); renderPmoAll(); }
+  // Lazy render the selected tab after it becomes visible.
+  renderAll();
 }
 document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
 document.querySelectorAll('.report-tab').forEach(btn => btn.addEventListener('click', () => setTab(btn.dataset.tab)));
