@@ -2832,6 +2832,138 @@ def read_dashboard_html_cached(path_str: str, mtime: float) -> str:
     return path.read_text(encoding="utf-8", errors="ignore")
 
 
+
+def render_native_dashboard_emergency(raw: Dict[str, List[dict]]) -> None:
+    """Emergency native Streamlit dashboard: disables heavy dashboard.html iframe to stop browser freeze."""
+    st.markdown("""
+    <div style="background:#f8fbff;border:1px solid #d8e6f5;border-radius:18px;padding:22px;margin-top:18px;text-align:center;">
+      <h2 style="margin:0;color:#0b2a4a;">Dawiyat Executive Project Dashboard</h2>
+      <div style="display:inline-block;background:#06142d;color:#ffd400;border-radius:18px;padding:5px 16px;font-weight:700;font-size:12px;">Prepared by Eng/Ahmed Fekry - Quality & Performance Director (PMO)</div>
+      <p style="color:#6b7d95;margin:14px 0 0 0;">Emergency stable native mode: heavy HTML/JavaScript dashboard iframe is disabled to prevent browser freezing.</p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    df = pd.DataFrame(raw.get("workorders", []))
+    if df.empty:
+        st.warning("No work order data found in data/u_osp_work_order.csv")
+        return
+    df.columns = [str(c).strip() for c in df.columns]
+    for c in df.columns:
+        df[c] = df[c].astype(str).fillna("")
+
+    # Global filters from the master file only.
+    with st.expander("Global Filters", expanded=False):
+        fc = st.columns(4)
+        def _select(label, col, key):
+            vals = ["All"] + sorted([x for x in df[col].dropna().astype(str).str.strip().unique().tolist() if x]) if col in df.columns else ["All"]
+            return fc[key].selectbox(label, vals, key=f"native_filter_{col}_{key}")
+        region = _select("Region", "Region", 0)
+        city = _select("City", "City", 1)
+        district = _select("District", "District", 2)
+        year = _select("Year", "Year", 3)
+        fc2 = st.columns(4)
+        scope = fc2[0].selectbox("Scope Target", ["All"] + sorted([x for x in df.get("Scope Target", pd.Series(dtype=str)).astype(str).str.strip().unique().tolist() if x]), key="native_scope") if "Scope Target" in df.columns else "All"
+        project = fc2[1].selectbox("Project", ["All"] + sorted([x for x in df.get("Project", pd.Series(dtype=str)).astype(str).str.strip().unique().tolist() if x]), key="native_project") if "Project" in df.columns else "All"
+        stage = fc2[2].selectbox("Stage", ["All"] + sorted([x for x in df.get("Stage", pd.Series(dtype=str)).astype(str).str.strip().unique().tolist() if x]), key="native_stage") if "Stage" in df.columns else "All"
+        req_filter = fc2[3].selectbox("Required Action", ["All", "No Action Required", "Update PM Report", "Add Missing Record", "Verify Site Progress", "Complete Missing Fields", "Monitor Site"], key="native_required_action")
+
+    fdf = df.copy()
+    for col, val in [("Region", region), ("City", city), ("District", district), ("Year", year), ("Scope Target", scope), ("Project", project), ("Stage", stage)]:
+        if val != "All" and col in fdf.columns:
+            fdf = fdf[fdf[col].astype(str).str.strip() == val]
+
+    def _num_series(col):
+        if col not in fdf.columns:
+            return pd.Series([0] * len(fdf), index=fdf.index)
+        return pd.to_numeric(fdf[col].astype(str).str.replace(',', '', regex=False).str.replace('%', '', regex=False), errors='coerce').fillna(0)
+
+    total_wo = len(fdf)
+    total_links = fdf["Link Code"].nunique() if "Link Code" in fdf.columns else 0
+    total_cost = _num_series("WO Cost")
+    if total_cost.sum() == 0:
+        total_cost = _num_series("Cost")
+
+    m1, m2, m3, m4 = st.columns(4)
+    m1.metric("Work Orders", f"{total_wo:,}")
+    m2.metric("Link Codes", f"{total_links:,}")
+    m3.metric("Total Cost", f"{total_cost.sum():,.0f}")
+    m4.metric("Available PM Report", f"{(fdf.get('Validation', pd.Series(dtype=str)).astype(str).str.strip().str.lower()=='available').sum():,}" if "Validation" in fdf.columns else "-")
+
+    def _parse_date(s):
+        return pd.to_datetime(s, errors="coerce", dayfirst=True)
+
+    audit = fdf.copy()
+    pm_dates = _parse_date(audit.get("PM last Update Date", "")) if "PM last Update Date" in audit.columns else pd.Series(pd.NaT, index=audit.index)
+    today = pd.Timestamp.today().normalize()
+    days = (today - pm_dates).dt.days
+    audit["Days Since PM Update"] = days.fillna(9999).astype(int)
+
+    validation = audit.get("Validation", pd.Series("Available", index=audit.index)).astype(str).str.strip().str.lower()
+    civil = audit.get("Civil Status", pd.Series("", index=audit.index)).astype(str).str.strip().str.lower()
+    fiber = audit.get("Fiber Status", pd.Series("", index=audit.index)).astype(str).str.strip().str.lower()
+    impl = audit.get("implementation update", pd.Series("", index=audit.index)).astype(str).str.strip().str.lower()
+    pct = pd.to_numeric(audit.get("Percentage of Completion", pd.Series("0", index=audit.index)).astype(str).str.replace('%','', regex=False), errors='coerce').fillna(0)
+
+    status = []
+    action = []
+    priority = []
+    flag = []
+    for i in audit.index:
+        if validation.loc[i] == "not found":
+            status.append("🔴 Missing in PM Report"); action.append("Add Missing Record"); priority.append("🔴 Critical"); flag.append("Validation = Not Found")
+        elif not civil.loc[i] and not fiber.loc[i] and not impl.loc[i]:
+            status.append("🟠 Missing Status"); action.append("Complete Missing Fields"); priority.append("🟠 Medium"); flag.append("Missing PM status fields")
+        elif pct.loc[i] < 100 and ("completed" in civil.loc[i] or "completed" in fiber.loc[i] or "completed" in impl.loc[i]):
+            status.append("🔴 Progress Mismatch"); action.append("Verify Site Progress"); priority.append("🔴 High"); flag.append("Completed status but progress < 100%")
+        elif audit.loc[i, "Days Since PM Update"] > 7:
+            status.append("🟡 Stale Update"); action.append("Update PM Report"); priority.append("🟡 Low"); flag.append("PM last Update Date > 7 days")
+        elif pct.loc[i] == 0 and ("not start" in civil.loc[i] or "not start" in fiber.loc[i] or "not start" in impl.loc[i]):
+            status.append("🔵 Not Started"); action.append("Monitor Site"); priority.append("🔵 Monitor"); flag.append("Not Started / no progress")
+        else:
+            status.append("🟢 Healthy"); action.append("No Action Required"); priority.append("🟢 None"); flag.append("Sheet Synced")
+    audit["Record Status"] = status
+    audit["Required Action"] = action
+    audit["Audit Priority"] = priority
+    audit["Variance / Flag"] = flag
+
+    if req_filter != "All":
+        audit = audit[audit["Required Action"] == req_filter]
+
+    tabs = st.tabs(["Executive Overview", "PMO Audit", "Tables & Exports", "KPI Performance", "Executive Reports"])
+    with tabs[0]:
+        st.subheader("Project Performance Summary")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        c1.metric("Healthy", f"{(audit['Record Status'].str.contains('Healthy', regex=False)).sum():,}")
+        c2.metric("Stale Update", f"{(audit['Required Action']=='Update PM Report').sum():,}")
+        c3.metric("Missing PM Report", f"{(audit['Required Action']=='Add Missing Record').sum():,}")
+        c4.metric("Missing Fields", f"{(audit['Required Action']=='Complete Missing Fields').sum():,}")
+        c5.metric("Monitor Site", f"{(audit['Required Action']=='Monitor Site').sum():,}")
+        if "Region" in fdf.columns:
+            st.dataframe(fdf.groupby(["Region", "City" if "City" in fdf.columns else "Region"]).size().reset_index(name="WO Count"), use_container_width=True, hide_index=True)
+
+    with tabs[1]:
+        st.subheader("Audit Comparison")
+        export_cols = ["Link Code", "Work Order", "Region", "City", "District", "Percentage of Completion", "WO Cost", "Cost", "Civil Status", "Fiber Status", "implementation update", "Validation", "PM last Update Date", "Days Since PM Update", "Variance / Flag", "Targeted Completion", "Record Status", "Required Action", "Audit Priority"]
+        export_cols = [c for c in export_cols if c in audit.columns]
+        st.caption("Stale update is calculated from PM last Update Date only. Required Action is linked with the global filters.")
+        st.dataframe(audit[export_cols], use_container_width=True, hide_index=True, height=520)
+        csv = audit[export_cols].to_csv(index=False).encode("utf-8-sig")
+        st.download_button("Export Audit Excel/CSV", csv, "Audit_Comparison.csv", "text/csv", use_container_width=True)
+
+    with tabs[2]:
+        st.subheader("Master Data")
+        show_cols = [c for c in ["Link Code", "Work Order", "Region", "City", "District", "Project", "Stage", "Year", "Scope Target", "WO Cost", "Cost", "Percentage of Completion"] if c in fdf.columns]
+        st.dataframe(fdf[show_cols], use_container_width=True, hide_index=True, height=520)
+        st.download_button("Export Master CSV", fdf.to_csv(index=False).encode("utf-8-sig"), "Master_Data.csv", "text/csv", use_container_width=True)
+
+    with tabs[3]:
+        st.subheader("KPI Performance")
+        st.info("Heavy KPI JavaScript charts are temporarily disabled in this emergency stable build. Data and audit are available above.")
+    with tabs[4]:
+        st.subheader("Executive Reports")
+        st.info("Heavy Executive Reports rendering is temporarily disabled to prevent browser freeze. Use Tables & Exports for the current filtered dataset.")
+
+
 def render_dashboard() -> None:
     if not DASHBOARD_PATH.exists():
         st.error("Dashboard HTML file is missing: dashboard/dashboard.html")
@@ -2884,10 +3016,11 @@ def render_dashboard() -> None:
                         st.session_state["active_hidden_page"] = target_page
                         st.rerun()
 
-    dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
-    dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
-
-    components.html(dashboard_html, height=1800, scrolling=True)
+    # EMERGENCY PERFORMANCE FIX:
+    # dashboard.html contains heavy JavaScript executed inside a Streamlit iframe.
+    # It causes the browser-level "This page isn't responding" freeze before the user
+    # can even open Manage App. Render a native Streamlit dashboard instead.
+    render_native_dashboard_emergency(raw)
 
 
 
