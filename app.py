@@ -1407,6 +1407,42 @@ def safe_read_csv(path: Path) -> pd.DataFrame:
     return read_csv_cached(str(path), mtime)
 
 
+@st.cache_data(show_spinner=False)
+def load_master_workorders(path_str: str, mtime: float) -> pd.DataFrame:
+    """Single source-of-truth loader for u_osp_work_order.csv.
+
+    V4 performance rule:
+    - Read the workorder file once through Streamlit cache.
+    - Strip accidental spaces from column names.
+    - Keep City/District inside the master file when available, reducing dependence on District.csv.
+    """
+    df = read_csv_cached(path_str, mtime).copy()
+    if df.empty:
+        return df
+    df.columns = [str(c).strip() for c in df.columns]
+    for col in ["Region", "City", "District", "Validation", "PM last Update Date"]:
+        if col not in df.columns:
+            df[col] = ""
+    return df.fillna("").astype(str)
+
+
+def master_workorders_df() -> pd.DataFrame:
+    mtime = WO_PATH.stat().st_mtime if WO_PATH.exists() else 0
+    return load_master_workorders(str(WO_PATH), mtime)
+
+
+def derive_district_records_from_workorders(df: pd.DataFrame) -> pd.DataFrame:
+    """Create lightweight location records from u_osp_work_order.csv.
+    This replaces District.csv as the dashboard location source when City/District exist in the master file.
+    """
+    needed = ["Link Code", "Work Order", "Region", "City", "District"]
+    if df.empty or not all(c in df.columns for c in needed):
+        return pd.DataFrame(columns=needed)
+    out = df[needed].copy()
+    out = out[(out["Link Code"].astype(str).str.strip() != "") | (out["Work Order"].astype(str).str.strip() != "")]
+    return out.drop_duplicates().fillna("").astype(str)
+
+
 def df_to_records(df: pd.DataFrame) -> List[dict]:
     if df.empty:
         return []
@@ -1840,11 +1876,18 @@ def apply_derived_billing_fields(wo: pd.DataFrame) -> pd.DataFrame:
 
 
 def build_initial_raw() -> Dict[str, List[dict]]:
-    merged_workorders = apply_derived_billing_fields(apply_project_updates_to_workorders(safe_read_csv(WO_PATH)))
+    # V4 Phase 1: u_osp_work_order.csv is the main source for operational + location data.
+    # District.csv is no longer required for dashboard Region/City/District when those
+    # columns are already present in the master workorder file.
+    master_wo = master_workorders_df()
+    merged_workorders = apply_derived_billing_fields(apply_project_updates_to_workorders(master_wo))
+    district_records = derive_district_records_from_workorders(merged_workorders)
+    if district_records.empty and DISTRICT_PATH.exists():
+        district_records = safe_read_csv(DISTRICT_PATH)
     return {
         "workorders": df_to_records(merged_workorders),
         "penalties": df_to_records(safe_read_csv(PENALTIES_PATH)),
-        "districts": df_to_records(safe_read_csv(DISTRICT_PATH)),
+        "districts": df_to_records(district_records),
         "document_status": read_cached_document_status_records(),
     }
 
@@ -2799,7 +2842,7 @@ def render_dashboard() -> None:
     with st.sidebar.expander("Data check", expanded=False):
         st.write(f"Work Orders: {len(raw['workorders']):,}")
         st.write(f"Penalties: {len(raw['penalties']):,}")
-        st.write(f"District: {len(raw['districts']):,}")
+        st.write(f"Location records from u_osp_work_order: {len(raw['districts']):,}")
 
     render_smart_bulk_filter_panel(raw)
 
