@@ -5978,7 +5978,7 @@ function renderPmoRootCause(rows){
   const total=issueRows.length||1;
   host.innerHTML=cats.map(cat=>{const n=issueRows.filter(r=>r.pmoCategory===cat).length;const pct=(n/total*100);return`<div class="pmo-card"><div class="pmo-card-link"><span class="pmo-chip ${pmoAuditClassFor(cat)}">${escapeHtml(cat)}</span></div><div class="pmo-card-target">${fmtInt(n)} Rows • ${pct.toFixed(1)}%</div><div class="sor-exposure-progress"><span style="width:${Math.min(100,pct).toFixed(1)}%"></span></div><div class="pmo-card-reason">${escapeHtml(pmoRequiredActionFor(cat))}</div></div>`}).join('') || '<div class="empty">No issues to analyze.</div>';
 }
-function renderPmoAuditTable(rows){
+function renderPmoAuditTable(rows){ rows=(rows||[]).slice(0,500);
   const t=document.getElementById('pmo-audit-table');if(!t)return;
   t.innerHTML=`<thead><tr><th>Link Code</th><th>Work Order</th><th>Region</th><th>City</th><th>District</th><th>Target %</th><th>Cost</th><th>PM/Site Status<br><span class="pmo-sub">Civil / Fiber / Implementation</span></th><th>PM Report Validation</th><th>PM last Update Date</th><th>Days Since PM Update</th><th>Variance / Flag</th><th>Target Date</th><th>Record Status</th><th>Required Action</th><th>Audit Priority</th></tr></thead><tbody>`+rows.map(r=>{
     const variance=(r.pmoCategory==='Healthy')?'SHEET SYNCED':(r.pmoReasons||[]).join(' | ');
@@ -5990,7 +5990,7 @@ function renderPmoAuditTable(rows){
     return`<tr class="${rowAlert?'pmo-row-alert':''}"><td><div class="pmo-ident">${escapeHtml(r.linkCode)}</div></td><td><div class="pmo-sub">${escapeHtml(r.workOrder)}</div></td><td><b>${escapeHtml(r.region||'—')}</b></td><td>${escapeHtml(r.city||'—')}</td><td>${escapeHtml(r.district||'—')}</td><td><b>${fmtPct(r.actualProgress)}</b></td><td><b>${fmtMoney(costVal)}</b></td><td>${escapeHtml(site)}</td><td><span class="pmo-chip ${String(r.pmoValidation).toLowerCase().includes('not')?'red':'green'}">${escapeHtml(r.pmoValidation||'Available')}</span></td><td><b>${escapeHtml(updatedDisplay)}</b></td><td><span class="pmo-chip ${r.pmoStale?'yellow':'green'}">${escapeHtml(daysDisplay)}</span></td><td><span class="pmo-chip ${pmoAuditClassFor(r.pmoCategory)}">${escapeHtml(variance)}</span></td><td>${escapeHtml(targetDate)}</td><td>${pmoStatusChip(r.pmoStatus,r.pmoCategory)}</td><td><b>${escapeHtml(r.pmoRequiredAction)}</b></td><td>${escapeHtml(r.pmoPriority)}</td></tr>`
   }).join('')+'</tbody>'
 }
-function renderPmoMasterTable(rows){const t=document.getElementById('pmo-master-table');if(!t)return;t.innerHTML=`<thead><tr><th>Identities</th><th>Supervisor</th><th>City</th><th>Category</th><th>Stage</th><th>Trenching</th><th>Fiber/ODB</th><th>SOR / Invoice</th><th>Record Status</th></tr></thead><tbody>`+rows.map(r=>{const sup=getRawField(r.raw,['Supervisor','Assigned To','Owner','Project Manager'])||'—',cat=`${r.project||'FTTH'} / ${r.subclass||r.type||'—'}`,tr=`${parseNum(r.milestones?.Trench?.progress)} / ${parseNum(r.milestones?.Trench?.scope)}`,fo=`Fib: ${parseNum(r.milestones?.Fiber?.progress)} | ODB: ${parseNum(r.milestones?.ODBs?.progress)}`,sor=`${pmoSORStatus(r)||'—'} / ${pmoInvoice50Status(r)||'Not Started'}`;return`<tr class="${r.pmoReasons.length?'pmo-row-alert':''}"><td><div class="pmo-ident">${escapeHtml(r.linkCode)}</div><div class="pmo-sub">${escapeHtml(r.workOrder)}</div></td><td><b>${escapeHtml(sup)}</b><div class="pmo-sub">${escapeHtml(r.district)}</div></td><td>${escapeHtml(r.city||'—')}</td><td><span class="pmo-chip blue">${escapeHtml(cat)}</span></td><td>${escapeHtml(r.stage)}</td><td>${escapeHtml(tr)}</td><td>${escapeHtml(fo)}</td><td>${escapeHtml(sor)}</td><td>${pmoStatusChip(r.pmoStatus)}</td></tr>`}).join('')+'</tbody>'}
+function renderPmoMasterTable(rows){ rows=(rows||[]).slice(0,500);const t=document.getElementById('pmo-master-table');if(!t)return;t.innerHTML=`<thead><tr><th>Identities</th><th>Supervisor</th><th>City</th><th>Category</th><th>Stage</th><th>Trenching</th><th>Fiber/ODB</th><th>SOR / Invoice</th><th>Record Status</th></tr></thead><tbody>`+rows.map(r=>{const sup=getRawField(r.raw,['Supervisor','Assigned To','Owner','Project Manager'])||'—',cat=`${r.project||'FTTH'} / ${r.subclass||r.type||'—'}`,tr=`${parseNum(r.milestones?.Trench?.progress)} / ${parseNum(r.milestones?.Trench?.scope)}`,fo=`Fib: ${parseNum(r.milestones?.Fiber?.progress)} | ODB: ${parseNum(r.milestones?.ODBs?.progress)}`,sor=`${pmoSORStatus(r)||'—'} / ${pmoInvoice50Status(r)||'Not Started'}`;return`<tr class="${r.pmoReasons.length?'pmo-row-alert':''}"><td><div class="pmo-ident">${escapeHtml(r.linkCode)}</div><div class="pmo-sub">${escapeHtml(r.workOrder)}</div></td><td><b>${escapeHtml(sup)}</b><div class="pmo-sub">${escapeHtml(r.district)}</div></td><td>${escapeHtml(r.city||'—')}</td><td><span class="pmo-chip blue">${escapeHtml(cat)}</span></td><td>${escapeHtml(r.stage)}</td><td>${escapeHtml(tr)}</td><td>${escapeHtml(fo)}</td><td>${escapeHtml(sor)}</td><td>${pmoStatusChip(r.pmoStatus)}</td></tr>`}).join('')+'</tbody>'}
 function stageBucket(r){
   // Stage Cost Analysis is driven mainly by Invoice Status / FULL WO STATUS via pmoPMStage().
   // Keep commercial SOR stages visible as dedicated columns instead of hiding them under Other.
@@ -7342,9 +7342,6 @@ function renderExecutiveReports(){
 
 function renderAll() {
   saveGlobalFilters();
-  // PERFORMANCE FIX: render only the active tab instead of rebuilding every table/chart on each load.
-  // The previous version rendered Overview + Tables + PMO Audit + Performance + Reports together,
-  // which can freeze the browser and trigger "This page isn't responding" on Streamlit Cloud.
   updateBulkFilterStatus();
   renderFilters();
   let rows = getFilteredWorkorders();
@@ -7352,39 +7349,45 @@ function renderAll() {
   const penalties = getFilteredPenalties(rows);
   const activeTab = state.tab || 'overview';
 
+  // V4 ENTERPRISE PERFORMANCE MODE:
+  // Keep the first screen responsive. Heavy tables/charts are rendered only for the active tab,
+  // and non-critical overview widgets are delayed in small browser tasks.
+  const defer = (fn, delay=0) => { try { setTimeout(fn, delay); } catch(e) { console.warn(e); } };
+
   if (activeTab === 'overview') {
     renderKpis(rows, penalties);
     renderExecutiveOverviewSummary(rows);
-    renderHealthSummary(rows);
-    renderMilestones(rows);
-    renderClosureAlert(rows);
-    renderTimeline(rows);
-    renderPenaltyHeatmap(penalties);
-    renderPerformance(rows);
-    renderKpiTrend(rows);
+    // Render only the most useful first-screen widgets immediately.
+    defer(() => renderMilestones(rows), 20);
+    defer(() => renderHealthSummary(rows), 80);
+    defer(() => renderClosureAlert(rows), 140);
+    // Heavy visual sections are deferred to avoid browser "page not responding".
+    defer(() => renderTimeline(rows), 260);
+    defer(() => renderPenaltyHeatmap(penalties), 420);
+    defer(() => renderPerformance(rows), 580);
+    defer(() => renderKpiTrend(rows), 760);
   } else if (activeTab === 'tables') {
     renderKpis(rows, penalties);
-    renderExtraTables(rows, penalties);
+    defer(() => renderExtraTables(rows, penalties), 20);
   } else if (activeTab === 'pmo') {
-    renderPmoAll();
-    bindPmoInputs();
+    defer(() => { renderPmoAll(); bindPmoInputs(); }, 20);
   } else if (activeTab === 'performance') {
     renderPerformancePage(rows);
-    renderPerformanceEndVisuals(rows);
+    defer(() => renderPerformanceEndVisuals(rows), 80);
   } else if (activeTab === 'perf-explanation') {
     renderPerformanceExplanationEngine(rows);
   } else if (activeTab === 'decision') {
     renderDecision(rows, penalties);
   } else if (activeTab === 'reports') {
-    // Reports need KPI and executive summaries as source blocks for copied report cards.
     renderKpis(rows, penalties);
-    renderExecutiveOverviewSummary(rows);
-    renderPmoCost(rows);
-    renderExecutiveReports();
+    defer(() => renderExecutiveOverviewSummary(rows), 20);
+    defer(() => renderPmoCost(rows), 120);
+    defer(() => renderExecutiveReports(), 220);
   }
 
-  updateDetailedAnalysisButtons();
-  dashboardFilterIntegrityCheck();
+  defer(() => updateDetailedAnalysisButtons(), 40);
+  // dashboardFilterIntegrityCheck is intentionally deferred and protected; it is diagnostic only.
+  defer(() => { try { dashboardFilterIntegrityCheck(); } catch(e) { console.warn(e); } }, 1200);
 }
 function updateDetailedAnalysisButtons() {
   document.body.classList.toggle('show-detailed-analysis', !!state.showDetailedAnalysis);
