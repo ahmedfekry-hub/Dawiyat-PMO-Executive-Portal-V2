@@ -1535,7 +1535,7 @@ def notification_access_enabled(username: str, category: str) -> bool:
 
 def build_effective_operational_data() -> pd.DataFrame:
     """Single source of truth used for snapshots and downloads: Master + latest project updates + derived fields."""
-    base = safe_read_csv(WO_PATH).copy()
+    base = master_workorders_df().copy()
     if base.empty:
         return base
     return apply_derived_billing_fields(apply_project_updates_to_workorders(base)).copy()
@@ -1764,7 +1764,7 @@ def read_cached_document_status_records() -> List[dict]:
         pass
     try:
         if DOC_STATUS_CACHE_PATH.exists():
-            df = pd.read_csv(DOC_STATUS_CACHE_PATH, dtype=str).fillna("")
+            df = safe_read_csv(DOC_STATUS_CACHE_PATH).fillna("")
             return df_to_records(df)
     except Exception:
         return []
@@ -2365,7 +2365,7 @@ def first_existing_col(df: pd.DataFrame, candidates: List[str]) -> str:
 
 
 def load_workorders() -> pd.DataFrame:
-    wo = apply_derived_billing_fields(apply_project_updates_to_workorders(safe_read_csv(WO_PATH)))
+    wo = apply_derived_billing_fields(apply_project_updates_to_workorders(master_workorders_df()))
     if wo.empty:
         return wo
     link_col = first_existing_col(wo, ["Link Code"])
@@ -2887,7 +2887,7 @@ def render_dashboard() -> None:
     dashboard_html = read_dashboard_html_cached(str(DASHBOARD_PATH), DASHBOARD_PATH.stat().st_mtime)
     dashboard_html = inject_data_into_dashboard(dashboard_html, raw)
 
-    components.html(dashboard_html, height=3100, scrolling=True)
+    components.html(dashboard_html, height=1800, scrolling=True)
 
 
 
@@ -3007,7 +3007,7 @@ def project_updates_center_page() -> None:
         st.error("You do not have permission to access Project Updates Center.")
         return
 
-    df = safe_read_csv(WO_PATH).copy()
+    df = master_workorders_df().copy()
     if df.empty:
         st.warning("u_osp_work_order.csv is empty or missing.")
         return
@@ -3194,7 +3194,7 @@ def project_updates_center_page() -> None:
         if not editable_cols:
             st.error("No editable columns are assigned to your role.")
             return
-        base_full = safe_read_csv(WO_PATH).copy()
+        base_full = master_workorders_df().copy()
         effective_full = apply_project_updates_to_workorders(base_full).copy()
         for col in PROJECT_UPDATE_EDITABLE_COLUMNS:
             if col not in base_full.columns:
@@ -3922,7 +3922,7 @@ def get_document_link_for_link(wo: pd.DataFrame, link_code: str) -> str:
 
 
 def update_document_link_in_csv(link_code: str, folder_url: str) -> None:
-    wo = safe_read_csv(WO_PATH)
+    wo = master_workorders_df()
     if wo.empty:
         raise RuntimeError("u_osp_work_order.csv is empty or missing.")
     if "Document_Link" not in wo.columns:
@@ -4073,7 +4073,7 @@ def document_upload_page() -> None:
         st.error("You do not have permission to access documents.")
         return
 
-    wo = safe_read_csv(WO_PATH)
+    wo = master_workorders_df()
     if wo.empty:
         st.warning("u_osp_work_order.csv is missing or empty.")
         return
@@ -4158,7 +4158,7 @@ def document_upload_page() -> None:
             if link_folder_url and not current_folder_url:
                 update_document_link_in_csv(link_code, link_folder_url)
                 current_folder_url = link_folder_url
-                wo = safe_read_csv(WO_PATH)
+                wo = master_workorders_df()
             if link_folder_id:
                 doc_status = document_status_for_link(service, link_folder_id)
             else:
@@ -4337,11 +4337,11 @@ def load_ppt_workorders() -> pd.DataFrame:
     """Load the same CSV files as the dashboard, but keep it Streamlit-native.
     Includes fields needed for PPT Builder filters and reports.
     """
-    wo = apply_derived_billing_fields(apply_project_updates_to_workorders(safe_read_csv(WO_PATH))).copy()
+    wo = apply_derived_billing_fields(apply_project_updates_to_workorders(master_workorders_df())).copy()
     if wo.empty:
         return pd.DataFrame()
 
-    dist = safe_read_csv(DISTRICT_PATH).copy()
+    dist = derive_district_records_from_workorders(master_workorders_df()).copy()
 
     link_col = first_existing_col(wo, ["Link Code"])
     wo_col = first_existing_col(wo, ["Work Order"])
